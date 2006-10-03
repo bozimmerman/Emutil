@@ -1,4 +1,5 @@
 import java.io.*;
+import java.security.MessageDigest;
 import java.util.*;
 public class D64Search 
 {
@@ -14,6 +15,7 @@ public class D64Search
 	public static final int FLAG_VERBOSE=2;
 	public static final int FLAG_RECURSE=4;
 	public static final int FLAG_INSIDE=8;
+    public static final int FLAG_SHOWMD5=16;
 	public static final int FMT_PETSCII=0;
 	public static final int FMT_ASCII=1;
 	public static final int FMT_HEX=2;
@@ -138,37 +140,43 @@ public class D64Search
 		return parseMap(type,buf);
 	}
 	
-	public static String toHex(byte b){ return HEX[b];}
+	public static String toHex(byte b){ return HEX[unsigned(b)];}
+    public static String toHex(byte[] buf){
+        StringBuffer ret=new StringBuffer("");
+        for(int b=0;b<buf.length;b++)
+            ret.append(toHex(buf[b]));
+        return ret.toString();
+    }
 	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
-	public static String getFileContent(byte[][][] tsmap, int t, int mt, int s, int fmt)
+	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, int fmt)
 	{
 		HashSet doneBefore=new HashSet();
-		StringBuffer buf=new StringBuffer("");
 		byte[] sector=null;
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
 		{
 			int maxBytes=255;
 			sector=tsmap[t][s];
-			if(sector[0]==0) maxBytes=new Short(sector[1]).intValue();
+			if(sector[0]==0) maxBytes=unsigned(sector[1]);
 			doneBefore.add(sector);
 			for(int i=2;i<=maxBytes;i++)
 				switch(fmt)
 				{
 				case FMT_PETSCII:
-					buf.append(convertToPetscii(sector[i]));
+					out.write((byte)convertToPetscii(sector[i]));
 					break;
-				case FMT_ASCII:
-					buf.append((char)sector[i]);
-					break;
-				case FMT_HEX:
-					buf.append(toHex(sector[i]));
+                default:
+                    out.write(sector[i]);
 					break;
 				}
-			t=new Short(sector[0]).intValue();
-			s=new Short(sector[1]).intValue();
+			t=unsigned(sector[0]);
+			s=unsigned(sector[1]);
 		}
-		return buf.toString();
+		return out.toByteArray();
 	}
+    
+    public static short unsigned(byte b){ return (short)(0xFF & b);}
+    
 	
 	public static Vector getFiledata(String type, byte[][][] tsmap, int flags, int fmt)
 	{
@@ -177,10 +185,11 @@ public class D64Search
 		int s=0;
 		Vector finalData=new Vector();
 		Vector fileNames=new Vector();
+        boolean inside=((flags&FLAG_INSIDE)>0);
+        boolean md5=((flags&FLAG_SHOWMD5)>0);
 		Vector types=((flags&FLAG_VERBOSE)>0)?new Vector():null;
 		Vector sizes=((flags&FLAG_VERBOSE)>0)?new Vector():null;
-		Vector data=((flags&FLAG_INSIDE)>0)?new Vector():null;
-		boolean inside=((flags&FLAG_INSIDE)>0);
+		Vector data=(inside||md5)?new Vector():null;
 		byte[] sector=tsmap[t][s];
 		t=sector[0];
 		s=sector[1];
@@ -215,28 +224,31 @@ public class D64Search
 					fileNames.add(file.toString());
 					if(sizes!=null)
 					{
-						int size=(256*(sector[i+28]+(256*sector[i+29])));
-						sizes.add(new Integer(size).toString());
+                        short lb=unsigned(sector[i+28]);
+                        short hb=unsigned(sector[i+29]);
+						int size=(256*(lb+(256*hb)));
+						if(size<0) System.out.println(lb+","+hb+","+size);
+                        sizes.add(new Integer(size).toString());
 					}
 					if(types!=null)
 						switch(sector[i])
 						{
-						case (byte)129: types.add(",s"); break;
-						case (byte)130: types.add(",p"); break;
-						case (byte)131: types.add(",u"); break;
-						case (byte)132: types.add(",r"); break;
+						case (byte)129: types.add(", seq"); break;
+						case (byte)130: types.add(", prg"); break;
+						case (byte)131: types.add(", usr"); break;
+						case (byte)132: types.add(", rel"); break;
 						default: types.add(",?");break;
 						}
 					if(data!=null)
 					{
-						int fileT=new Short(sector[i+1]).intValue();
-						int fileS=new Short(sector[i+2]).intValue();
+						int fileT=unsigned(sector[i+1]);
+						int fileS=unsigned(sector[i+2]);
 						data.addElement(getFileContent(tsmap,fileT,maxT,fileS,fmt));
 					}
 				}
 			}
-			t=new Short(sector[0]).intValue();
-			s=new Short(sector[1]).intValue();
+			t=unsigned(sector[0]);
+			s=unsigned(sector[1]);
 		}
 		finalData.addElement(toStringList(fileNames));
 		if(types!=null)
@@ -248,9 +260,9 @@ public class D64Search
 		else
 			finalData.addElement(new String[fileNames.size()]);
 		if(data!=null)
-			finalData.addElement(toStringList(data));
+			finalData.addElement(toByteList(data));
 		else
-			finalData.addElement(new String[fileNames.size()][]);
+			finalData.addElement(new byte[fileNames.size()][0]);
 		return finalData;
 	}
 
@@ -268,7 +280,7 @@ public class D64Search
 			files[f]=(byte[])V.elementAt(f);
 		return files;
 	}
-	
+    
 	private static boolean check(String name, char[] expr, boolean caseSensitive)
 	{
 		int n=0;
@@ -301,31 +313,43 @@ public class D64Search
 		return name.length()-n==expr.length-ee;
 	}
 
-	private static boolean checkInside(String buf, char[] expr, int flags, int fmt, boolean caseSensitive)
+	private static boolean checkInside(byte[] buf, char[] expr, int flags, int fmt, boolean caseSensitive)
 	{
-		if(!caseSensitive) buf=buf.toUpperCase();
-		int firstLetter=0;
-		for(firstLetter=0;firstLetter<expr.length;firstLetter++)
-			if((expr[firstLetter]!='?')&&(expr[firstLetter]!='*'))
-				break;
-		if(firstLetter>=expr.length) return true;
-		if(fmt==FMT_HEX)
-		{
-			if(firstLetter>(expr.length-2)) return true;
-			int i=buf.indexOf(expr[firstLetter]+""+expr[firstLetter+1]);
-			while((i>=0)&&(i+expr.length<buf.length()))
-			{
-				if((i%2)==0)
-				{
-					String substr=buf.substring(i,i+expr.length);
-					if(check(substr,expr,caseSensitive))
-						return true;
-				}
-				i=buf.indexOf(expr[firstLetter]+""+expr[firstLetter+1],i+2);
-			}
-			return false;
-		}
-		
+		if(!caseSensitive)
+        {
+            byte[] chk=new byte[buf.length];
+            for(int b=0;b<buf.length;b++)
+                chk[b]=(byte)Character.toUpperCase((char)buf[b]);
+            buf=chk;
+        }
+        boolean byteFormat=fmt==FMT_HEX;
+        int bb=0;
+        int e=0;
+        for(int b=0;b<buf.length;b++)
+        {
+            for(e=0,bb=0;e<=expr.length;e++,bb++)
+                if(e==expr.length)
+                    return true;
+                else
+                if((expr[e]=='?')||(expr[e]=='*'))
+                    continue;
+                else
+                if((b+bb)>=buf.length)
+                    return false;
+                else
+                if(byteFormat)
+                {
+                    if(e<expr.length-1)
+                    {
+                        if(buf[b+bb]!=D64Search.fromHex(""+expr[e]+expr[e+1]))
+                            break;
+                        e++;
+                    }
+                }
+                else
+                if(expr[e]!=(char)buf[b+bb])
+                    break;
+        }
 		return false;
 	}
 	
@@ -341,6 +365,11 @@ public class D64Search
 		{
 			boolean caseSensitive=(flags&FLAG_CASESENSITIVE)>0;
 			boolean inside=(flags&FLAG_INSIDE)>0;
+            MessageDigest MD=null;
+            if((flags&FLAG_SHOWMD5)>0)
+            {
+                try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace();}
+            }
 			for(int f=0;f<IMAGES.length;f++)
 				if(F.getName().toUpperCase().endsWith(IMAGES[f]))
 				{
@@ -352,7 +381,7 @@ public class D64Search
 					{
 						boolean announced=false;
 						for(int n=0;n<names.length;n++)
-							if((inside&&(checkInside(((String[])fileData.lastElement())[n],expr,flags,fmt,caseSensitive)))
+							if((inside&&(checkInside(((byte[][])fileData.lastElement())[n],expr,flags,fmt,caseSensitive)))
 							||check(caseSensitive?names[n]:names[n].toUpperCase(),expr,caseSensitive))
 							{
 								if(!announced)
@@ -371,6 +400,7 @@ public class D64Search
 										name=newName.toString();
 									}
 									else
+                                    if(fmt==FMT_HEX)
 									{
 										StringBuffer newName=new StringBuffer("");
 										for(int x=0;x<name.length();x+=2)
@@ -378,14 +408,19 @@ public class D64Search
 										name=newName.toString();
 									}
 								}
+                                System.out.print("  "+names[n]);
 								if((flags&FLAG_VERBOSE)>0)
 								{
 									String[] types=(String[])fileData.elementAt(1);
 									String[] sizes=(String[])fileData.elementAt(2);
-									System.out.println("  "+names[n]+types[n]+" ("+sizes[n]+")");
+									System.out.print(types[n]+", "+sizes[n]+" bytes");
 								}
-								else
-									System.out.println("  "+names[n]);
+                                if((flags&FLAG_SHOWMD5)>0)
+                                {
+                                    MD.update(((byte[][])fileData.lastElement())[n]);
+                                    System.out.print(", MD5: "+toHex(MD.digest()));
+                                }
+                                System.out.println("");
 							}
 					}
 					break;
@@ -401,22 +436,23 @@ public class D64Search
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search");
 			System.out.println("  -V verbose");
+            System.out.println("  -M show MD5 sum for each matching file");
 			System.out.println("  -C case sensitive");
 			System.out.println("  -X expr format (-Xp=petscii, Xa=ascii, Xh=hex)");
-			System.out.println("  -I search inside files");
-			System.out.println("\n\r\n\r* You might have to put \"*\" expressions in quotes.");
-			System.out.println("* Searches inside files allow ?, but not \"*\" expressions.");
+			System.out.println("  -I search inside files (substring search)");
+			System.out.println("\n\r\n\r* Expressions include * and ? characters.");
+			System.out.println("* Hex expressions include hex digits, *, and ?.");
 			return;
 		}
 		int flags=0;
-		int fmt=-1;
+		int fmt=FMT_PETSCII;
 		String path=null;
 		String expr="";
 		for(int i=0;i<args.length;i++)
 		{
 			if((args[i].startsWith("-")&&(path==null)))
 			{
-				for(int c=1;i<args[i].length();c++)
+				for(int c=1;c<args[i].length();c++)
 				{
 					switch(args[i].charAt(c))
 					{
@@ -428,6 +464,8 @@ public class D64Search
 					case 'V': flags=flags|FLAG_VERBOSE; break;
 					case 'i':
 					case 'I': flags=flags|FLAG_INSIDE; break;
+                    case 'm':
+                    case 'M': flags=flags|FLAG_SHOWMD5; break;
 					case 'x':
 					case 'X':
 						fmt=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
