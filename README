@@ -1,0 +1,21 @@
+Emutil (C)2006 Bo Zimmerman
+Please read the LICENSE file for license information
+Please read the NOTICE file for credits information
+
+Emutil is a collection of utilities for dealing with files which are in 
+formats most commonly used by Commodore 64 emulators.  
+
+At the moment, the following utilities exist in this project, in the 
+following languages:
+
+D64Search (java)
+----------------
+A tool for searching the internal filenames and/or file data inside of common 
+Emulator image files (.D64, .D71, .D81).  This tool will report the names of
+image files containing matches, and the names of the internal Commodore files
+which were matched.  Supports recursing directories of image files.  
+
+Java version requires Java 1.4.2 (10) or better.
+
+To execute from the command line (and get further help):
+java com.planet_ink.emutil.D64Search
