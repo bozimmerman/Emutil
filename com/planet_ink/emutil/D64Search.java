@@ -18,10 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */public class D64Search 
 {
-	// oliver netlib.64
 	// todo: add file masks to options
-	// usb byteblaster mv
-	// altera free developers kit usbblaster
 	public static final String D64IMAGE=".D64";
 	public static final String D71IMAGE=".D71";
 	public static final String D81IMAGE=".D81";
