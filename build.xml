@@ -1,0 +1,23 @@
+<project name="CoffeeMUD" default="compile">
+	<target name="compile">
+		<javac srcdir="." classpath="." nowarn="yes" deprecation="on" debug="on" memoryMaximumSize="256m" fork="on">
+			<compilerarg value="-Xlint:unchecked" />
+    	</javac>
+		<echo>Compiliation done.</echo>
+	</target>
+	<target name="doc">
+		<echo>Beginning Javadoc generation</echo>
+		<javadoc sourcepath="." classpath="." destdir=".\docs" packagenames="com\planet_ink.*" maxmemory="256m" verbose="on" linksource="yes" source="1.5" author="true" version="true" use="true"/>
+		<echo>Javadoc generation complete.</echo>
+	</target>
+	<target name="clean">
+	  <delete>
+		  <fileset dir="." includes="**/*.class"/>
+	  </delete>
+	</target>
+	<jar destfile="D64Search.jar">
+	</jar>
+</project>
+
+
+
