@@ -19,20 +19,28 @@ limitations under the License.
 */public class D64Search 
 {
 	// todo: add file masks to options
-	public static final String D64IMAGE=".D64";
-	public static final String D71IMAGE=".D71";
-	public static final String D81IMAGE=".D81";
-	public static final int FLAG_CASESENSITIVE=1;
-	public static final int FLAG_VERBOSE=2;
-	public static final int FLAG_RECURSE=4;
-	public static final int FLAG_INSIDE=8;
-    public static final int FLAG_SHOWMD5=16;
-	public static final int FMT_PETSCII=0;
-	public static final int FMT_ASCII=1;
-	public static final int FMT_HEX=2;
-	public static final String[] IMAGES={D64IMAGE,D71IMAGE,D81IMAGE};
+	public enum IMAGE_TYPE {
+		D64 { public String toString() { return ".D64";}},
+		D71 { public String toString() { return ".D71";}},
+		D81 { public String toString() { return ".D81";}},
+		D80 { public String toString() { return ".D80";}},
+		D82 { public String toString() { return ".D82";}},
+	};
+
+	public enum SEARCH_FLAG {
+		CASESENSITIVE,
+		VERBOSE,
+		RECURSE,
+		INSIDE,
+		SHOWMD5;
+	};
+	public enum FILE_FORMAT {
+		PETSCII,
+		ASCII,
+		HEX;
+	};
 	public static final String[] HEX=new String[256];
-	public static final Hashtable ANTI_HEX=new Hashtable();
+	public static final Hashtable<String,Short> ANTI_HEX=new Hashtable<String,Short>();
 	public static final String HEX_DIG="0123456789ABCDEF";
 	static{
 		for(int h=0;h<16;h++)
@@ -43,9 +51,9 @@ limitations under the License.
 			}
 	}
 	
-	private static int getImageSecsPerTrack(String type, int t)
+	private static int getImageSecsPerTrack(IMAGE_TYPE type, int t)
 	{
-		if(type.equals(D64IMAGE))
+		if(type.equals(IMAGE_TYPE.D64))
 		{
 			if(t<18) return 21;
 			if(t<25) return 19;
@@ -53,7 +61,7 @@ limitations under the License.
 			return 17;
 		}
 		else
-		if(type.equals(D71IMAGE))
+		if(type.equals(IMAGE_TYPE.D71))
 		{
 			if(t<18) return 21;
 			if(t<25) return 19;
@@ -65,12 +73,25 @@ limitations under the License.
 			return 17;
 		}
 		else
-		if(type.equals(D81IMAGE))
+		if(type.equals(IMAGE_TYPE.D81))
 			return 40;
+		else
+		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
+		{
+			if(t<40) return 30;
+			if(t<54) return 28;
+			if(t<65) return 26;
+			if(t<78) return 24;
+			if(t<117) return 30;
+			if(t<131) return 28;
+			if(t<142) return 26;
+			if(t<155) return 24;
+			return 23;
+		}
 		return -1;
 	}
 
-	public static int getImageTotalBytes(String type)
+	public static int getImageTotalBytes(IMAGE_TYPE type)
 	{
 		int ts=getImageNumTracks(type);
 		int total=0;
@@ -80,27 +101,35 @@ limitations under the License.
 	}
 	
 	
-	public static int getImageDirTrack(String type)
+	public static int getImageDirTrack(IMAGE_TYPE type)
 	{
-		if(type.equals(D64IMAGE))
+		if(type.equals(IMAGE_TYPE.D64))
 			return 18;
-		if(type.equals(D71IMAGE))
+		if(type.equals(IMAGE_TYPE.D71))
 			return 18;
-		if(type.equals(D81IMAGE))
+		if(type.equals(IMAGE_TYPE.D81))
 			return 40;
+		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
+			return 38;
 		return -1;
 	}
 	
-	private static int getImageNumTracks(String type)
+	private static int getImageNumTracks(IMAGE_TYPE type)
 	{
-		if(type.equals(D64IMAGE))
+		if(type.equals(IMAGE_TYPE.D64))
 			return 35;
 		else
-		if(type.equals(D71IMAGE))
+		if(type.equals(IMAGE_TYPE.D71))
 			return 70;
 		else
-		if(type.equals(D81IMAGE))
+		if(type.equals(IMAGE_TYPE.D81))
 			return 79;
+		else
+		if(type.equals(IMAGE_TYPE.D80))
+			return 77;
+		else
+		if(type.equals(IMAGE_TYPE.D82))
+			return 2*77;
 		return -1;
 	}
 	
@@ -113,7 +142,7 @@ limitations under the License.
 		return (char)b;
 	}
 	
-	private static byte[][][] parseMap(String type, byte[] buf)
+	private static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf)
 	{
 		int numTS=getImageNumTracks(type);
 		byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(type,1)][256];
@@ -131,7 +160,7 @@ limitations under the License.
 		return tsmap;
 	}
 	
-	public static byte[][][] getDisk(String type,File F)
+	public static byte[][][] getDisk(IMAGE_TYPE type, File F)
 	{
 		byte[] buf=new byte[getImageTotalBytes(type)];
 		try
@@ -159,52 +188,55 @@ limitations under the License.
         return ret.toString();
     }
 	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
-	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, int fmt)
+	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, FILE_FORMAT fmt)
 	{
-		HashSet doneBefore=new HashSet();
+		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		byte[] sector=null;
         ByteArrayOutputStream out=new ByteArrayOutputStream();
-		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
+		try
 		{
-			int maxBytes=255;
-			sector=tsmap[t][s];
-			if(sector[0]==0) maxBytes=unsigned(sector[1]);
-			doneBefore.add(sector);
-			for(int i=2;i<=maxBytes;i++)
-				switch(fmt)
-				{
-				case FMT_PETSCII:
-					out.write((byte)convertToPetscii(sector[i]));
-					break;
-                default:
-                    out.write(sector[i]);
-					break;
-				}
-			t=unsigned(sector[0]);
-			s=unsigned(sector[1]);
+			while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
+			{
+				int maxBytes=255;
+				sector=tsmap[t][s];
+				if(sector[0]==0) maxBytes=unsigned(sector[1]);
+				doneBefore.add(sector);
+				for(int i=2;i<=maxBytes;i++)
+					if(fmt==FILE_FORMAT.PETSCII)
+						out.write((byte)convertToPetscii(sector[i]));
+					else
+	                    out.write(sector[i]);
+				t=unsigned(sector[0]);
+				s=unsigned(sector[1]);
+			}
+			return out.toByteArray();
 		}
-		return out.toByteArray();
+		catch(Throwable th)
+		{
+			th.printStackTrace();
+			return null;
+		}
 	}
     
     public static short unsigned(byte b){ return (short)(0xFF & b);}
     
 	
-	public static Vector getFiledata(String type, byte[][][] tsmap, int flags, int fmt)
+	public static Vector<Object> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt)
 	{
 		int t=getImageDirTrack(type);
 		int maxT=D64Search.getImageNumTracks(type);
 		int s=0;
-		Vector finalData=new Vector();
-		Vector fileNames=new Vector();
-        boolean inside=((flags&FLAG_INSIDE)>0);
-        boolean md5=((flags&FLAG_SHOWMD5)>0);
-		Vector types=((flags&FLAG_VERBOSE)>0)?new Vector():null;
-		Vector sizes=((flags&FLAG_VERBOSE)>0)?new Vector():null;
-		Vector data=(inside||md5)?new Vector():null;
+		Vector<Object> finalData=new Vector<Object>();
+		Vector<String> fileNames=new Vector<String>();
+        boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
+        boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
+		Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
+		Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
+		Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
 		byte[] sector=tsmap[t][s];
 		t=sector[0];
 		s=sector[1];
-		HashSet doneBefore=new HashSet();
+		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
@@ -219,11 +251,11 @@ limitations under the License.
 					if((sector[fn]!=-96)&&(sector[fn]!=0))
 						break;
 				StringBuffer file=new StringBuffer("");
-				if((fmt==FMT_PETSCII)||inside)
+				if((fmt==FILE_FORMAT.PETSCII)||inside)
 					for(int x=i+3;x<=fn;x++)
 						file.append(convertToPetscii(sector[x]));
 				else
-				if(fmt==FMT_ASCII)
+				if(fmt==FILE_FORMAT.ASCII)
 					for(int x=i+3;x<=fn;x++)
 						file.append((char)sector[x]);
 				else
@@ -254,7 +286,14 @@ limitations under the License.
 					{
 						int fileT=unsigned(sector[i+1]);
 						int fileS=unsigned(sector[i+2]);
-						data.addElement(getFileContent(tsmap,fileT,maxT,fileS,fmt));
+						byte[] fileData =getFileContent(tsmap,fileT,maxT,fileS,fmt);
+						if(fileData==null)
+						{
+							System.err.println("Error reading: "+fileT+","+fileS);
+							return null;
+						}
+						else
+							data.addElement(fileData);
 					}
 				}
 			}
@@ -277,14 +316,14 @@ limitations under the License.
 		return finalData;
 	}
 
-	private static String[] toStringList(Vector V)
+	private static String[] toStringList(Vector<String> V)
 	{
 		String[] files=new String[V.size()];
 		for(int f=0;f<V.size();f++)
 			files[f]=(String)V.elementAt(f);
 		return files;
 	}
-	private static byte[][] toByteList(Vector V)
+	private static byte[][] toByteList(Vector<byte[]> V)
 	{
 		byte[][] files=new byte[V.size()][];
 		for(int f=0;f<V.size();f++)
@@ -296,7 +335,7 @@ limitations under the License.
 	{
 		int n=0;
 		int ee=0;
-		if((expr.length>1)&&(expr[0]=='*'))
+		if((expr.length>1)&&(expr[0]=='%'))
 		{
 			for(;n<name.length();n++)
 				if(name.charAt(n)==expr[1])
@@ -312,7 +351,7 @@ limitations under the License.
 				if(n+e>=name.length())
 					return false;
 				break;
-			case '*':
+			case '%':
 				return true;
 			default:
 				if(n+e-ee>=name.length())
@@ -324,7 +363,7 @@ limitations under the License.
 		return name.length()-n==expr.length-ee;
 	}
 
-	private static boolean checkInside(byte[] buf, char[] expr, int flags, int fmt, boolean caseSensitive)
+	private static boolean checkInside(byte[] buf, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, boolean caseSensitive)
 	{
 		if(!caseSensitive)
         {
@@ -333,7 +372,7 @@ limitations under the License.
                 chk[b]=(byte)Character.toUpperCase((char)buf[b]);
             buf=chk;
         }
-        boolean byteFormat=fmt==FMT_HEX;
+        boolean byteFormat=fmt==FILE_FORMAT.HEX;
         int bb=0;
         int e=0;
         for(int b=0;b<buf.length;b++)
@@ -342,7 +381,7 @@ limitations under the License.
                 if(e==expr.length)
                     return true;
                 else
-                if((expr[e]=='?')||(expr[e]=='*'))
+                if((expr[e]=='?')||(expr[e]=='%'))
                     continue;
                 else
                 if((b+bb)>=buf.length)
@@ -364,7 +403,7 @@ limitations under the License.
 		return false;
 	}
 	
-	private static void search(File F, char[] expr, int flags, int fmt)
+	private static void search(File F, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT  fmt)
 	{
 		if(F.isDirectory())
 		{
@@ -374,19 +413,24 @@ limitations under the License.
 		}
 		else
 		{
-			boolean caseSensitive=(flags&FLAG_CASESENSITIVE)>0;
-			boolean inside=(flags&FLAG_INSIDE)>0;
+			boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
+			boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
             MessageDigest MD=null;
-            if((flags&FLAG_SHOWMD5)>0)
+            if(flags.contains(SEARCH_FLAG.SHOWMD5))
             {
                 try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace();}
             }
-			for(int f=0;f<IMAGES.length;f++)
-				if(F.getName().toUpperCase().endsWith(IMAGES[f]))
+			for(IMAGE_TYPE img : IMAGE_TYPE.values())
+				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
-					String type=IMAGES[f];
+					IMAGE_TYPE type=img;
 					byte[][][] disk=getDisk(type,F);
-					Vector fileData=getFiledata(type,disk,flags,fmt);
+					Vector<Object> fileData=getFiledata(type,disk,flags,fmt);
+					if(fileData==null)
+					{
+						System.err.println("Error reading :"+F.getName());
+						continue;
+					}
 					String[] names=(String[])fileData.firstElement();
 					if(names.length>0)
 					{
@@ -401,9 +445,9 @@ limitations under the License.
 									announced=true;
 								}
 								String name=names[n];
-								if((flags&FLAG_INSIDE)==0)
+								if(!flags.contains(SEARCH_FLAG.INSIDE))
 								{
-									if(fmt==FMT_ASCII)
+									if(fmt==FILE_FORMAT.ASCII)
 									{
 										StringBuffer newName=new StringBuffer("");
 										for(int x=0;x<name.length();x++)
@@ -411,7 +455,7 @@ limitations under the License.
 										name=newName.toString();
 									}
 									else
-                                    if(fmt==FMT_HEX)
+                                    if(fmt==FILE_FORMAT.HEX)
 									{
 										StringBuffer newName=new StringBuffer("");
 										for(int x=0;x<name.length();x+=2)
@@ -420,13 +464,13 @@ limitations under the License.
 									}
 								}
                                 System.out.print("  "+names[n]);
-								if((flags&FLAG_VERBOSE)>0)
+								if((flags.contains(SEARCH_FLAG.VERBOSE)))
 								{
 									String[] types=(String[])fileData.elementAt(1);
 									String[] sizes=(String[])fileData.elementAt(2);
 									System.out.print(types[n]+", "+sizes[n]+" bytes");
 								}
-                                if((flags&FLAG_SHOWMD5)>0)
+                                if((flags.contains(SEARCH_FLAG.SHOWMD5)))
                                 {
                                     MD.update(((byte[][])fileData.lastElement())[n]);
                                     System.out.print(", MD5: "+toHex(MD.digest()));
@@ -451,12 +495,14 @@ limitations under the License.
 			System.out.println("  -C case sensitive");
 			System.out.println("  -X expr format (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
-			System.out.println("\n\r\n\r* Expressions include * and ? characters.");
+			System.out.println("");
+			System.out.println("");
+			System.out.println("* Expressions include % and ? characters.");
 			System.out.println("* Hex expressions include hex digits, *, and ?.");
 			return;
 		}
-		int flags=0;
-		int fmt=FMT_PETSCII;
+		HashSet<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
+		FILE_FORMAT fmt=FILE_FORMAT.PETSCII;
 		String path=null;
 		String expr="";
 		for(int i=0;i<args.length;i++)
@@ -468,24 +514,27 @@ limitations under the License.
 					switch(args[i].charAt(c))
 					{
 					case 'r':
-					case 'R': flags=flags|FLAG_RECURSE; break;
+					case 'R': flags.add(SEARCH_FLAG.RECURSE); break;
 					case 'c':
-					case 'C': flags=flags|FLAG_CASESENSITIVE; break;
+					case 'C': flags.add(SEARCH_FLAG.CASESENSITIVE); break;
 					case 'v':
-					case 'V': flags=flags|FLAG_VERBOSE; break;
+					case 'V': flags.add(SEARCH_FLAG.VERBOSE); break;
 					case 'i':
-					case 'I': flags=flags|FLAG_INSIDE; break;
+					case 'I': flags.add(SEARCH_FLAG.INSIDE); break;
                     case 'm':
-                    case 'M': flags=flags|FLAG_SHOWMD5; break;
+                    case 'M': flags.add(SEARCH_FLAG.SHOWMD5); break;
 					case 'x':
 					case 'X':
-						fmt=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
-						if(fmt<0)
+					{
+						int x=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
+						if(x<0)
 						{
 							System.out.println("Error: -x  must be followed by a,p,or h");
 							return;
 						}
+						fmt=FILE_FORMAT.values()[x];
 						break;
+					}
 					}
 				}
 			}
@@ -496,10 +545,10 @@ limitations under the License.
 				expr+=" "+args[i];
 		}
 		expr=expr.trim();
-		if((expr.length()>1)&&(expr.startsWith("*"))
-		&&((expr.charAt(1)=='*')||(expr.charAt(1)=='?')))
+		if((expr.length()>1)&&(expr.startsWith("%"))
+		&&((expr.charAt(1)=='%')||(expr.charAt(1)=='?')))
 		{
-			System.out.println("illegal *? expression error.");
+			System.out.println("illegal %? expression error.");
 			return;
 		}
 		if(path==null)
@@ -508,12 +557,12 @@ limitations under the License.
 			return;
 		}
 		char[] exprCom=expr.toCharArray();
-		if(((flags&FLAG_CASESENSITIVE)==0)||(fmt==FMT_HEX))
+		if((!flags.contains(SEARCH_FLAG.CASESENSITIVE))||(fmt==FILE_FORMAT.HEX))
 			for(int e=0;e<exprCom.length;e++)
 				exprCom[e]=Character.toUpperCase(exprCom[e]);
-		if(fmt==FMT_HEX)
+		if(fmt==FILE_FORMAT.HEX)
 			for(int e=0;e<exprCom.length;e++)
-				if((exprCom[e]!='?')&&(exprCom[e]!='*')&&(HEX_DIG.indexOf(exprCom[e])<0))
+				if((exprCom[e]!='?')&&(exprCom[e]!='%')&&(HEX_DIG.indexOf(exprCom[e])<0))
 				{
 					System.out.println("Illegal hex '"+exprCom[e]+"' in expression.");
 					return;
