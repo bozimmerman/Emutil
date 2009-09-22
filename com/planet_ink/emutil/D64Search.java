@@ -78,14 +78,14 @@ limitations under the License.
 		else
 		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
 		{
-			if(t<40) return 30;
-			if(t<54) return 28;
-			if(t<65) return 26;
-			if(t<78) return 24;
-			if(t<117) return 30;
-			if(t<131) return 28;
-			if(t<142) return 26;
-			if(t<155) return 24;
+			if(t<40) return 29;
+			if(t<54) return 27;
+			if(t<65) return 25;
+			if(t<78) return 23;
+			if(t<117) return 29;
+			if(t<131) return 27;
+			if(t<142) return 25;
+			if(t<155) return 23;
 			return 23;
 		}
 		return -1;
@@ -110,7 +110,20 @@ limitations under the License.
 		if(type.equals(IMAGE_TYPE.D81))
 			return 40;
 		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
-			return 38;
+			return 39;
+		return -1;
+	}
+	
+	public static int getImageDirSector(IMAGE_TYPE type)
+	{
+		if(type.equals(IMAGE_TYPE.D64))
+			return 1;
+		if(type.equals(IMAGE_TYPE.D71))
+			return 1;
+		if(type.equals(IMAGE_TYPE.D81))
+			return 3;
+		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
+			return 1;
 		return -1;
 	}
 	
@@ -225,7 +238,7 @@ limitations under the License.
 	{
 		int t=getImageDirTrack(type);
 		int maxT=D64Search.getImageNumTracks(type);
-		int s=0;
+		int s=getImageDirSector(type);
 		Vector<Object> finalData=new Vector<Object>();
 		Vector<String> fileNames=new Vector<String>();
         boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
@@ -234,8 +247,6 @@ limitations under the License.
 		Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
 		Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
 		byte[] sector=tsmap[t][s];
-		t=sector[0];
-		s=sector[1];
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
