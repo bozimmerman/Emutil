@@ -1,6 +1,8 @@
 package com.planet_ink.emutil;
 import java.io.*;
+import java.lang.reflect.Field;
 import java.security.MessageDigest;
+import java.sql.*;
 import java.util.*;
 /* 
 Copyright 2000-2006 Bo Zimmerman
@@ -27,6 +29,24 @@ limitations under the License.
 		D82 { public String toString() { return ".D82";}},
 	};
 
+	public static class DatabaseInfo {
+		String user=null;
+		String pass=null;
+		String className=null;
+		String service=null;
+		String table=null;
+		Connection conn = null;
+		PreparedStatement stmt = null;
+		public boolean filled(){ return (user!=null)&&(pass!=null)&&(className!=null)&&(service!=null)&&(table!=null);}
+	}
+
+	public static class FileInfo {
+		String fileName = "";
+		String fileType = "";
+		int size = 0;
+		byte[] data = null;
+	}
+	
 	public enum SEARCH_FLAG {
 		CASESENSITIVE,
 		VERBOSE,
@@ -188,7 +208,7 @@ limitations under the License.
 		}
 		catch(java.io.IOException e)
 		{
-			e.printStackTrace();
+			e.printStackTrace(System.err);
 		}
 		return parseMap(type,buf);
 	}
@@ -226,7 +246,7 @@ limitations under the License.
 		}
 		catch(Throwable th)
 		{
-			th.printStackTrace();
+			th.printStackTrace(System.err);
 			return null;
 		}
 	}
@@ -234,18 +254,17 @@ limitations under the License.
     public static short unsigned(byte b){ return (short)(0xFF & b);}
     
 	
-	public static Vector<Object> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt)
+	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt)
 	{
 		int t=getImageDirTrack(type);
 		int maxT=D64Search.getImageNumTracks(type);
 		int s=getImageDirSector(type);
-		Vector<Object> finalData=new Vector<Object>();
-		Vector<String> fileNames=new Vector<String>();
+		Vector<FileInfo> finalData=new Vector<FileInfo>();
         boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
         boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
-		Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
+		//Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
+		//Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
+		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
 		byte[] sector=tsmap[t][s];
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
@@ -275,25 +294,27 @@ limitations under the License.
 					
 				if(file.length()>0)
 				{
-					fileNames.add(file.toString());
-					if(sizes!=null)
+					FileInfo f = new FileInfo();
+					finalData.add(f);
+					f.fileName=file.toString();
+					if(flags.contains(SEARCH_FLAG.VERBOSE))
 					{
                         short lb=unsigned(sector[i+28]);
                         short hb=unsigned(sector[i+29]);
 						int size=(256*(lb+(256*hb)));
 						if(size<0) System.out.println(lb+","+hb+","+size);
-                        sizes.add(new Integer(size).toString());
-					}
-					if(types!=null)
+						f.size = size;
+						
 						switch(sector[i])
 						{
-						case (byte)129: types.add(", seq"); break;
-						case (byte)130: types.add(", prg"); break;
-						case (byte)131: types.add(", usr"); break;
-						case (byte)132: types.add(", rel"); break;
-						default: types.add(",?");break;
+						case (byte)129: f.fileType=("seq"); break;
+						case (byte)130: f.fileType=("prg"); break;
+						case (byte)131: f.fileType=("usr"); break;
+						case (byte)132: f.fileType=("rel"); break;
+						default:f.fileType=("?");break;
 						}
-					if(data!=null)
+					}
+					if(inside||md5)
 					{
 						int fileT=unsigned(sector[i+1]);
 						int fileS=unsigned(sector[i+2]);
@@ -304,44 +325,16 @@ limitations under the License.
 							return null;
 						}
 						else
-							data.addElement(fileData);
+							f.data = fileData;
 					}
 				}
 			}
 			t=unsigned(sector[0]);
 			s=unsigned(sector[1]);
 		}
-		finalData.addElement(toStringList(fileNames));
-		if(types!=null)
-			finalData.addElement(toStringList(types));
-		else
-			finalData.addElement(new String[fileNames.size()]);
-		if(sizes!=null)
-			finalData.addElement(toStringList(sizes));
-		else
-			finalData.addElement(new String[fileNames.size()]);
-		if(data!=null)
-			finalData.addElement(toByteList(data));
-		else
-			finalData.addElement(new byte[fileNames.size()][0]);
 		return finalData;
 	}
 
-	private static String[] toStringList(Vector<String> V)
-	{
-		String[] files=new String[V.size()];
-		for(int f=0;f<V.size();f++)
-			files[f]=(String)V.elementAt(f);
-		return files;
-	}
-	private static byte[][] toByteList(Vector<byte[]> V)
-	{
-		byte[][] files=new byte[V.size()][];
-		for(int f=0;f<V.size();f++)
-			files[f]=(byte[])V.elementAt(f);
-		return files;
-	}
-    
 	private static boolean check(String name, char[] expr, boolean caseSensitive)
 	{
 		int n=0;
@@ -414,13 +407,13 @@ limitations under the License.
 		return false;
 	}
 	
-	private static void search(File F, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT  fmt)
+	private static void search(File F, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT  fmt, DatabaseInfo dbInfo)
 	{
 		if(F.isDirectory())
 		{
 			File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
-				search(files[f],expr,flags,fmt);
+				search(files[f],expr,flags,fmt, dbInfo);
 		}
 		else
 		{
@@ -429,68 +422,111 @@ limitations under the License.
             MessageDigest MD=null;
             if(flags.contains(SEARCH_FLAG.SHOWMD5))
             {
-                try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace();}
+                try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace(System.err);}
             }
 			for(IMAGE_TYPE img : IMAGE_TYPE.values())
 				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
 					IMAGE_TYPE type=img;
 					byte[][][] disk=getDisk(type,F);
-					Vector<Object> fileData=getFiledata(type,disk,flags,fmt);
+					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt);
 					if(fileData==null)
 					{
 						System.err.println("Error reading :"+F.getName());
 						continue;
 					}
-					String[] names=(String[])fileData.firstElement();
-					if(names.length>0)
+					boolean announced=false;
+					byte[] md5 = null;
+					for(int n=0;n<fileData.size();n++)
 					{
-						boolean announced=false;
-						for(int n=0;n<names.length;n++)
-							if((inside&&(checkInside(((byte[][])fileData.lastElement())[n],expr,flags,fmt,caseSensitive)))
-							||check(caseSensitive?names[n]:names[n].toUpperCase(),expr,caseSensitive))
+						md5=null;
+						FileInfo f = fileData.elementAt(n);
+						if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
+						||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
+						{
+							if(!announced)
 							{
-								if(!announced)
-								{
-									System.out.println(F.getName());
-									announced=true;
-								}
-								String name=names[n];
-								if(!flags.contains(SEARCH_FLAG.INSIDE))
-								{
-									if(fmt==FILE_FORMAT.ASCII)
-									{
-										StringBuffer newName=new StringBuffer("");
-										for(int x=0;x<name.length();x++)
-											newName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
-										name=newName.toString();
-									}
-									else
-                                    if(fmt==FILE_FORMAT.HEX)
-									{
-										StringBuffer newName=new StringBuffer("");
-										for(int x=0;x<name.length();x+=2)
-											newName.append((char)fromHex(name.substring(0,2)));
-										name=newName.toString();
-									}
-								}
-                                System.out.print("  "+names[n]);
-								if((flags.contains(SEARCH_FLAG.VERBOSE)))
-								{
-									String[] types=(String[])fileData.elementAt(1);
-									String[] sizes=(String[])fileData.elementAt(2);
-									System.out.print(types[n]+", "+sizes[n]+" bytes");
-								}
-                                if((flags.contains(SEARCH_FLAG.SHOWMD5)))
-                                {
-                                    MD.update(((byte[][])fileData.lastElement())[n]);
-                                    System.out.print(", MD5: "+toHex(MD.digest()));
-                                }
-                                System.out.println("");
+								System.out.println(F.getName());
+								announced=true;
 							}
+							String name=f.fileName;
+							StringBuffer asciiName=new StringBuffer("");
+							for(int x=0;x<name.length();x++)
+								asciiName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
+							if(dbInfo!=null)
+							{
+                            	MD.reset();
+                                MD.update(f.data);
+                                md5 = MD.digest();
+                                try
+                                {
+                                	dbInfo.stmt.clearParameters();
+                                	dbInfo.stmt.setString(1, F.getName());
+                                	dbInfo.stmt.setString(2, asciiName.toString());
+                                	dbInfo.stmt.setInt(3, (n+1));
+                                	dbInfo.stmt.setInt(4, f.size);
+                                	dbInfo.stmt.setString(5, toHex(MD.digest()));
+                                	dbInfo.stmt.setBinaryStream(5, new ByteArrayInputStream(f.data));
+                                	dbInfo.stmt.addBatch();
+                                }
+                                catch(SQLException e)
+                                {
+                                	System.err.println("Stupid preparedStatement error: "+e.getMessage());
+                                }
+							}
+							if(!flags.contains(SEARCH_FLAG.INSIDE))
+							{
+								if(fmt==FILE_FORMAT.ASCII)
+									name=asciiName.toString();
+								else
+                                if(fmt==FILE_FORMAT.HEX)
+								{
+									StringBuffer newName=new StringBuffer("");
+									for(int x=0;x<name.length();x+=2)
+										newName.append((char)fromHex(name.substring(0,2)));
+									name=newName.toString();
+								}
+							}
+                            System.out.print("  "+asciiName.toString());
+							if((flags.contains(SEARCH_FLAG.VERBOSE)))
+								System.out.print(","+f.fileType+", "+f.size+" bytes");
+                            if((flags.contains(SEARCH_FLAG.SHOWMD5)))
+                            {
+                            	if(md5==null)
+                            	{
+	                            	MD.reset();
+	                                MD.update(f.data);
+	                                md5=MD.digest();
+                            	}
+                                System.out.print(", MD5: "+toHex(md5));
+                            }
+                            System.out.println("");
+						}
+					}
+					if(dbInfo!=null)
+					{
+						try
+						{
+							dbInfo.stmt.executeBatch();
+						}
+						catch(SQLException e)
+						{
+                        	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
+						}
 					}
 					break;
 				}
+			if(dbInfo!=null)
+			{
+				try
+				{
+					dbInfo.conn.commit();
+				}
+				catch(SQLException e)
+				{
+	            	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
+				}
+			}
 		}
 	}
 	
@@ -506,6 +542,11 @@ limitations under the License.
 			System.out.println("  -C case sensitive");
 			System.out.println("  -X expr format (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
+			System.out.println("  -D db export of disk info data (-Du<user>,");
+			System.out.println("     -Dp<password>, -Dc<java class>,");
+			System.out.println("     -Ds<service> -Dt<tablename>)");
+			System.out.println("     (Column Info: imagepath, filename, filenum,");
+			System.out.println("     size, md5, filedata, filetype)");
 			System.out.println("");
 			System.out.println("");
 			System.out.println("* Expressions include % and ? characters.");
@@ -516,6 +557,7 @@ limitations under the License.
 		FILE_FORMAT fmt=FILE_FORMAT.PETSCII;
 		String path=null;
 		String expr="";
+		DatabaseInfo dbInfo = null;
 		for(int i=0;i<args.length;i++)
 		{
 			if((args[i].startsWith("-")&&(path==null)))
@@ -540,10 +582,31 @@ limitations under the License.
 						int x=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
 						if(x<0)
 						{
-							System.out.println("Error: -x  must be followed by a,p,or h");
+							System.err.println("Error: -x  must be followed by a,p,or h");
 							return;
 						}
 						fmt=FILE_FORMAT.values()[x];
+						break;
+					}
+					case 'd':
+					case 'D':
+					{
+						int x=(c<args[i].length()-1)?"UPCST".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
+						if(x<0)
+						{
+							System.err.println("Error: -d  must be followed by u, p, c, s, or t");
+							return;
+						}
+						if(dbInfo==null) dbInfo = new DatabaseInfo();
+						switch(Character.toLowerCase(args[i].charAt(c+1)))
+						{
+						case 'u': dbInfo.user=args[i+1].substring(c+2); break;
+						case 'p': dbInfo.pass=args[i+1].substring(c+2); break;
+						case 'c': dbInfo.className=args[i+1].substring(c+2); break;
+						case 's': dbInfo.service=args[i+1].substring(c+2); break;
+						case 't': dbInfo.table=args[i+1].substring(c+2); break;
+						}
+						c=args[i].length()-1;
 						break;
 					}
 					}
@@ -559,13 +622,40 @@ limitations under the License.
 		if((expr.length()>1)&&(expr.startsWith("%"))
 		&&((expr.charAt(1)=='%')||(expr.charAt(1)=='?')))
 		{
-			System.out.println("illegal %? expression error.");
+			System.err.println("illegal %? expression error.");
 			return;
 		}
 		if(path==null)
 		{
-			System.out.println("Path not found!");
+			System.err.println("Path not found!");
 			return;
+		}
+		if(dbInfo!=null)
+		{
+			System.out.println("DBInfo:\n");
+			Field[] fields=dbInfo.getClass().getFields();
+			for(int f=0;f<fields.length;f++)
+				try{
+				System.out.println("DB."+fields[f].getName()+": "+fields[f].get(dbInfo).toString()+"\n");
+				}catch(Exception e){}
+			if(!dbInfo.filled())
+			{
+				System.err.println("DBInfo incomplete!");
+				return;
+			}
+			flags.add(SEARCH_FLAG.VERBOSE); 
+			flags.add(SEARCH_FLAG.SHOWMD5); 
+        	try
+        	{
+            	Class.forName(dbInfo.className);
+            	dbInfo.conn = DriverManager.getConnection(dbInfo.service,dbInfo.user,dbInfo.pass );
+            	dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filedata, filetype) values (?,?,?,?,?,?,?)");
+        	}
+        	catch(Exception e)
+        	{
+        		System.err.println("Unable to connect to database: "+e.getMessage());
+        		return;
+        	}
 		}
 		char[] exprCom=expr.toCharArray();
 		if((!flags.contains(SEARCH_FLAG.CASESENSITIVE))||(fmt==FILE_FORMAT.HEX))
@@ -575,7 +665,7 @@ limitations under the License.
 			for(int e=0;e<exprCom.length;e++)
 				if((exprCom[e]!='?')&&(exprCom[e]!='%')&&(HEX_DIG.indexOf(exprCom[e])<0))
 				{
-					System.out.println("Illegal hex '"+exprCom[e]+"' in expression.");
+					System.err.println("Illegal hex '"+exprCom[e]+"' in expression.");
 					return;
 				}
 		File F=new File(path);
@@ -583,9 +673,9 @@ limitations under the License.
 		{
 			File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
-				search(files[f],exprCom,flags,fmt);
+				search(files[f],exprCom,flags,fmt,dbInfo);
 		}
 		else
-			search(F,exprCom,flags,fmt);
+			search(F,exprCom,flags,fmt, dbInfo);
 	}
 }
