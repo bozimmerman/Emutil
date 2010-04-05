@@ -1,6 +1,5 @@
 package com.planet_ink.emutil;
 import java.io.*;
-import java.lang.reflect.Field;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
@@ -18,7 +17,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-*/public class D64Search 
+*/
+public class D64Search 
 {
 	// todo: add file masks to options
 	public enum IMAGE_TYPE {
@@ -429,6 +429,36 @@ limitations under the License.
 				{
 					IMAGE_TYPE type=img;
 					byte[][][] disk=getDisk(type,F);
+					if(dbInfo!=null)
+					{
+                        try
+                        {
+                        	dbInfo.stmt.clearParameters();
+                        	MD.reset();
+                        	ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                        	long diskLen=0;
+                        	for(int b1=0;b1<disk.length;b1++)
+                            	for(int b2=0;b2<disk[b1].length;b2++)
+                            	{
+    		                        MD.update(disk[b1][b2]);
+    		                        diskLen += disk[b1][b2].length;
+    		                        //bout.write(disk[b1][b2]);
+                            	}
+                            byte[] md5 = MD.digest();
+                        	dbInfo.stmt.setString(1, F.getName());
+                        	dbInfo.stmt.setString(2, "*");
+                        	dbInfo.stmt.setInt(3, 0);
+                        	dbInfo.stmt.setLong(4, diskLen);
+                        	dbInfo.stmt.setString(5, toHex(md5));
+                        	dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(bout.toByteArray()));
+                        	dbInfo.stmt.setString(7, "dsk");
+                        	dbInfo.stmt.addBatch();
+                        }
+                        catch(Exception e)
+                        {
+                        	System.err.println("Stupid preparedStatement error: "+e.getMessage());
+                        }
+					}
 					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt);
 					if(fileData==null)
 					{
@@ -465,8 +495,9 @@ limitations under the License.
                                 	dbInfo.stmt.setString(2, asciiName.toString());
                                 	dbInfo.stmt.setInt(3, (n+1));
                                 	dbInfo.stmt.setInt(4, f.size);
-                                	dbInfo.stmt.setString(5, toHex(MD.digest()));
-                                	dbInfo.stmt.setBinaryStream(5, new ByteArrayInputStream(f.data));
+                                	dbInfo.stmt.setString(5, toHex(md5));
+                                	dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(f.data));
+                                	dbInfo.stmt.setString(7, f.fileType);
                                 	dbInfo.stmt.addBatch();
                                 }
                                 catch(SQLException e)
@@ -503,28 +534,17 @@ limitations under the License.
                             System.out.println("");
 						}
 					}
-					if(dbInfo!=null)
-					{
-						try
-						{
-							dbInfo.stmt.executeBatch();
-						}
-						catch(SQLException e)
-						{
-                        	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
-						}
-					}
 					break;
 				}
 			if(dbInfo!=null)
 			{
 				try
 				{
-					dbInfo.conn.commit();
+					dbInfo.stmt.executeBatch();
 				}
 				catch(SQLException e)
 				{
-	            	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
+                	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
 				}
 			}
 		}
@@ -600,11 +620,11 @@ limitations under the License.
 						if(dbInfo==null) dbInfo = new DatabaseInfo();
 						switch(Character.toLowerCase(args[i].charAt(c+1)))
 						{
-						case 'u': dbInfo.user=args[i+1].substring(c+2); break;
-						case 'p': dbInfo.pass=args[i+1].substring(c+2); break;
-						case 'c': dbInfo.className=args[i+1].substring(c+2); break;
-						case 's': dbInfo.service=args[i+1].substring(c+2); break;
-						case 't': dbInfo.table=args[i+1].substring(c+2); break;
+						case 'u': dbInfo.user=args[i].substring(c+2); break;
+						case 'p': dbInfo.pass=args[i].substring(c+2); break;
+						case 'c': dbInfo.className=args[i].substring(c+2); break;
+						case 's': dbInfo.service=args[i].substring(c+2); break;
+						case 't': dbInfo.table=args[i].substring(c+2); break;
 						}
 						c=args[i].length()-1;
 						break;
@@ -633,11 +653,11 @@ limitations under the License.
 		if(dbInfo!=null)
 		{
 			System.out.println("DBInfo:\n");
-			Field[] fields=dbInfo.getClass().getFields();
-			for(int f=0;f<fields.length;f++)
-				try{
-				System.out.println("DB."+fields[f].getName()+": "+fields[f].get(dbInfo).toString()+"\n");
-				}catch(Exception e){}
+			System.out.println("user     :" + dbInfo.user);
+			System.out.println("pass     :" + dbInfo.pass);
+			System.out.println("className:" + dbInfo.className);
+			System.out.println("service  :" + dbInfo.service);
+			System.out.println("table    :" + dbInfo.table);
 			if(!dbInfo.filled())
 			{
 				System.err.println("DBInfo incomplete!");
