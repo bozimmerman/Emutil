@@ -10,7 +10,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -214,18 +214,18 @@ public class D64Search
 	}
 	
 	public static String toHex(byte b){ return HEX[unsigned(b)];}
-    public static String toHex(byte[] buf){
-        StringBuffer ret=new StringBuffer("");
-        for(int b=0;b<buf.length;b++)
-            ret.append(toHex(buf[b]));
-        return ret.toString();
-    }
+	public static String toHex(byte[] buf){
+		StringBuffer ret=new StringBuffer("");
+		for(int b=0;b<buf.length;b++)
+			ret.append(toHex(buf[b]));
+		return ret.toString();
+	}
 	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
 	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, FILE_FORMAT fmt)
 	{
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		byte[] sector=null;
-        ByteArrayOutputStream out=new ByteArrayOutputStream();
+		ByteArrayOutputStream out=new ByteArrayOutputStream();
 		try
 		{
 			while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
@@ -238,7 +238,7 @@ public class D64Search
 					if(fmt==FILE_FORMAT.PETSCII)
 						out.write((byte)convertToPetscii(sector[i]));
 					else
-	                    out.write(sector[i]);
+						out.write(sector[i]);
 				t=unsigned(sector[0]);
 				s=unsigned(sector[1]);
 			}
@@ -250,9 +250,11 @@ public class D64Search
 			return null;
 		}
 	}
-    
-    public static short unsigned(byte b){ return (short)(0xFF & b);}
-    
+
+	public static short unsigned(byte b)
+	{
+		return (short)(0xFF & b);
+	}
 	
 	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt)
 	{
@@ -260,8 +262,8 @@ public class D64Search
 		int maxT=D64Search.getImageNumTracks(type);
 		int s=getImageDirSector(type);
 		Vector<FileInfo> finalData=new Vector<FileInfo>();
-        boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
-        boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
+		boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
+		boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
 		//Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
 		//Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
 		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
@@ -299,8 +301,8 @@ public class D64Search
 					f.fileName=file.toString();
 					if(flags.contains(SEARCH_FLAG.VERBOSE))
 					{
-                        short lb=unsigned(sector[i+28]);
-                        short hb=unsigned(sector[i+29]);
+						short lb=unsigned(sector[i+28]);
+						short hb=unsigned(sector[i+29]);
 						int size=(256*(lb+(256*hb)));
 						if(size<0) System.out.println(lb+","+hb+","+size);
 						f.size = size;
@@ -370,40 +372,40 @@ public class D64Search
 	private static boolean checkInside(byte[] buf, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, boolean caseSensitive)
 	{
 		if(!caseSensitive)
-        {
-            byte[] chk=new byte[buf.length];
-            for(int b=0;b<buf.length;b++)
-                chk[b]=(byte)Character.toUpperCase((char)buf[b]);
-            buf=chk;
-        }
-        boolean byteFormat=fmt==FILE_FORMAT.HEX;
-        int bb=0;
-        int e=0;
-        for(int b=0;b<buf.length;b++)
-        {
-            for(e=0,bb=0;e<=expr.length;e++,bb++)
-                if(e==expr.length)
-                    return true;
-                else
-                if((expr[e]=='?')||(expr[e]=='%'))
-                    continue;
-                else
-                if((b+bb)>=buf.length)
-                    return false;
-                else
-                if(byteFormat)
-                {
-                    if(e<expr.length-1)
-                    {
-                        if(buf[b+bb]!=D64Search.fromHex(""+expr[e]+expr[e+1]))
-                            break;
-                        e++;
-                    }
-                }
-                else
-                if(expr[e]!=(char)buf[b+bb])
-                    break;
-        }
+		{
+			byte[] chk=new byte[buf.length];
+			for(int b=0;b<buf.length;b++)
+				chk[b]=(byte)Character.toUpperCase((char)buf[b]);
+			buf=chk;
+		}
+		boolean byteFormat=fmt==FILE_FORMAT.HEX;
+		int bb=0;
+		int e=0;
+		for(int b=0;b<buf.length;b++)
+		{
+			for(e=0,bb=0;e<=expr.length;e++,bb++)
+				if(e==expr.length)
+					return true;
+				else
+				if((expr[e]=='?')||(expr[e]=='%'))
+					continue;
+				else
+				if((b+bb)>=buf.length)
+					return false;
+				else
+				if(byteFormat)
+				{
+					if(e<expr.length-1)
+					{
+						if(buf[b+bb]!=D64Search.fromHex(""+expr[e]+expr[e+1]))
+							break;
+						e++;
+					}
+				}
+				else
+				if(expr[e]!=(char)buf[b+bb])
+					break;
+		}
 		return false;
 	}
 	
@@ -419,11 +421,11 @@ public class D64Search
 		{
 			boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
 			boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
-            MessageDigest MD=null;
-            if(flags.contains(SEARCH_FLAG.SHOWMD5))
-            {
-                try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace(System.err);}
-            }
+			MessageDigest MD=null;
+			if(flags.contains(SEARCH_FLAG.SHOWMD5))
+			{
+				try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace(System.err);}
+			}
 			for(IMAGE_TYPE img : IMAGE_TYPE.values())
 				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
@@ -431,33 +433,33 @@ public class D64Search
 					byte[][][] disk=getDisk(type,F);
 					if(dbInfo!=null)
 					{
-                        try
-                        {
-                        	dbInfo.stmt.clearParameters();
-                        	MD.reset();
-                        	ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                        	long diskLen=0;
-                        	for(int b1=0;b1<disk.length;b1++)
-                            	for(int b2=0;b2<disk[b1].length;b2++)
-                            	{
-    		                        MD.update(disk[b1][b2]);
-    		                        diskLen += disk[b1][b2].length;
-    		                        //bout.write(disk[b1][b2]);
-                            	}
-                            byte[] md5 = MD.digest();
-                        	dbInfo.stmt.setString(1, F.getName());
-                        	dbInfo.stmt.setString(2, "*");
-                        	dbInfo.stmt.setInt(3, 0);
-                        	dbInfo.stmt.setLong(4, diskLen);
-                        	dbInfo.stmt.setString(5, toHex(md5));
-                        	dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(bout.toByteArray()));
-                        	dbInfo.stmt.setString(7, "dsk");
-                        	dbInfo.stmt.addBatch();
-                        }
-                        catch(Exception e)
-                        {
-                        	System.err.println("Stupid preparedStatement error: "+e.getMessage());
-                        }
+						try
+						{
+							dbInfo.stmt.clearParameters();
+							MD.reset();
+							ByteArrayOutputStream bout = new ByteArrayOutputStream();
+							long diskLen=0;
+							for(int b1=0;b1<disk.length;b1++)
+								for(int b2=0;b2<disk[b1].length;b2++)
+								{
+									MD.update(disk[b1][b2]);
+									diskLen += disk[b1][b2].length;
+									//bout.write(disk[b1][b2]);
+								}
+							byte[] md5 = MD.digest();
+							dbInfo.stmt.setString(1, F.getName());
+							dbInfo.stmt.setString(2, "*");
+							dbInfo.stmt.setInt(3, 0);
+							dbInfo.stmt.setLong(4, diskLen);
+							dbInfo.stmt.setString(5, toHex(md5));
+							dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(bout.toByteArray()));
+							dbInfo.stmt.setString(7, "dsk");
+							dbInfo.stmt.addBatch();
+						}
+						catch(Exception e)
+						{
+							System.err.println("Stupid preparedStatement error: "+e.getMessage());
+						}
 					}
 					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt);
 					if(fileData==null)
@@ -485,32 +487,32 @@ public class D64Search
 								asciiName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
 							if(dbInfo!=null)
 							{
-                            	MD.reset();
-                                MD.update(f.data);
-                                md5 = MD.digest();
-                                try
-                                {
-                                	dbInfo.stmt.clearParameters();
-                                	dbInfo.stmt.setString(1, F.getName());
-                                	dbInfo.stmt.setString(2, asciiName.toString());
-                                	dbInfo.stmt.setInt(3, (n+1));
-                                	dbInfo.stmt.setInt(4, f.size);
-                                	dbInfo.stmt.setString(5, toHex(md5));
-                                	dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(f.data));
-                                	dbInfo.stmt.setString(7, f.fileType);
-                                	dbInfo.stmt.addBatch();
-                                }
-                                catch(SQLException e)
-                                {
-                                	System.err.println("Stupid preparedStatement error: "+e.getMessage());
-                                }
+								MD.reset();
+								MD.update(f.data);
+								md5 = MD.digest();
+								try
+								{
+									dbInfo.stmt.clearParameters();
+									dbInfo.stmt.setString(1, F.getName());
+									dbInfo.stmt.setString(2, asciiName.toString());
+									dbInfo.stmt.setInt(3, (n+1));
+									dbInfo.stmt.setInt(4, f.size);
+									dbInfo.stmt.setString(5, toHex(md5));
+									dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(f.data));
+									dbInfo.stmt.setString(7, f.fileType);
+									dbInfo.stmt.addBatch();
+								}
+								catch(SQLException e)
+								{
+									System.err.println("Stupid preparedStatement error: "+e.getMessage());
+								}
 							}
 							if(!flags.contains(SEARCH_FLAG.INSIDE))
 							{
 								if(fmt==FILE_FORMAT.ASCII)
 									name=asciiName.toString();
 								else
-                                if(fmt==FILE_FORMAT.HEX)
+								if(fmt==FILE_FORMAT.HEX)
 								{
 									StringBuffer newName=new StringBuffer("");
 									for(int x=0;x<name.length();x+=2)
@@ -518,20 +520,20 @@ public class D64Search
 									name=newName.toString();
 								}
 							}
-                            System.out.print("  "+asciiName.toString());
+							System.out.print("  "+asciiName.toString());
 							if((flags.contains(SEARCH_FLAG.VERBOSE)))
 								System.out.print(","+f.fileType+", "+f.size+" bytes");
-                            if((flags.contains(SEARCH_FLAG.SHOWMD5)))
-                            {
-                            	if(md5==null)
-                            	{
-	                            	MD.reset();
-	                                MD.update(f.data);
-	                                md5=MD.digest();
-                            	}
-                                System.out.print(", MD5: "+toHex(md5));
-                            }
-                            System.out.println("");
+							if((flags.contains(SEARCH_FLAG.SHOWMD5)))
+							{
+								if(md5==null)
+								{
+									MD.reset();
+									MD.update(f.data);
+									md5=MD.digest();
+								}
+								System.out.print(", MD5: "+toHex(md5));
+							}
+							System.out.println("");
 						}
 					}
 					break;
@@ -544,7 +546,7 @@ public class D64Search
 				}
 				catch(SQLException e)
 				{
-                	System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
+					System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
 				}
 			}
 		}
@@ -558,15 +560,17 @@ public class D64Search
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search");
 			System.out.println("  -V verbose");
-            System.out.println("  -M show MD5 sum for each matching file");
+			System.out.println("  -M show MD5 sum for each matching file");
 			System.out.println("  -C case sensitive");
-			System.out.println("  -X expr format (-Xp=petscii, Xa=ascii, Xh=hex)");
+			System.out.println("  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
 			System.out.println("  -D db export of disk info data (-Du<user>,");
 			System.out.println("     -Dp<password>, -Dc<java class>,");
 			System.out.println("     -Ds<service> -Dt<tablename>)");
-			System.out.println("     (Column Info: imagepath, filename, filenum,");
-			System.out.println("     size, md5, filedata, filetype)");
+			System.out.println("     (Columns: string imagepath,");
+			System.out.println("               string filename, int filenum,");
+			System.out.println("               long size, string md5,");
+			System.out.println("               BLOB filedata,string filetype)");
 			System.out.println("");
 			System.out.println("");
 			System.out.println("* Expressions include % and ? characters.");
@@ -594,8 +598,8 @@ public class D64Search
 					case 'V': flags.add(SEARCH_FLAG.VERBOSE); break;
 					case 'i':
 					case 'I': flags.add(SEARCH_FLAG.INSIDE); break;
-                    case 'm':
-                    case 'M': flags.add(SEARCH_FLAG.SHOWMD5); break;
+					case 'm':
+					case 'M': flags.add(SEARCH_FLAG.SHOWMD5); break;
 					case 'x':
 					case 'X':
 					{
@@ -653,11 +657,11 @@ public class D64Search
 		if(dbInfo!=null)
 		{
 			System.out.println("DBInfo:\n");
-			System.out.println("user     :" + dbInfo.user);
-			System.out.println("pass     :" + dbInfo.pass);
+			System.out.println("user	 :" + dbInfo.user);
+			System.out.println("pass	 :" + dbInfo.pass);
 			System.out.println("className:" + dbInfo.className);
 			System.out.println("service  :" + dbInfo.service);
-			System.out.println("table    :" + dbInfo.table);
+			System.out.println("table	:" + dbInfo.table);
 			if(!dbInfo.filled())
 			{
 				System.err.println("DBInfo incomplete!");
@@ -665,17 +669,17 @@ public class D64Search
 			}
 			flags.add(SEARCH_FLAG.VERBOSE); 
 			flags.add(SEARCH_FLAG.SHOWMD5); 
-        	try
-        	{
-            	Class.forName(dbInfo.className);
-            	dbInfo.conn = DriverManager.getConnection(dbInfo.service,dbInfo.user,dbInfo.pass );
-            	dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filedata, filetype) values (?,?,?,?,?,?,?)");
-        	}
-        	catch(Exception e)
-        	{
-        		System.err.println("Unable to connect to database: "+e.getMessage());
-        		return;
-        	}
+			try
+			{
+				Class.forName(dbInfo.className);
+				dbInfo.conn = DriverManager.getConnection(dbInfo.service,dbInfo.user,dbInfo.pass );
+				dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filedata, filetype) values (?,?,?,?,?,?,?)");
+			}
+			catch(Exception e)
+			{
+				System.err.println("Unable to connect to database: "+e.getMessage());
+				return;
+			}
 		}
 		char[] exprCom=expr.toCharArray();
 		if((!flags.contains(SEARCH_FLAG.CASESENSITIVE))||(fmt==FILE_FORMAT.HEX))
