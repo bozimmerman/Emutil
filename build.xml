@@ -2,7 +2,7 @@
 	<target name="compile">
 		<javac srcdir="." classpath="." nowarn="yes" deprecation="on" debug="on" memoryMaximumSize="256m" fork="on">
 			<compilerarg value="-Xlint:unchecked" />
-    	</javac>
+		</javac>
 		<echo>Compiliation done.</echo>
 	</target>
 	<target name="doc">
@@ -16,6 +16,10 @@
 	  </delete>
 	</target>
 	<jar destfile="D64Search.jar">
+		<fileset dir="." includes="**/*.class" />
+		<manifest>
+			<attribute name="Main-Class" value="com.planet_ink.emutil.D64Search"/>
+		</manifest>
 	</jar>
 </project>
 

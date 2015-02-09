@@ -5,17 +5,55 @@ Please read the NOTICE file for credits information
 Emutil is a collection of utilities for dealing with files which are in 
 formats most commonly used by Commodore 64 emulators.  
 
-At the moment, the following utilities exist in this project, in the 
-following languages:
+At the moment, the following utilities exist in this project:
+
 
 D64Search (java)
 ----------------
 A tool for searching the internal filenames and/or file data inside of common 
-Emulator image files (.D64, .D71, .D81).  This tool will report the names of
-image files containing matches, and the names of the internal Commodore files
-which were matched.  Supports recursing directories of image files.  
+Emulator image files (.D64, .D71, D80, .D81, .D82).  This tool will report the 
+names ofimage files containing matches, and the names of the internal Commodore 
+files which were matched.  Supports recursing directories of image files.  It also
+supports  
 
-Java version requires Java 1.4.2 (10) or better.
+Java version requires Java 1.6 or better.
 
 To execute from the command line (and get further help):
+java -jar bin/D64Search.jar 
+or
 java com.planet_ink.emutil.D64Search
+
+USAGE:
+  D64Search <options> <path> <expression>
+OPTIONS:
+  -R recursive search
+  -V verbose
+  -M show MD5 sum for each matching file
+  -C case sensitive
+  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)
+  -I search inside files (substring search)
+  -D db export of disk info data (-Du<user>,
+     -Dp<password>, -Dc<java class>,
+     -Ds<service> -Dt<tablename>)
+     (Columns: string imagepath,
+               string filename, int filenum,
+               long size, string md5,
+               BLOB filedata,string filetype)
+
+* Expressions include % and ? characters.
+* Hex expressions include hex digits, *, and ?.
+
+
+Emutil.prg (Commodore BASIC/ML)
+-------------------------------
+A disk image archiver for Commodore 64, 128, VIC-20, Plus/4 and CBM/PET
+computers with 16k or more.  It supports all known Commodore disk drives, of all 
+capacities.  It also supports all CMD HD and RL Native partitions.
+
+EMUTIL creates and dissolves single and multiple archive images.  The images
+may be RLE compressed or uncompressed.  A single uncompressed archive image
+of a 1541 disk is equivalent to a .D64 file, so it will handle those just
+fine, though it is intended to cover disk drives unsupported by other
+programs, such as the CBM 8050/8250 and CMD Native drives.
+
+The program is a collaborative effort by Bo Zimmerman and Andre Fachat.

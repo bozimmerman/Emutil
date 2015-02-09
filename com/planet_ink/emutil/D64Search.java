@@ -4,7 +4,7 @@ import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
 /* 
-Copyright 2000-2006 Bo Zimmerman
+Copyright 2006-2015 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -198,13 +198,14 @@ public class D64Search
 		byte[] buf=new byte[getImageTotalBytes(type)];
 		try
 		{
-			FileInputStream is=new FileInputStream(F);
+			final FileInputStream is=new FileInputStream(F);
 			int i=0;
 			while(i<buf.length)
 			{
 				int x=is.read();
 				buf[i++]=(byte)x;
 			}
+			is.close();
 		}
 		catch(java.io.IOException e)
 		{
@@ -556,7 +557,10 @@ public class D64Search
 	{
 		if(args.length<2)
 		{
-			System.out.println("USAGE: D64Search <options> <path> <expression>");
+			System.out.println("D64Search v1.5 (c)2006-2015 Bo Zimmerman");
+			System.out.println("");
+			System.out.println("USAGE: ");
+			System.out.println("  D64Search <options> <path> <expression>");
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search");
 			System.out.println("  -V verbose");
