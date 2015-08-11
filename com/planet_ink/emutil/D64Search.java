@@ -270,7 +270,7 @@ public class D64Search
 		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
 		byte[] sector=tsmap[t][s];
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
-		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
+		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
 			doneBefore.add(sector);
