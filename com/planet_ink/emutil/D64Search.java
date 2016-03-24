@@ -171,8 +171,8 @@ public class D64Search
 		if(b<65) return (char)b;
 		if(b<91) return Character.toLowerCase((char)b);
 		if(b<192) return (char)b;
-		if(b<218) return Character.toUpperCase((char)b);
-		return (char)b;
+		if(b<219) return Character.toUpperCase((char)(b-128));
+		return (char)(b-128);
 	}
 	
 	private static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf)
@@ -453,8 +453,7 @@ public class D64Search
 							dbInfo.stmt.setInt(3, 0);
 							dbInfo.stmt.setLong(4, diskLen);
 							dbInfo.stmt.setString(5, toHex(md5));
-							dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(bout.toByteArray()));
-							dbInfo.stmt.setString(7, "dsk");
+							dbInfo.stmt.setString(6, "dsk");
 							dbInfo.stmt.addBatch();
 						}
 						catch(Exception e)
@@ -499,8 +498,7 @@ public class D64Search
 									dbInfo.stmt.setInt(3, (n+1));
 									dbInfo.stmt.setInt(4, f.size);
 									dbInfo.stmt.setString(5, toHex(md5));
-									dbInfo.stmt.setBinaryStream(6, new ByteArrayInputStream(f.data));
-									dbInfo.stmt.setString(7, f.fileType);
+									dbInfo.stmt.setString(6, f.fileType);
 									dbInfo.stmt.addBatch();
 								}
 								catch(SQLException e)
@@ -574,7 +572,7 @@ public class D64Search
 			System.out.println("     (Columns: string imagepath,");
 			System.out.println("               string filename, int filenum,");
 			System.out.println("               long size, string md5,");
-			System.out.println("               BLOB filedata,string filetype)");
+			System.out.println("               string filetype)");
 			System.out.println("");
 			System.out.println("");
 			System.out.println("* Expressions include % and ? characters.");
@@ -677,7 +675,7 @@ public class D64Search
 			{
 				Class.forName(dbInfo.className);
 				dbInfo.conn = DriverManager.getConnection(dbInfo.service,dbInfo.user,dbInfo.pass );
-				dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filedata, filetype) values (?,?,?,?,?,?,?)");
+				dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filetype) values (?,?,?,?,?,?)");
 			}
 			catch(Exception e)
 			{
