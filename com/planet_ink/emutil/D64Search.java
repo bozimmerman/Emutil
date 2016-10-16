@@ -438,7 +438,7 @@ public class D64Search
 						{
 							dbInfo.stmt.clearParameters();
 							MD.reset();
-							ByteArrayOutputStream bout = new ByteArrayOutputStream();
+							//ByteArrayOutputStream bout = new ByteArrayOutputStream();
 							long diskLen=0;
 							for(int b1=0;b1<disk.length;b1++)
 								for(int b2=0;b2<disk[b1].length;b2++)
