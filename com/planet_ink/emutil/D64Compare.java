@@ -20,12 +20,36 @@ public class D64Compare
 {
 	// todo: add file masks to options
 	public enum IMAGE_TYPE {
-		D64 { public String toString() { return ".D64";}},
-		D71 { public String toString() { return ".D71";}},
-		D81 { public String toString() { return ".D81";}},
-		D80 { public String toString() { return ".D80";}},
-		D82 { public String toString() { return ".D82";}},
-		DNP { public String toString() { return ".DNP";}},
+		D64 {
+			public String toString() {
+				return ".D64";
+			}
+		},
+		D71 {
+			public String toString() {
+				return ".D71";
+			}
+		},
+		D81 {
+			public String toString() {
+				return ".D81";
+			}
+		},
+		D80 {
+			public String toString() {
+				return ".D80";
+			}
+		},
+		D82 {
+			public String toString() {
+				return ".D82";
+			}
+		},
+		DNP {
+			public String toString() {
+				return ".DNP";
+			}
+		},
 	};
 
 	public static class FileInfo {
@@ -134,14 +158,14 @@ public class D64Compare
 		switch(type)
 		{
 		case D64:
-			return 1;
+			return 0;
 		case D71:
-			return 1;
+			return 0;
 		case D81:
-			return 3;
+			return 0;
 		case D80:
 		case D82:
-			return 1;
+			return 0;
 		case DNP:
 			return 1;
 		}
@@ -256,17 +280,9 @@ public class D64Compare
 		return (short)(0xFF & b);
 	}
 	
-	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<COMP_FLAG> flags, int fileSize)
+	public static void finishFillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
 	{
-		int t=getImageDirTrack(type);
-		int maxT=D64Compare.getImageNumTracks(type, fileSize);
-		int s=getImageDirSector(type);
-		Vector<FileInfo> finalData=new Vector<FileInfo>();
-		//Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		//Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
-		byte[] sector=tsmap[t][s];
-		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
+		byte[] sector;
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
@@ -278,41 +294,143 @@ public class D64Compare
 				
 				int fn=i+19-1;
 				for(;fn>=i+3;fn--)
+				{
 					if((sector[fn]!=-96)&&(sector[fn]!=0))
 						break;
+				}
 				StringBuffer file=new StringBuffer("");
 				for(int x=i+3;x<=fn;x++)
-					file.append(toHex(sector[x]));
-					
+					file.append((char)sector[x]);
+				
 				if(file.length()>0)
 				{
 					FileInfo f = new FileInfo();
 					finalData.add(f);
-					f.fileName=file.toString();
-					if(flags.contains(COMP_FLAG.VERBOSE))
+					
+					int pht = unsigned(sector[i+19]);
+					int phs = unsigned(sector[i+20]);
+					if(((sector[i] & 0x0f)!=4) //rel files never have headers
+					&&(pht!=0)
+					&&(pht<=maxT)) //TODO: check geos?
 					{
-						short lb=unsigned(sector[i+28]);
-						short hb=unsigned(sector[i+29]);
-						int size=(256*(lb+(256*hb)));
-						if(size<0) System.out.println(lb+","+hb+","+size);
-						f.size = size;
-						
-						switch(sector[i])
+						final byte[] ssec = tsmap[pht][phs];
+						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
 						{
-						case (byte)129: f.fileType=("seq"); break;
-						case (byte)130: f.fileType=("prg"); break;
-						case (byte)131: f.fileType=("usr"); break;
-						case (byte)132: f.fileType=("rel"); break;
-						default:f.fileType=("?");break;
+							f.header = ssec;
+							doneBefore.add(ssec);
 						}
 					}
+					
+					if(f.header==null)
+					{
+						for(int ii=0;ii<file.length();ii++)
+							file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii)));
+						f.fileName=prefix + file.toString();
+					}
+					else
+						f.fileName=prefix + file.toString(); // convert to petscii
+					short lb=unsigned(sector[i+28]);
+					short hb=unsigned(sector[i+29]);
+					int size=(256*(lb+(256*hb)));
+					if(size<0) 
+						System.out.println(lb+","+hb+","+size);
+					f.size = size;
+					
 					int fileT=unsigned(sector[i+1]);
 					int fileS=unsigned(sector[i+2]);
-					byte[] fileData =getFileContent(tsmap,fileT,maxT,fileS);
+					byte[] fileData;
+					switch(sector[i] & 0x0f)
+					{
+					case (byte) 0:
+						fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						f.fileType = ("del");
+						break;
+					case (byte) 1:
+						fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						f.fileType = ("seq");
+						break;
+					case (byte) 2:
+						fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						f.fileType = ("prg");
+						break;
+					case (byte) 3:
+						f.fileType = ("usr");
+						//fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						if((unsigned(sector[i+21])==1)
+						&&(f.header!=null)
+						&&(fileT!=0)
+						&&(!doneBefore.contains(tsmap[fileT][fileS]))&&(fileT<=maxT))
+						{
+							ByteArrayOutputStream data = new ByteArrayOutputStream();
+							byte[] vlirSec = tsmap[fileT][fileS];
+							doneBefore.add(vlirSec);
+							for(int vt=0;vt<=254;vt+=2)
+							{
+								int vfileT=unsigned(vlirSec[vt]);
+								int vfileS=unsigned(vlirSec[vt+1]);
+								if((vfileT==0)&&(vfileS==0))
+									break;
+								if((vfileT>0)&&(vfileS!=255))
+								{
+									try
+									{
+										data.write(getFileContent(tsmap,vfileT,maxT,vfileS));
+									}
+									catch(Exception e)
+									{}
+								}
+							}
+							fileData = data.toByteArray();
+						}
+						else
+							fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						break;
+					case (byte) 4:
+						f.fileType = ("rel");
+						{
+							int recsz = unsigned(sector[i+21]);
+							if((pht!=0)
+							&&(recsz!=0)
+							&&(!doneBefore.contains(tsmap[pht][phs]))
+							&&(pht<=maxT))
+							{
+								byte[] sides=tsmap[pht][phs];
+								doneBefore.add(sides);
+								if(unsigned(sides[2])==254)
+								{
+									getFileContent(tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]));
+								}
+								else
+								if(unsigned(sides[3])==recsz)
+								{
+									getFileContent(tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]));
+								}
+								fileData =getFileContent(tsmap,fileT,maxT,fileS);
+							}
+							else
+								fileData = null;
+						}
+						break;
+					case (byte) 5:
+						f.fileType = ("cbm");
+						fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						break;
+					case (byte) 6:
+						f.fileType = ("dir");
+						int newDirT=fileT;
+						int newDirS=fileS;
+						fillFiledata(type,f.fileName+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT);
+						fileData=getFileContent(tsmap,newDirT,maxT,newDirS);
+						break;
+					default:
+						f.fileType = ("?");
+						fileData =getFileContent(tsmap,fileT,maxT,fileS);
+						break;
+					}
 					if(fileData==null)
 					{
 						System.err.println("Error reading: "+fileT+","+fileS);
-						return null;
+						return;
 					}
 					else
 						f.data = fileData;
@@ -321,6 +439,46 @@ public class D64Compare
 			t=unsigned(sector[0]);
 			s=unsigned(sector[1]);
 		}
+	}
+	
+	public static void fillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
+	{
+		byte[] sector;
+		if((type != IMAGE_TYPE.D80)
+		&&(type != IMAGE_TYPE.D82)
+		&&(t!=0)
+		&&(t<tsmap.length)
+		&&(s<tsmap[t].length)
+		&&(!doneBefore.contains(tsmap[t][s]))
+		&&(t<=maxT))
+		{
+			sector=tsmap[t][s];
+			t=unsigned(sector[0]);
+			s=unsigned(sector[1]);
+			int possDTrack = unsigned(sector[160+11]);
+			int possDSector = unsigned(sector[160+12]);
+			if((possDTrack!=0)
+			&&(possDTrack<tsmap.length)
+			&&(possDSector<tsmap[possDTrack].length)
+			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
+			&&(possDTrack<=maxT))
+			{
+				finishFillFiledata(type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT);
+				getFileContent(tsmap,possDTrack,maxT,possDSector);
+			}
+		}
+		finishFillFiledata(type,prefix,tsmap,doneBefore,finalData,t,s,maxT);
+	}
+
+	
+	public static List<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, Set<COMP_FLAG> flags, int fileSize)
+	{
+		int t=getImageDirTrack(type);
+		int maxT=D64Compare.getImageNumTracks(type, fileSize);
+		int s=getImageDirSector(type);
+		List<FileInfo> finalData=new Vector<FileInfo>();
+		Set<byte[]> doneBefore=new HashSet<byte[]>();
+		D64Compare.fillFiledata(type,"",tsmap, doneBefore, finalData, t, s, maxT);
 		return finalData;
 	}
 
@@ -328,11 +486,12 @@ public class D64Compare
 	{
 		File F=F1;
 		for(IMAGE_TYPE img : IMAGE_TYPE.values())
+		{
 			if(F.getName().toUpperCase().endsWith(img.toString()))
 			{
 				IMAGE_TYPE type=img;
 				byte[][][] disk=getDisk(type,F);
-				Vector<FileInfo> fileData=getFiledata(type,disk,flags,(int)F.length());
+				List<FileInfo> fileData=getFiledata(type,disk,flags,(int)F.length());
 				if(fileData==null)
 				{
 					System.err.println("Error reading :"+F.getName());
@@ -340,7 +499,7 @@ public class D64Compare
 				}
 				for(int n=0;n<fileData.size();n++)
 				{
-					FileInfo f = fileData.elementAt(n);
+					FileInfo f = fileData.get(n);
 					String name=f.fileName;
 					StringBuffer asciiName=new StringBuffer("");
 					for(int x=0;x<name.length();x++)
@@ -352,6 +511,7 @@ public class D64Compare
 				}
 				break;
 			}
+		}
 	}
 	
 	public static void main(String[] args)
