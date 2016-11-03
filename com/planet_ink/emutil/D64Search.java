@@ -221,7 +221,12 @@ public class D64Search
 			ret.append(toHex(buf[b]));
 		return ret.toString();
 	}
-	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
+
+	public static short fromHex(String hex)
+	{
+		return (ANTI_HEX.get(hex)).shortValue();
+	}
+
 	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, FILE_FORMAT fmt)
 	{
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
@@ -305,7 +310,8 @@ public class D64Search
 						short lb=unsigned(sector[i+28]);
 						short hb=unsigned(sector[i+29]);
 						int size=(256*(lb+(256*hb)));
-						if(size<0) System.out.println(lb+","+hb+","+size);
+						if (size < 0)
+							System.err.println("Error: Invalid Size: " + lb + "," + hb + "," + size);
 						f.size = size;
 						
 						switch(sector[i])

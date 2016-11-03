@@ -247,7 +247,12 @@ public class D64Compare
 			ret.append(toHex(buf[b]));
 		return ret.toString();
 	}
-	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
+
+	public static short fromHex(String hex)
+	{
+		return (ANTI_HEX.get(hex)).shortValue();
+	}
+
 	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s)
 	{
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();

@@ -72,8 +72,11 @@ public class D64Duplifind
 			ret.append(toHex(buf[b]));
 		return ret.toString();
 	}
-	public static short fromHex(String hex){ return ((Short)ANTI_HEX.get(hex)).shortValue();}
-	
+
+	public static short fromHex(String hex)
+	{
+		return (ANTI_HEX.get(hex)).shortValue();
+	}
 
 	public static  boolean goodExt(String name)
 	{
@@ -333,10 +336,10 @@ public class D64Duplifind
 						String[] parts=s.split("\\*");
 						DupFile d=new DupFile();
 						String hash=parts[0];
-						d.contained=Boolean.valueOf(parts[1]);
+						d.contained=Boolean.valueOf(parts[1]).booleanValue();
 						d.hostFile=new File(parts[2]);
 						d.filePath=parts[3];
-						d.length=Integer.valueOf(parts[4]);
+						d.length=Integer.valueOf(parts[4]).intValue();
 						d.hash=hash;
 						if(!pathHashes.containsKey(hash))
 							pathHashes.put(hash, new LinkedList<DupFile>());
