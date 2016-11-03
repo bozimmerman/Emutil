@@ -54,6 +54,7 @@ public class D64Compare
 
 	public static class FileInfo {
 		String fileName = "";
+		String filePath = "";
 		String fileType = "";
 		int size = 0;
 		byte[] data = null;
@@ -172,7 +173,7 @@ public class D64Compare
 		return -1;
 	}
 	
-	private static int getImageNumTracks(IMAGE_TYPE type, int fileSize)
+	private static int getImageNumTracks(IMAGE_TYPE type, long fileSize)
 	{
 		switch(type)
 		{
@@ -187,7 +188,7 @@ public class D64Compare
 		case D82:
 			return 2*77;
 		case DNP:
-			return fileSize / 256 / 256;
+			return (int)(fileSize / 256 / 256);
 		}
 		return -1;
 	}
@@ -330,10 +331,9 @@ public class D64Compare
 					{
 						for(int ii=0;ii<file.length();ii++)
 							file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii)));
-						f.fileName=prefix + file.toString();
 					}
-					else
-						f.fileName=prefix + file.toString(); // convert to petscii
+					f.filePath=prefix + file.toString();
+					f.fileName=file.toString();
 					short lb=unsigned(sector[i+28]);
 					short hb=unsigned(sector[i+29]);
 					int size=(256*(lb+(256*hb)));
@@ -424,8 +424,9 @@ public class D64Compare
 						f.fileType = ("dir");
 						int newDirT=fileT;
 						int newDirS=fileS;
-						fillFiledata(type,f.fileName+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT);
+						fillFiledata(type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT);
 						fileData=getFileContent(tsmap,newDirT,maxT,newDirS);
+						finalData.remove(f);
 						break;
 					default:
 						f.fileType = ("?");
@@ -476,7 +477,7 @@ public class D64Compare
 	}
 
 	
-	public static List<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, Set<COMP_FLAG> flags, int fileSize)
+	public static List<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, Set<COMP_FLAG> flags, long fileSize)
 	{
 		int t=getImageDirTrack(type);
 		int maxT=D64Compare.getImageNumTracks(type, fileSize);
@@ -487,36 +488,17 @@ public class D64Compare
 		return finalData;
 	}
 
-	private static void compare(File F1, File F2, HashSet<COMP_FLAG> flags)
+	private static IMAGE_TYPE getImageType(File F)
 	{
-		File F=F1;
 		for(IMAGE_TYPE img : IMAGE_TYPE.values())
 		{
 			if(F.getName().toUpperCase().endsWith(img.toString()))
 			{
 				IMAGE_TYPE type=img;
-				byte[][][] disk=getDisk(type,F);
-				List<FileInfo> fileData=getFiledata(type,disk,flags,(int)F.length());
-				if(fileData==null)
-				{
-					System.err.println("Error reading :"+F.getName());
-					continue;
-				}
-				for(int n=0;n<fileData.size();n++)
-				{
-					FileInfo f = fileData.get(n);
-					String name=f.fileName;
-					StringBuffer asciiName=new StringBuffer("");
-					for(int x=0;x<name.length();x++)
-						asciiName.append(D64Compare.convertToPetscii((byte)name.charAt(x)));
-					System.out.print("  "+asciiName.toString());
-					if((flags.contains(COMP_FLAG.VERBOSE)))
-						System.out.print(","+f.fileType+", "+f.size+" bytes");
-					System.out.println("");
-				}
-				break;
+				return type;
 			}
 		}
+		return null;
 	}
 	
 	public static void main(String[] args)
@@ -575,6 +557,122 @@ public class D64Compare
 			System.err.println("File2 not found!");
 			System.exit(-1);
 		}
-		compare(F1,F2,flags);
+		
+		IMAGE_TYPE typeF1 = getImageType(F1);
+		if(typeF1==null)
+		{
+			System.err.println("Error reading :"+F1.getName());
+			System.exit(-1);
+		}
+		byte[][][] diskF1=getDisk(typeF1,F1);
+		List<FileInfo> fileData1=getFiledata(typeF1,diskF1,flags,F1.length());
+		if(fileData1==null)
+		{
+			System.err.println("Bad extension :"+F1.getName());
+			System.exit(-1);
+		}
+		diskF1=null;
+		
+		IMAGE_TYPE typeF2 = getImageType(F2);
+		if(typeF2==null)
+		{
+			System.err.println("Error reading :"+F2.getName());
+			System.exit(-1);
+		}
+		byte[][][] diskF2=getDisk(typeF2,F2);
+		List<FileInfo> fileData2=getFiledata(typeF2,diskF2,flags,F2.length());
+		if(fileData2==null)
+		{
+			System.err.println("Bad extension :"+F2.getName());
+			System.exit(-1);
+		}
+		diskF2=null;
+		List<FileInfo> missingFromDisk2 = new LinkedList<FileInfo>();
+		missingFromDisk2.addAll(fileData1);
+		List<FileInfo[]> foundButNotEqual = new LinkedList<FileInfo[]>();
+		for(FileInfo f1 : fileData1)
+		{
+			for(FileInfo f2 : fileData2)
+			{
+				if(f1.filePath.equals(f2.filePath))
+				{
+					missingFromDisk2.remove(f1);
+					if(!Arrays.equals(f1.data, f2.data))
+						foundButNotEqual.add(new FileInfo[]{f1,f2});
+				}
+			}
+		}
+		List<FileInfo> missingFromDisk1 = new LinkedList<FileInfo>();
+		missingFromDisk1.addAll(fileData2);
+		for(FileInfo f2 : fileData2)
+		{
+			for(FileInfo f1 : fileData1)
+			{
+				if(f2.filePath.equals(f1.filePath))
+				{
+					missingFromDisk1.remove(f2);
+					if(!Arrays.equals(f1.data, f2.data))
+						foundButNotEqual.add(new FileInfo[]{f1,f2});
+				}
+			}
+		}
+		List<FileInfo[]> wrongPathFromDisks = new LinkedList<FileInfo[]>();
+		for(FileInfo f2 : fileData2)
+		{
+			for(Iterator<FileInfo> i=missingFromDisk2.iterator();i.hasNext();)
+			{
+				FileInfo f1=i.next();
+				if(f1.fileName.equalsIgnoreCase(f2.fileName))
+				{
+					i.remove();
+					wrongPathFromDisks.add(new FileInfo[]{f1,f2});
+					if(!Arrays.equals(f1.data, f2.data))
+						foundButNotEqual.add(new FileInfo[]{f1,f2});
+				}
+			}
+		}
+		for(FileInfo f1 : fileData1)
+		{
+			for(Iterator<FileInfo> i=missingFromDisk1.iterator();i.hasNext();)
+			{
+				FileInfo f2=i.next();
+				if(f2.fileName.equalsIgnoreCase(f1.fileName))
+				{
+					i.remove();
+					wrongPathFromDisks.add(new FileInfo[]{f2,f1});
+					if(!Arrays.equals(f1.data, f2.data))
+						foundButNotEqual.add(new FileInfo[]{f1,f2});
+				}
+			}
+		}
+		System.out.println("");
+		if(missingFromDisk1.size()>0)
+		{
+			System.out.println("Found in disk 1, but missing from disk 2:");
+			for(FileInfo f : missingFromDisk1)
+				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
+			System.out.println("");
+		}
+		if(missingFromDisk2.size()>0)
+		{
+			System.out.println("Found in disk 2, but missing from disk 1:");
+			for(FileInfo f : missingFromDisk2)
+				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
+			System.out.println("");
+		}
+		if(wrongPathFromDisks.size()>0)
+		{
+			System.out.println("Found in one disk, but at a different path from the other disk:");
+			for(FileInfo[] f : wrongPathFromDisks)
+				System.out.println(f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus, "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+			System.out.println("");
+		}
+		if(foundButNotEqual.size()>0)
+		{
+			System.out.println("Found, but with different data:");
+			for(FileInfo[] f : foundButNotEqual)
+				System.out.println(f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus, "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+			System.out.println("");
+		}
 	}
 }
