@@ -508,10 +508,10 @@ public class D64Compare
 			System.out.println("D64Compare v1.0 (c)2016-2016 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
-			System.out.println("  D64Compare <options> <file1> <file2>");
-			System.out.println("OPTIONS:");
-			System.out.println("  -R recursive search inside DNP");
-			System.out.println("  -V verbose");
+			System.out.println("  D64Compare <file1> <file2>");
+			//System.out.println("OPTIONS:");
+			//System.out.println("  -R recursive search inside DNP");
+			//System.out.println("  -V verbose");
 			System.out.println("");
 			return;
 		}
@@ -624,10 +624,10 @@ public class D64Compare
 				FileInfo f1=i.next();
 				if(f1.fileName.equalsIgnoreCase(f2.fileName))
 				{
-					i.remove();
-					wrongPathFromDisks.add(new FileInfo[]{f1,f2});
-					if(!Arrays.equals(f1.data, f2.data))
-						foundButNotEqual.add(new FileInfo[]{f1,f2});
+					if(Arrays.equals(f1.data, f2.data))
+					{
+						wrongPathFromDisks.add(new FileInfo[]{f1,f2});
+					}
 				}
 			}
 		}
@@ -638,24 +638,24 @@ public class D64Compare
 				FileInfo f2=i.next();
 				if(f2.fileName.equalsIgnoreCase(f1.fileName))
 				{
-					i.remove();
-					wrongPathFromDisks.add(new FileInfo[]{f2,f1});
-					if(!Arrays.equals(f1.data, f2.data))
-						foundButNotEqual.add(new FileInfo[]{f1,f2});
+					if(Arrays.equals(f1.data, f2.data))
+					{
+						wrongPathFromDisks.add(new FileInfo[]{f1,f2});
+					}
 				}
 			}
 		}
 		System.out.println("");
 		if(missingFromDisk1.size()>0)
 		{
-			System.out.println("Found in disk 1, but missing from disk 2:");
+			System.out.println("Found in disk 2, but missing from disk 1:");
 			for(FileInfo f : missingFromDisk1)
 				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
 			System.out.println("");
 		}
 		if(missingFromDisk2.size()>0)
 		{
-			System.out.println("Found in disk 2, but missing from disk 1:");
+			System.out.println("Found in disk 1, but missing from disk 2:");
 			for(FileInfo f : missingFromDisk2)
 				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
 			System.out.println("");
@@ -664,14 +664,14 @@ public class D64Compare
 		{
 			System.out.println("Found in one disk, but at a different path from the other disk:");
 			for(FileInfo[] f : wrongPathFromDisks)
-				System.out.println(f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus, "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+				System.out.println("1: "+f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus 2: "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
 			System.out.println("");
 		}
 		if(foundButNotEqual.size()>0)
 		{
 			System.out.println("Found, but with different data:");
 			for(FileInfo[] f : foundButNotEqual)
-				System.out.println(f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus, "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+				System.out.println("1: "+f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus 2: "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
 			System.out.println("");
 		}
 	}
