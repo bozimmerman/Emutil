@@ -1,12 +1,20 @@
-Emutil (C)2006-2015 Bo Zimmerman
+Emutil (C)2006-2016 Bo Zimmerman
 Please read the LICENSE file for license information
 Please read the NOTICE file for credits information
 
 Emutil is a collection of utilities for dealing with files which are in 
 formats most commonly used by Commodore 64 emulators.  
 
-At the moment, the following utilities exist in this project:
+These formats include:
 
+  *.D64 - 170k image of a normal formatted 5.25" Commodore 1541 disk 
+  *.D71 - 340k image of a normal formatted 5.25" Commodore 1571 disk 
+  *.D81 - 800k image of a normal formatted 3.5" Commodore 1581 disk
+  *.D80 - 520k image of a normal formatted 5.25" Commodore 8050 disk
+  *.D82 - 1040k image of a normal formatted 5.25" Commodore 8250 or SFD-1001 disk
+  *.DNP - image of a normal formatted CMD (HD or RL) Native Partition, up to 16mb
+
+The following utilities exist in this project:
 
 D64Search (java)
 ----------------
@@ -43,7 +51,79 @@ OPTIONS:
 * Expressions include % and ? characters.
 * Hex expressions include hex digits, *, and ?.
 
+-----------------------------------------------------------------------------
+D64Compare
+-----------
+A tool for comparing the file contents of two disk images with 
+each other, noting files that are in one image but not another,
+and any files with different content.  This tool supports CMD
+HD subdirectories as well, and will recurse into them. 
 
+Java version requires Java 1.6 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/D64Compare.jar 
+or
+java com.planet_ink.emutil.D64Compare
+
+D64Compare v1.0 (c)2016-2016 Bo Zimmerman
+
+USAGE:
+  D64Compare <file1> <file2>
+
+-----------------------------------------------------------------------------
+CMDHDParser
+-----------
+A tool for viewing the partition list and extracting or replacing 
+existing partitions/disk images in a raw CMD Hard Drive (HD) iso image,
+such as might be created with the *NIX "dd" utility.  This is not the
+same as a DNP (native partition) image.  A CMD HD image may contain
+D64, D81, DNP, and other kinds of images inside it.
+
+Java version requires Java 1.6 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/CMDHDParser.jar 
+or
+java com.planet_ink.emutil.CMDHDParser
+
+CMDHDParser v1.0 (c)2016-2016 Bo Zimmerman
+
+USAGE:
+  CMDHDParser LIST <CMDHD_RAWIMAGE>
+  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH_OR_FILENAME> <CMDHD_PARTITION_NUMBER>
+  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH> ALL
+  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGE_FILE> <CMDHD_PARTITION_NUMBER>
+  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGES_PATH> ALL
+
+-----------------------------------------------------------------------------
+D64Duplifind
+------------
+A tool for comparing two sets of directories full of files, and reporting on non-duplicates.
+Although not strictly for Commodore disk images, it does cater to them by restricting itself
+to common disk image extensions.  It will also automatically parse gzipped (.gz) and zipped (.zip)
+files to find images.
+
+Java version requires Java 1.6 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/D64Duplifind.jar 
+or
+java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
+or
+java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
+
+D64Duplifind v1.6 (c)2016-2016 Bo Zimmerman
+
+USAGE:
+  D64Duplifind <options>
+OPTIONS:
+  -R recursive search
+  -V verbose
+  -1 add to path1
+  -2 add to path2
+
+-----------------------------------------------------------------------------
 Emutil.prg (Commodore BASIC/ML)
 -------------------------------
 A disk image archiver for Commodore 64, 128, VIC-20, Plus/4 and CBM/PET

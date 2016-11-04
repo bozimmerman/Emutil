@@ -27,6 +27,7 @@ public class D64Search
 		D81 { public String toString() { return ".D81";}},
 		D80 { public String toString() { return ".D80";}},
 		D82 { public String toString() { return ".D82";}},
+		DNP { public String toString() { return ".DNP";}},
 	};
 
 	public static class DatabaseInfo {
@@ -96,6 +97,9 @@ public class D64Search
 		if(type.equals(IMAGE_TYPE.D81))
 			return 40;
 		else
+		if(type.equals(IMAGE_TYPE.DNP))
+			return 256;
+		else
 		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
 		{
 			if(t<40) return 29;
@@ -111,9 +115,9 @@ public class D64Search
 		return -1;
 	}
 
-	public static int getImageTotalBytes(IMAGE_TYPE type)
+	public static int getImageTotalBytes(IMAGE_TYPE type, long fileSize)
 	{
-		int ts=getImageNumTracks(type);
+		int ts=getImageNumTracks(type, fileSize);
 		int total=0;
 		for(int t=1;t<=ts;t++)
 			total+=(256*getImageSecsPerTrack(type,t));
@@ -129,6 +133,8 @@ public class D64Search
 			return 18;
 		if(type.equals(IMAGE_TYPE.D81))
 			return 40;
+		if(type.equals(IMAGE_TYPE.DNP))
+			return 1;
 		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
 			return 39;
 		return -1;
@@ -140,6 +146,8 @@ public class D64Search
 			return 1;
 		if(type.equals(IMAGE_TYPE.D71))
 			return 1;
+		if(type.equals(IMAGE_TYPE.DNP))
+			return 34;
 		if(type.equals(IMAGE_TYPE.D81))
 			return 3;
 		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
@@ -147,7 +155,7 @@ public class D64Search
 		return -1;
 	}
 	
-	private static int getImageNumTracks(IMAGE_TYPE type)
+	private static int getImageNumTracks(IMAGE_TYPE type, long fileSize)
 	{
 		if(type.equals(IMAGE_TYPE.D64))
 			return 35;
@@ -163,6 +171,9 @@ public class D64Search
 		else
 		if(type.equals(IMAGE_TYPE.D82))
 			return 2*77;
+		else
+		if(type.equals(IMAGE_TYPE.DNP))
+			return (int)(fileSize / 256 / 256);
 		return -1;
 	}
 	
@@ -175,9 +186,9 @@ public class D64Search
 		return (char)(b-128);
 	}
 	
-	private static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf)
+	private static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf, long fileSize)
 	{
-		int numTS=getImageNumTracks(type);
+		int numTS=getImageNumTracks(type, fileSize);
 		byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(type,1)][256];
 		int index=0;
 		for(int t=1;t<=numTS;t++)
@@ -195,7 +206,7 @@ public class D64Search
 	
 	public static byte[][][] getDisk(IMAGE_TYPE type, File F)
 	{
-		byte[] buf=new byte[getImageTotalBytes(type)];
+		byte[] buf=new byte[getImageTotalBytes(type,F.length())];
 		try
 		{
 			final FileInputStream is=new FileInputStream(F);
@@ -211,7 +222,7 @@ public class D64Search
 		{
 			e.printStackTrace(System.err);
 		}
-		return parseMap(type,buf);
+		return parseMap(type,buf,F.length());
 	}
 	
 	public static String toHex(byte b){ return HEX[unsigned(b)];}
@@ -262,10 +273,10 @@ public class D64Search
 		return (short)(0xFF & b);
 	}
 	
-	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt)
+	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, long fileSize)
 	{
 		int t=getImageDirTrack(type);
-		int maxT=D64Search.getImageNumTracks(type);
+		int maxT=D64Search.getImageNumTracks(type,fileSize);
 		int s=getImageDirSector(type);
 		Vector<FileInfo> finalData=new Vector<FileInfo>();
 		boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
@@ -467,7 +478,7 @@ public class D64Search
 							System.err.println("Stupid preparedStatement error: "+e.getMessage());
 						}
 					}
-					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt);
+					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt,F.length());
 					if(fileData==null)
 					{
 						System.err.println("Error reading :"+F.getName());

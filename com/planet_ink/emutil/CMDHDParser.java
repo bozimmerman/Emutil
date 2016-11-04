@@ -41,7 +41,8 @@ public class CMDHDParser
 		System.out.println("  CMDHDParser LIST <CMDHD_RAWIMAGE>");
 		System.out.println("  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH_OR_FILENAME> <CMDHD_PARTITION_NUMBER>");
 		System.out.println("  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH> ALL");
-		System.out.println("  CMDHDParser PUT <CMDHD_RAWIMAGE> <NEW_PART_IMAGE_FILE> <CMDHD_PARTITION_NUMBER>");
+		System.out.println("  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGE_FILE> <CMDHD_PARTITION_NUMBER>");
+		System.out.println("  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGES_PATH> ALL");
 		System.out.println("");
 		System.exit(-1);
 	}
@@ -120,12 +121,14 @@ public class CMDHDParser
 	{
 		int number=-1;
 		String name="";
+		@SuppressWarnings("unused")
 		int type=-1;
 		String typeName="";
 		long startAddr=-1;
 		long len=-1;
 	}
 	
+	@SuppressWarnings("serial")
 	private static class CMDHDParseException extends Exception
 	{
 		public CMDHDParseException(String msg)
@@ -313,7 +316,7 @@ public class CMDHDParser
 			}
 		}
 		else
-		if(command.equalsIgnoreCase("PUT"))
+		if(command.equalsIgnoreCase("REPLACE"))
 		{
 			if(args.length<3)
 			{

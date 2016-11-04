@@ -286,7 +286,7 @@ public class D64Compare
 		return (short)(0xFF & b);
 	}
 	
-	public static void finishFillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
+	public static void finishFillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, Set<COMP_FLAG> flags)
 	{
 		byte[] sector;
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
@@ -317,7 +317,7 @@ public class D64Compare
 					int phs = unsigned(sector[i+20]);
 					if(((sector[i] & 0x0f)!=4) //rel files never have headers
 					&&(pht!=0)
-					&&(pht<=maxT)) //TODO: check geos?
+					&&(pht<=maxT))
 					{
 						final byte[] ssec = tsmap[pht][phs];
 						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
@@ -424,7 +424,8 @@ public class D64Compare
 						f.fileType = ("dir");
 						int newDirT=fileT;
 						int newDirS=fileS;
-						fillFiledata(type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT);
+						//if(flags.contains(COMP_FLAG.RECURSE))
+						fillFiledata(type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,flags);
 						fileData=getFileContent(tsmap,newDirT,maxT,newDirS);
 						finalData.remove(f);
 						break;
@@ -447,7 +448,7 @@ public class D64Compare
 		}
 	}
 	
-	public static void fillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
+	public static void fillFiledata(IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, Set<COMP_FLAG> flags)
 	{
 		byte[] sector;
 		if((type != IMAGE_TYPE.D80)
@@ -469,11 +470,11 @@ public class D64Compare
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))
 			{
-				finishFillFiledata(type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT);
+				finishFillFiledata(type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT,flags);
 				getFileContent(tsmap,possDTrack,maxT,possDSector);
 			}
 		}
-		finishFillFiledata(type,prefix,tsmap,doneBefore,finalData,t,s,maxT);
+		finishFillFiledata(type,prefix,tsmap,doneBefore,finalData,t,s,maxT,flags);
 	}
 
 	
@@ -484,7 +485,7 @@ public class D64Compare
 		int s=getImageDirSector(type);
 		List<FileInfo> finalData=new Vector<FileInfo>();
 		Set<byte[]> doneBefore=new HashSet<byte[]>();
-		D64Compare.fillFiledata(type,"",tsmap, doneBefore, finalData, t, s, maxT);
+		D64Compare.fillFiledata(type,"",tsmap, doneBefore, finalData, t, s, maxT,flags);
 		return finalData;
 	}
 

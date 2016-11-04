@@ -100,7 +100,10 @@ public class D64Duplifind
 		for(final File F : path.listFiles())
 		{
 			if(F.isDirectory())
-				fill1PathFiles(F,flags,allPath1Files);
+			{
+				if(flags.contains(SEARCH_FLAG.RECURSE))
+					fill1PathFiles(F,flags,allPath1Files);
+			}
 			else
 			if(goodExt(F.getName()))
 				allPath1Files.add(F);
@@ -421,7 +424,7 @@ public class D64Duplifind
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search");
 			System.out.println("  -V verbose");
-			System.out.println("  -D deep compare");
+			//System.out.println("  -D deep compare");
 			System.out.println("  -1 add to path1");
 			System.out.println("  -2 add to path2");
 			return;
