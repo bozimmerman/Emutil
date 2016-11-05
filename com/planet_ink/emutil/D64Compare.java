@@ -418,8 +418,6 @@ public class D64Compare
 						break;
 					case (byte) 5:
 						f.fileType = ("cbm");
-						fileData =getFileContent(tsmap,fileT,maxT,fileS);
-						break;
 					case (byte) 6:
 						f.fileType = ("dir");
 						int newDirT=fileT;

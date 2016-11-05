@@ -3,6 +3,8 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
+
+import com.planet_ink.emutil.D64Compare.IMAGE_TYPE;
 /* 
 Copyright 2006-2015 Bo Zimmerman
 
@@ -273,18 +275,15 @@ public class D64Search
 		return (short)(0xFF & b);
 	}
 	
-	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, long fileSize)
+	public static Vector<FileInfo> getFileDir(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, int t, int s, int maxT)
 	{
-		int t=getImageDirTrack(type);
-		int maxT=D64Search.getImageNumTracks(type,fileSize);
-		int s=getImageDirSector(type);
 		Vector<FileInfo> finalData=new Vector<FileInfo>();
 		boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
 		boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
 		//Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
 		//Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
 		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
-		byte[] sector=tsmap[t][s];
+		byte[] sector=tsmap[1][0];
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
@@ -327,14 +326,55 @@ public class D64Search
 						
 						switch(sector[i])
 						{
-						case (byte)129: f.fileType=("seq"); break;
-						case (byte)130: f.fileType=("prg"); break;
-						case (byte)131: f.fileType=("usr"); break;
-						case (byte)132: f.fileType=("rel"); break;
-						default:f.fileType=("?");break;
+						case (byte) 129:
+							f.fileType = ("seq");
+							break;
+						case (byte) 130:
+							f.fileType = ("prg");
+							break;
+						case (byte) 131:
+							f.fileType = ("usr");
+							break;
+						case (byte) 132:
+							f.fileType = ("rel");
+							break;
+						case (byte) 133:
+						case (byte) 134:
+						{
+							f.fileType = ("dir");
+							int fileT=unsigned(sector[i+1]);
+							int fileS=unsigned(sector[i+2]);
+							if((type != IMAGE_TYPE.D80)
+							&&(type != IMAGE_TYPE.D82)
+							&&(fileT!=0)
+							&&(fileT<tsmap.length)
+							&&(fileS<tsmap[fileT].length)
+							&&(!doneBefore.contains(tsmap[fileT][fileS]))
+							&&(fileT<=maxT))
+							{
+								sector=tsmap[fileT][fileS];
+								int possDTrack = unsigned(sector[160+11]);
+								int possDSector = unsigned(sector[160+12]);
+								if((possDTrack!=0)
+								&&(possDTrack<tsmap.length)
+								&&(possDSector<tsmap[possDTrack].length)
+								&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
+								&&(possDTrack<=maxT))
+								{
+									finalData.addAll(getFileDir(type,tsmap,flags,fmt,possDTrack,possDSector,maxT));
+								}
+								fileT=unsigned(sector[0]);
+								fileS=unsigned(sector[1]);
+								finalData.addAll(getFileDir(type,tsmap,flags,fmt,fileT,fileS,maxT));
+							}
+							break;
+						}
+						default:
+							f.fileType = ("?");
+							break;
 						}
 					}
-					if(inside||md5)
+					if((inside||md5)&&(sector[i] != (byte)134))
 					{
 						int fileT=unsigned(sector[i+1]);
 						int fileS=unsigned(sector[i+2]);
@@ -353,6 +393,14 @@ public class D64Search
 			s=unsigned(sector[1]);
 		}
 		return finalData;
+	}
+
+	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, long fileSize)
+	{
+		int t=getImageDirTrack(type);
+		int maxT=D64Search.getImageNumTracks(type,fileSize);
+		int s=getImageDirSector(type);
+		return getFileDir(type,tsmap,flags,fmt,t,s,maxT);
 	}
 
 	private static boolean check(String name, char[] expr, boolean caseSensitive)
