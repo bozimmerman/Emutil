@@ -352,9 +352,9 @@ public class D64Search
 							&&(!doneBefore.contains(tsmap[fileT][fileS]))
 							&&(fileT<=maxT))
 							{
-								sector=tsmap[fileT][fileS];
-								int possDTrack = unsigned(sector[160+11]);
-								int possDSector = unsigned(sector[160+12]);
+								byte[] sector2=tsmap[fileT][fileS];
+								int possDTrack = unsigned(sector2[160+11]);
+								int possDSector = unsigned(sector2[160+12]);
 								if((possDTrack!=0)
 								&&(possDTrack<tsmap.length)
 								&&(possDSector<tsmap[possDTrack].length)
@@ -363,8 +363,8 @@ public class D64Search
 								{
 									finalData.addAll(getFileDir(type,tsmap,flags,fmt,possDTrack,possDSector,maxT));
 								}
-								fileT=unsigned(sector[0]);
-								fileS=unsigned(sector[1]);
+								fileT=unsigned(sector2[0]);
+								fileS=unsigned(sector2[1]);
 								finalData.addAll(getFileDir(type,tsmap,flags,fmt,fileT,fileS,maxT));
 							}
 							break;
@@ -374,7 +374,9 @@ public class D64Search
 							break;
 						}
 					}
-					if((inside||md5)&&(sector[i] != (byte)134))
+					if((inside||md5)
+					&&(sector[i] != (byte)134)
+					&&(sector[i] != (byte)133))
 					{
 						int fileT=unsigned(sector[i+1]);
 						int fileS=unsigned(sector[i+2]);
@@ -493,6 +495,7 @@ public class D64Search
 				try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace(System.err);}
 			}
 			for(IMAGE_TYPE img : IMAGE_TYPE.values())
+			{
 				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
 					IMAGE_TYPE type=img;
@@ -506,12 +509,14 @@ public class D64Search
 							//ByteArrayOutputStream bout = new ByteArrayOutputStream();
 							long diskLen=0;
 							for(int b1=0;b1<disk.length;b1++)
+							{
 								for(int b2=0;b2<disk[b1].length;b2++)
 								{
 									MD.update(disk[b1][b2]);
 									diskLen += disk[b1][b2].length;
 									//bout.write(disk[b1][b2]);
 								}
+							}
 							byte[] md5 = MD.digest();
 							dbInfo.stmt.setString(1, F.getName());
 							dbInfo.stmt.setString(2, "*");
@@ -602,6 +607,7 @@ public class D64Search
 					}
 					break;
 				}
+			}
 			if(dbInfo!=null)
 			{
 				try
@@ -658,15 +664,25 @@ public class D64Search
 					switch(args[i].charAt(c))
 					{
 					case 'r':
-					case 'R': flags.add(SEARCH_FLAG.RECURSE); break;
+					case 'R':
+						flags.add(SEARCH_FLAG.RECURSE);
+						break;
 					case 'c':
-					case 'C': flags.add(SEARCH_FLAG.CASESENSITIVE); break;
+					case 'C':
+						flags.add(SEARCH_FLAG.CASESENSITIVE);
+						break;
 					case 'v':
-					case 'V': flags.add(SEARCH_FLAG.VERBOSE); break;
+					case 'V':
+						flags.add(SEARCH_FLAG.VERBOSE);
+						break;
 					case 'i':
-					case 'I': flags.add(SEARCH_FLAG.INSIDE); break;
+					case 'I':
+						flags.add(SEARCH_FLAG.INSIDE);
+						break;
 					case 'm':
-					case 'M': flags.add(SEARCH_FLAG.SHOWMD5); break;
+					case 'M':
+						flags.add(SEARCH_FLAG.SHOWMD5);
+						break;
 					case 'x':
 					case 'X':
 					{
@@ -691,11 +707,21 @@ public class D64Search
 						if(dbInfo==null) dbInfo = new DatabaseInfo();
 						switch(Character.toLowerCase(args[i].charAt(c+1)))
 						{
-						case 'u': dbInfo.user=args[i].substring(c+2); break;
-						case 'p': dbInfo.pass=args[i].substring(c+2); break;
-						case 'c': dbInfo.className=args[i].substring(c+2); break;
-						case 's': dbInfo.service=args[i].substring(c+2); break;
-						case 't': dbInfo.table=args[i].substring(c+2); break;
+						case 'u':
+							dbInfo.user = args[i].substring(c + 2);
+							break;
+						case 'p':
+							dbInfo.pass = args[i].substring(c + 2);
+							break;
+						case 'c':
+							dbInfo.className = args[i].substring(c + 2);
+							break;
+						case 's':
+							dbInfo.service = args[i].substring(c + 2);
+							break;
+						case 't':
+							dbInfo.table = args[i].substring(c + 2);
+							break;
 						}
 						c=args[i].length()-1;
 						break;
