@@ -6,7 +6,7 @@ import java.util.*;
 
 import com.planet_ink.emutil.D64Compare.IMAGE_TYPE;
 /* 
-Copyright 2006-2015 Bo Zimmerman
+Copyright 2006-2016 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -626,7 +626,7 @@ public class D64Search
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Search v1.5 (c)2006-2015 Bo Zimmerman");
+			System.out.println("D64Search v1.8 (c)2006-2016 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Search <options> <path> <expression>");
