@@ -2,7 +2,7 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
 /* 
-Copyright 2016-2016 Bo Zimmerman
+Copyright 2016-2017 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -504,7 +504,7 @@ public class D64Compare
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Compare v1.0 (c)2016-2016 Bo Zimmerman");
+			System.out.println("D64Compare v1.0 (c)2016-2017 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Compare <file1> <file2>");

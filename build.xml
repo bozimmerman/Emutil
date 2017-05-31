@@ -1,26 +1,51 @@
-<project name="CoffeeMUD" default="compile">
+<project name="Emutil" default="init">
+	<target name="init">
+		<echo>compile, clean, or docs</echo>
+	</target>
 	<target name="compile">
-		<javac srcdir="." classpath="." nowarn="yes" deprecation="on" debug="on" memoryMaximumSize="256m" fork="on">
+		<javac srcdir="." classpath=".;commons-compress-1.12.jar" nowarn="yes" deprecation="on" target="1.6" source="1.6" debug="on" memoryMaximumSize="1024m" fork="on">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
+		<mkdir dir="bin"/>
+		<jar destfile="bin/CMDHDParser.jar" basedir="." includes="com/planet_ink/emutil/CMDHDParser*.class">
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.CMDHDParser"/>
+			</manifest>
+		</jar>
+		<jar destfile="bin/D64Compare.jar" basedir="." includes="com/planet_ink/emutil/D64Compare*.class">
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Compare"/>
+			</manifest>
+		</jar>
+		<jar destfile="bin/D64Duplifind.jar" basedir="." includes="com/planet_ink/emutil/D64Duplifind*.class" >
+			<zipgroupfileset dir="." includes="**/*.jar" />
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Duplifind"/>
+			</manifest>
+		</jar>
+		<jar destfile="bin/D64FileDiffer.jar" basedir="." includes="com/planet_ink/emutil/D64FileDiffer*.class">
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64FileDiffer"/>
+			</manifest>
+		</jar>
+		<jar destfile="bin/D64Search.jar" basedir="." includes="com/planet_ink/emutil/D64Search*.class">
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Search"/>
+			</manifest>
+		</jar>
 		<echo>Compiliation done.</echo>
 	</target>
 	<target name="doc">
 		<echo>Beginning Javadoc generation</echo>
-		<javadoc sourcepath="." classpath="." destdir=".\docs" packagenames="com\planet_ink.*" maxmemory="256m" verbose="on" linksource="yes" source="1.5" author="true" version="true" use="true"/>
+		<javadoc sourcepath="." destdir=".\docs" packagenames="com\planet_ink\emutil.*" maxmemory="1024m" verbose="on" linksource="yes" source="1.6" author="true" version="true" use="true"/>
 		<echo>Javadoc generation complete.</echo>
 	</target>
 	<target name="clean">
 	  <delete>
 		  <fileset dir="." includes="**/*.class"/>
+		  <fileset dir="bin" includes="*.jar"/>
 	  </delete>
 	</target>
-	<jar destfile="D64Search.jar">
-		<fileset dir="." includes="**/*.class" />
-		<manifest>
-			<attribute name="Main-Class" value="com.planet_ink.emutil.D64Search"/>
-		</manifest>
-	</jar>
 </project>
 
 

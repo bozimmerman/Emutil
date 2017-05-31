@@ -11,7 +11,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 
 import java.util.zip.*;
 /* 
-Copyright 2016-2016 Bo Zimmerman
+Copyright 2016-2017 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -431,7 +431,7 @@ public class D64Duplifind
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Duplifind v1.6 (c)2016-2016 Bo Zimmerman");
+			System.out.println("D64Duplifind v1.6 (c)2016-2017 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Duplifind <options>");

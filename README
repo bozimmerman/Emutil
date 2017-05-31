@@ -72,6 +72,22 @@ USAGE:
   D64Compare <file1> <file2>
 
 -----------------------------------------------------------------------------
+D64FileMatcher
+--------------
+D64FileMatcher v1.0 (c)2017-2017 Bo Zimmerman
+
+USAGE: 
+  D64FileMatcher <file/path1> <file/path2>
+OPTIONS:");
+  -R recursive search inside DNP
+  -V verbose
+  -D X Recursive depth X
+
+A tool for comparing the files inside a disk image, or a path of disk images, 
+with the files inside a second disk image, or a path of disk images.  A list 
+of matching, non-matching, and missing files are reported.
+
+-----------------------------------------------------------------------------
 CMDHDParser
 -----------
 A tool for viewing the partition list and extracting or replacing 
