@@ -66,7 +66,7 @@ java -jar bin/D64Compare.jar
 or
 java com.planet_ink.emutil.D64Compare
 
-D64Compare v1.0 (c)2016-2016 Bo Zimmerman
+D64Compare v1.0 (c)2016-2017 Bo Zimmerman
 
 USAGE:
   D64Compare <file1> <file2>
