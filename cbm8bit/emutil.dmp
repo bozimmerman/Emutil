@@ -1,0 +1,409 @@
+00001  0000             *          = 1300
+00002  0514             
+00003  0514             KCHKIN     = $FFC6
+00004  0514             KCHKOUT    = $FFC9
+00005  0514             KCLRCHN    = $FFCC
+00006  0514             KCHRIN     = $FFCF
+00007  0514             KCHROUT    = $FFD2
+00008  0514             
+00009  0514  4C 2A 05   L1300      JMP L1316
+00010  0517                        
+00011  0517  4C F0 06   L1303      JMP L14DC
+00012  051A                        
+00013  051A  4C 1C 07   L1306      JMP L1508
+00014  051D                        
+00015  051D  4C A4 07   L1309      JMP L1590
+00016  0520                        
+00017  0520  00         L130C      BYTE 0
+00018  0521  00         L130D      BYTE 0
+00019  0522  00         L130E      BYTE 0
+00020  0523  00         L130F      BYTE 0
+00021  0524  00         L1310      BYTE 0
+00022  0525  00         L1311      BYTE 0
+00023  0526  00         L1312      BYTE 0
+00024  0527  00         L1313      BYTE 0
+00025  0528  00         L1314      BYTE 0
+00026  0529  00         L1315      BYTE 0
+00027  052A  AE 20 05   L1316      LDX L130C
+00028  052D  20 C6 FF              JSR KCHKIN
+00029  0530  A0 00                 LDY #$00
+00030  0532  20 CF FF   L131E      JSR KCHRIN
+00031  0535  99 B8 07              STA BUFFER1,Y
+00032  0538  99 B8 08              STA BUFFER2,Y
+00033  053B  C8                    INY
+00034  053C  D0 F4                 BNE L131E
+00035  053E  AE 21 05              LDX L130D
+00036  0541  E0 FF                 CPX #$FF
+00037  0543  D0 0D                 BNE L133E
+00038  0545  A9 17                 LDA #$17
+00039  0547  8D 27 05              STA L1313
+00040  054A  A9 A4                 LDA #$A4
+00041  054C  8D 26 05              STA L1312
+00042  054F  4C CC FF              JMP KCLRCHN
+00043  0552                        
+00044  0552  A9 08      L133E      LDA #>BUFFER2
+00045  0554  85 FF                 STA $FF
+00046  0556  A9 B8                 LDA #<BUFFER2
+00047  0558  85 FE                 STA $FE
+00048  055A  A9 00                 LDA #$00
+00049  055C  8D 22 05              STA L130E
+00050  055F  8D 28 05              STA L1314
+00051  0562  A9 00      L134E      LDA #$00
+00052  0564  8D 28 05              STA L1314
+00053  0567  AC 22 05              LDY L130E
+00054  056A  B9 B8 07              LDA BUFFER1,Y
+00055  056D  A0 01                 LDY #$01
+00056  056F  91 FE                 STA ($FE),Y
+00057  0571  8C 25 05              STY L1311
+00058  0574  8C 23 05              STY L130F
+00059  0577  EE 22 05              INC L130E
+00060  057A  D0 03                 BNE L136B
+00061  057C  4C 2B 06              JMP L1417
+00062  057F                        
+00063  057F  AC 22 05   L136B      LDY L130E
+00064  0582  D0 03                 BNE L1373
+00065  0584  4C 2B 06              JMP L1417
+00066  0587                        
+00067  0587  EE 22 05   L1373      INC L130E
+00068  058A  B9 B8 07              LDA BUFFER1,Y
+00069  058D  AC 23 05              LDY L130F
+00070  0590  C8                    INY
+00071  0591  91 FE                 STA ($FE),Y
+00072  0593  88                    DEY
+00073  0594  D1 FE                 CMP ($FE),Y
+00074  0596  F0 38                 BEQ L13BC
+00075  0598  A9 00                 LDA #$00
+00076  059A  8D 28 05              STA L1314
+00077  059D  AD 25 05              LDA L1311
+00078  05A0  C9 80                 CMP #$80
+00079  05A2  B0 0D                 BCS L139D
+00080  05A4  C9 80                 CMP #$80
+00081  05A6  F0 09                 BEQ L139D
+00082  05A8  EE 23 05              INC L130F
+00083  05AB  EE 25 05              INC L1311
+00084  05AE  4C 7F 05              JMP L136B
+00085  05B1                        
+00086  05B1  A0 00      L139D      LDY #$00
+00087  05B3  AD 25 05              LDA L1311
+00088  05B6  91 FE                 STA ($FE),Y
+00089  05B8  CE 22 05              DEC L130E
+00090  05BB  EE 23 05              INC L130F
+00091  05BE  AD 23 05              LDA L130F
+00092  05C1  18                    CLC
+00093  05C2  65 FE                 ADC $FE
+00094  05C4  85 FE                 STA $FE
+00095  05C6  AD 24 05              LDA L1310
+00096  05C9  65 FF                 ADC $FF
+00097  05CB  85 FF                 STA $FF
+00098  05CD  4C 62 05              JMP L134E
+00099  05D0                        
+00100  05D0  EE 28 05   L13BC      INC L1314
+00101  05D3  AD 25 05              LDA L1311
+00102  05D6  C9 80                 CMP #$80
+00103  05D8  F0 D7                 BEQ L139D
+00104  05DA  C9 81                 CMP #$81
+00105  05DC  90 0A                 BCC L13D4
+00106  05DE  C9 FF                 CMP #$FF
+00107  05E0  F0 CF                 BEQ L139D
+00108  05E2  EE 25 05              INC L1311
+00109  05E5  4C 7F 05              JMP L136B
+00110  05E8                        
+00111  05E8  C9 01      L13D4      CMP #$01
+00112  05EA  D0 0F                 BNE L13E7
+00113  05EC  AD 25 05   L13D8      LDA L1311
+00114  05EF  18                    CLC
+00115  05F0  69 81                 ADC #$81
+00116  05F2  8D 25 05              STA L1311
+00117  05F5  4C 7F 05              JMP L136B
+00118  05F8                        
+00119  05F8  B8         L13E4      CLV
+00120  05F9  50 B6                 BVC L139D
+00121  05FB  C9 02      L13E7      CMP #$02
+00122  05FD  D0 10                 BNE L13FB
+00123  05FF  AD 28 05              LDA L1314
+00124  0602  C9 02                 CMP #$02
+00125  0604  B0 E6                 BCS L13D8
+00126  0606  EE 23 05   L13F2      INC L130F
+00127  0609  EE 25 05              INC L1311
+00128  060C  4C 7F 05              JMP L136B
+00129  060F                        
+00130  060F  AD 28 05   L13FB      LDA L1314
+00131  0612  C9 02                 CMP #$02
+00132  0614  90 F0                 BCC L13F2
+00133  0616  CE 25 05              DEC L1311
+00134  0619  CE 25 05              DEC L1311
+00135  061C  CE 23 05              DEC L130F
+00136  061F  CE 23 05              DEC L130F
+00137  0622  CE 22 05              DEC L130E
+00138  0625  CE 22 05              DEC L130E
+00139  0628  B8                    CLV
+00140  0629  50 CD                 BVC L13E4
+00141  062B  A0 00      L1417      LDY #$00
+00142  062D  AD 25 05              LDA L1311
+00143  0630  91 FE                 STA ($FE),Y
+00144  0632  EE 23 05              INC L130F
+00145  0635  AD 23 05              LDA L130F
+00146  0638  18                    CLC
+00147  0639  65 FE                 ADC $FE
+00148  063B  85 FE                 STA $FE
+00149  063D  AD 24 05              LDA L1310
+00150  0640  65 FF                 ADC $FF
+00151  0642  85 FF                 STA $FF
+00152  0644  A5 FF                 LDA $FF
+00153  0646  8D 27 05              STA L1313
+00154  0649  A5 FE                 LDA $FE
+00155  064B  8D 26 05              STA L1312
+00156  064E  20 54 06              JSR S1440
+00157  0651  4C CC FF              JMP KCLRCHN
+00158  0654                        
+00159  0654  A9 16      S1440      LDA #$16
+00160  0656  85 FF                 STA $FF
+00161  0658  A9 A4                 LDA #$A4
+00162  065A  85 FE                 STA $FE
+00163  065C  A9 00                 LDA #$00
+00164  065E  8D 23 05              STA L130F
+00165  0661  A0 00      L144D      LDY #$00
+00166  0663  B1 FE                 LDA ($FE),Y
+00167  0665  E6 FE                 INC $FE
+00168  0667  D0 02                 BNE L1457
+00169  0669  E6 FF                 INC $FF
+00170  066B  8D 25 05   L1457      STA L1311
+00171  066E  C9 81                 CMP #$81
+00172  0670  B0 2E                 BCS L148C
+00173  0672  A0 00      L145E      LDY #$00
+00174  0674  B1 FE                 LDA ($FE),Y
+00175  0676  E6 FE                 INC $FE
+00176  0678  D0 02                 BNE L1468
+00177  067A  E6 FF                 INC $FF
+00178  067C  AC 23 05   L1468      LDY L130F
+00179  067F  EE 23 05              INC L130F
+00180  0682  D9 B8 07              CMP BUFFER1,Y
+00181  0685  F0 03                 BEQ L1476
+00182  0687  4C D8 06              JMP L14C4
+00183  068A                        
+00184  068A  CE 25 05   L1476      DEC L1311
+00185  068D  D0 E3                 BNE L145E
+00186  068F  A5 FF                 LDA $FF
+00187  0691  CD 27 05              CMP L1313
+00188  0694  D0 05                 BNE L1487
+00189  0696  A5 FE                 LDA $FE
+00190  0698  CD 26 05              CMP L1312
+00191  069B  B0 3A      L1487      BCS L14C3
+00192  069D  B8                    CLV
+00193  069E  50 C1                 BVC L144D
+00194  06A0  AD 25 05   L148C      LDA L1311
+00195  06A3  38                    SEC
+00196  06A4  E9 80                 SBC #$80
+00197  06A6  8D 25 05              STA L1311
+00198  06A9  A0 00                 LDY #$00
+00199  06AB  B1 FE                 LDA ($FE),Y
+00200  06AD  E6 FE                 INC $FE
+00201  06AF  D0 02                 BNE L149F
+00202  06B1  E6 FF                 INC $FF
+00203  06B3  AC 23 05   L149F      LDY L130F
+00204  06B6  EE 23 05              INC L130F
+00205  06B9  D9 B8 07              CMP BUFFER1,Y
+00206  06BC  F0 03                 BEQ L14AD
+00207  06BE  4C D8 06              JMP L14C4
+00208  06C1                        
+00209  06C1  CE 25 05   L14AD      DEC L1311
+00210  06C4  D0 ED                 BNE L149F
+00211  06C6  A5 FF                 LDA $FF
+00212  06C8  CD 27 05              CMP L1313
+00213  06CB  D0 05                 BNE L14BE
+00214  06CD  A5 FE                 LDA $FE
+00215  06CF  CD 26 05              CMP L1312
+00216  06D2  B0 03      L14BE      BCS L14C3
+00217  06D4  B8                    CLV
+00218  06D5  50 8A                 BVC L144D
+00219  06D7  60         L14C3      RTS
+00220  06D8                        
+00221  06D8  A9 FF      L14C4      LDA #$FF
+00222  06DA  8D 20 05              STA L130C
+00223  06DD  AD 23 05              LDA L130F
+00224  06E0  8D 21 05              STA L130D
+00225  06E3  AD 24 05              LDA L1310
+00226  06E6  8D 27 05              STA L1313
+00227  06E9  AD 23 05              LDA L130F
+00228  06EC  8D 26 05              STA L1312
+00229  06EF  60                    RTS
+00230  06F0                        
+00231  06F0  AE 21 05   L14DC      LDX L130D
+00232  06F3  20 C9 FF              JSR KCHKOUT
+00233  06F6  A9 16                 LDA #$16
+00234  06F8  85 FF                 STA $FF
+00235  06FA  A9 A4                 LDA #$A4
+00236  06FC  85 FE                 STA $FE
+00237  06FE  A0 00      L14EA      LDY #$00
+00238  0700  B1 FE                 LDA ($FE),Y
+00239  0702  20 D2 FF              JSR KCHROUT
+00240  0705  E6 FE                 INC $FE
+00241  0707  D0 02                 BNE L14F7
+00242  0709  E6 FF                 INC $FF
+00243  070B  A5 FF      L14F7      LDA $FF
+00244  070D  CD 27 05              CMP L1313
+00245  0710  D0 05                 BNE L1503
+00246  0712  A5 FE                 LDA $FE
+00247  0714  CD 26 05              CMP L1312
+00248  0717  90 E5      L1503      BCC L14EA
+00249  0719  4C CC FF              JMP KCLRCHN
+00250  071C                        
+00251  071C  AE 20 05   L1508      LDX L130C
+00252  071F  20 C6 FF              JSR KCHKIN
+00253  0722  A9 15                 LDA #$15
+00254  0724  85 FF                 STA $FF
+00255  0726  A9 A4                 LDA #$A4
+00256  0728  85 FE                 STA $FE
+00257  072A  AE 21 05              LDX L130D
+00258  072D  E0 FF                 CPX #$FF
+00259  072F  D0 0E                 BNE L152B
+00260  0731  A0 00                 LDY #$00
+00261  0733  20 CF FF   L151F      JSR KCHRIN
+00262  0736  99 B8 07              STA BUFFER1,Y
+00263  0739  C8                    INY
+00264  073A  D0 F7                 BNE L151F
+00265  073C  4C CC FF              JMP KCLRCHN
+00266  073F                        
+00267  073F  20 CF FF   L152B      JSR KCHRIN
+00268  0742  8D 25 05              STA L1311
+00269  0745  C9 81                 CMP #$81
+00270  0747  B0 2C                 BCS L1561
+00271  0749  20 CF FF   L1535      JSR KCHRIN
+00272  074C  A0 00                 LDY #$00
+00273  074E  91 FE                 STA ($FE),Y
+00274  0750  E6 FE                 INC $FE
+00275  0752  D0 02                 BNE L1542
+00276  0754  E6 FF                 INC $FF
+00277  0756  CE 25 05   L1542      DEC L1311
+00278  0759  D0 EE                 BNE L1535
+00279  075B  A5 FF                 LDA $FF
+00280  075D  C9 16                 CMP #$16
+00281  075F  D0 04                 BNE L1551
+00282  0761  A5 FE                 LDA $FE
+00283  0763  C9 A4                 CMP #$A4
+00284  0765  90 D8      L1551      BCC L152B
+00285  0767  F0 38                 BEQ L158D
+00286  0769  20 CC FF   L1555      JSR KCLRCHN
+00287  076C  A9 FF                 LDA #$FF
+00288  076E  8D 20 05              STA L130C
+00289  0771  8D 21 05              STA L130D
+00290  0774  60                    RTS
+00291  0775                        
+00292  0775  AD 25 05   L1561      LDA L1311
+00293  0778  38                    SEC
+00294  0779  E9 80                 SBC #$80
+00295  077B  8D 25 05              STA L1311
+00296  077E  20 CF FF              JSR KCHRIN
+00297  0781  8D 23 05              STA L130F
+00298  0784  A0 00                 LDY #$00
+00299  0786  91 FE      L1572      STA ($FE),Y
+00300  0788  E6 FE                 INC $FE
+00301  078A  D0 02                 BNE L157A
+00302  078C  E6 FF                 INC $FF
+00303  078E  CE 25 05   L157A      DEC L1311
+00304  0791  D0 F3                 BNE L1572
+00305  0793  A5 FF                 LDA $FF
+00306  0795  C9 16                 CMP #$16
+00307  0797  D0 04                 BNE L1589
+00308  0799  A5 FE                 LDA $FE
+00309  079B  C9 A4                 CMP #$A4
+00310  079D  90 A0      L1589      BCC L152B
+00311  079F  D0 C8                 BNE L1555
+00312  07A1  4C CC FF   L158D      JMP KCLRCHN
+00313  07A4                        
+00314  07A4  AE 21 05   L1590      LDX L130D
+00315  07A7  20 C9 FF              JSR KCHKOUT
+00316  07AA  A0 00                 LDY #$00
+00317  07AC  B9 B8 07   L1598      LDA BUFFER1,Y
+00318  07AF  20 D2 FF              JSR KCHROUT
+00319  07B2  C8                    INY
+00320  07B3  D0 F7                 BNE L1598
+00321  07B5  4C CC FF              JMP KCLRCHN
+00322  07B8  00         BUFFER1    BYTE 0
+00323  07B9             BUFFER2    = BUFFER1 + 256
+00324  07B9             BUFFERE    = BUFFER2 + 256
+00325  07B9             
+
+******* 61 Label(s) *******
+Buffer1 = $07B8 
+L1300 = $0514 
+L1303 = $0517 
+L1306 = $051A 
+L1309 = $051D 
+L130c = $0520 
+L130d = $0521 
+L130e = $0522 
+L130f = $0523 
+L1310 = $0524 
+L1311 = $0525 
+L1312 = $0526 
+L1313 = $0527 
+L1314 = $0528 
+L1315 = $0529 
+L1316 = $052A 
+L131e = $0532 
+L133e = $0552 
+L134e = $0562 
+L136b = $057F 
+L1373 = $0587 
+L139d = $05B1 
+L13bc = $05D0 
+L13d4 = $05E8 
+L13d8 = $05EC 
+L13e4 = $05F8 
+L13e7 = $05FB 
+L13f2 = $0606 
+L13fb = $060F 
+L1417 = $062B 
+L144d = $0661 
+L1457 = $066B 
+L145e = $0672 
+L1468 = $067C 
+L1476 = $068A 
+L1487 = $069B 
+L148c = $06A0 
+L149f = $06B3 
+L14ad = $06C1 
+L14be = $06D2 
+L14c3 = $06D7 
+L14c4 = $06D8 
+L14dc = $06F0 
+L14ea = $06FE 
+L14f7 = $070B 
+L1503 = $0717 
+L1508 = $071C 
+L151f = $0733 
+L152b = $073F 
+L1535 = $0749 
+L1542 = $0756 
+L1551 = $0765 
+L1555 = $0769 
+L1561 = $0775 
+L1572 = $0786 
+L157a = $078E 
+L1589 = $079D 
+L158d = $07A1 
+L1590 = $07A4 
+L1598 = $07AC 
+S1440 = $0654 
+
+******* 5 Unused label(s) *******
+L1300
+L1303
+L1306
+L1309
+L1315
+
+******* 8 Variable(s) *******
+Buffer2  = $08B8
+BufferE  = $09B8
+kCHKIN  = $FFC6
+kCHKOUT  = $FFC9
+kCHRIN  = $FFCF
+kCHROUT  = $FFD2
+kCLRCHN  = $FFCC
+tgt_c128  = $0001
+******* 2 Unused variables(s) *******
+BufferE
+tgt_c128
+
