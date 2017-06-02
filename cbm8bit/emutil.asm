@@ -10,21 +10,22 @@ L1300               jmp L1316
                     
 L1303               jmp L14dc
                     
-L1306               jmp L1508
+PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
                     
-L1309               jmp L1590
+PWriteBuf1          jmp WriteBuf1
                     
-L130c               byte 0
-L130d               byte 0
+ReadChan            byte 0
+WriteChan           byte 0
 L130e               byte 0
 L130f               byte 0
 L1310               byte 0
-L1311               byte 0
-L1312               byte 0
-L1313               byte 0
+RLECode             byte 0
+EOBufL              byte 0
+EOBufH              byte 0
 L1314               byte 0
-L1315               byte 0 
-L1316               ldx L130c
+                    byte 0 
+
+L1316               ldx ReadChan
                     jsr kCHKIN
                     ldy #$00
 L131e               jsr kCHRIN
@@ -32,13 +33,13 @@ L131e               jsr kCHRIN
                     sta Buffer2,y
                     iny 
                     bne L131e
-                    ldx L130d
+                    ldx WriteChan
                     cpx #$ff
                     bne L133e
-                    lda #$17
-                    sta L1313
-                    lda #$a4
-                    sta L1312
+                    lda #>BufferE
+                    sta EOBufH
+                    lda #<BufferE
+                    sta EOBufL
                     jmp kCLRCHN
                     
 L133e               lda #>Buffer2
@@ -54,7 +55,7 @@ L134e               lda #$00
                     lda Buffer1,y
                     ldy #$01
                     sta ($fe),y
-                    sty L1311
+                    sty RLECode
                     sty L130f
                     inc L130e
                     bne L136b
@@ -74,17 +75,17 @@ L1373               inc L130e
                     beq L13bc
                     lda #$00
                     sta L1314
-                    lda L1311
+                    lda RLECode
                     cmp #$80
                     bcs L139d
                     cmp #$80
                     beq L139d
                     inc L130f
-                    inc L1311
+                    inc RLECode
                     jmp L136b
                     
 L139d               ldy #$00
-                    lda L1311
+                    lda RLECode
                     sta ($fe),y
                     dec L130e
                     inc L130f
@@ -98,22 +99,22 @@ L139d               ldy #$00
                     jmp L134e
                     
 L13bc               inc L1314
-                    lda L1311
+                    lda RLECode
                     cmp #$80
                     beq L139d
                     cmp #$81
                     bcc L13d4
                     cmp #$ff
                     beq L139d
-                    inc L1311
+                    inc RLECode
                     jmp L136b
                     
 L13d4               cmp #$01
                     bne L13e7
-L13d8               lda L1311
+L13d8               lda RLECode
                     clc 
                     adc #$81
-                    sta L1311
+                    sta RLECode
                     jmp L136b
                     
 L13e4               clv 
@@ -124,14 +125,14 @@ L13e7               cmp #$02
                     cmp #$02
                     bcs L13d8
 L13f2               inc L130f
-                    inc L1311
+                    inc RLECode
                     jmp L136b
                     
 L13fb               lda L1314
                     cmp #$02
                     bcc L13f2
-                    dec L1311
-                    dec L1311
+                    dec RLECode
+                    dec RLECode
                     dec L130f
                     dec L130f
                     dec L130e
@@ -139,7 +140,7 @@ L13fb               lda L1314
                     clv 
                     bvc L13e4
 L1417               ldy #$00
-                    lda L1311
+                    lda RLECode
                     sta ($fe),y
                     inc L130f
                     lda L130f
@@ -150,15 +151,15 @@ L1417               ldy #$00
                     adc $ff
                     sta $ff
                     lda $ff
-                    sta L1313
+                    sta EOBufH
                     lda $fe
-                    sta L1312
+                    sta EOBufL
                     jsr S1440
                     jmp kCLRCHN
                     
-S1440               lda #$16
+S1440               lda #>Buffer2
                     sta $ff
-                    lda #$a4
+                    lda #<Buffer2
                     sta $fe
                     lda #$00
                     sta L130f
@@ -167,7 +168,7 @@ L144d               ldy #$00
                     inc $fe
                     bne L1457
                     inc $ff
-L1457               sta L1311
+L1457               sta RLECode
                     cmp #$81
                     bcs L148c
 L145e               ldy #$00
@@ -181,20 +182,20 @@ L1468               ldy L130f
                     beq L1476
                     jmp L14c4
                     
-L1476               dec L1311
+L1476               dec RLECode
                     bne L145e
                     lda $ff
-                    cmp L1313
+                    cmp EOBufH
                     bne L1487
                     lda $fe
-                    cmp L1312
+                    cmp EOBufL
 L1487               bcs L14c3
                     clv 
                     bvc L144d
-L148c               lda L1311
+L148c               lda RLECode
                     sec 
                     sbc #$80
-                    sta L1311
+                    sta RLECode
                     ldy #$00
                     lda ($fe),y
                     inc $fe
@@ -206,33 +207,33 @@ L149f               ldy L130f
                     beq L14ad
                     jmp L14c4
                     
-L14ad               dec L1311
+L14ad               dec RLECode
                     bne L149f
                     lda $ff
-                    cmp L1313
+                    cmp EOBufH
                     bne L14be
                     lda $fe
-                    cmp L1312
+                    cmp EOBufL
 L14be               bcs L14c3
                     clv 
                     bvc L144d
 L14c3               rts 
                     
 L14c4               lda #$ff
-                    sta L130c
+                    sta ReadChan
                     lda L130f
-                    sta L130d
+                    sta WriteChan
                     lda L1310
-                    sta L1313
+                    sta EOBufH
                     lda L130f
-                    sta L1312
+                    sta EOBufL
                     rts 
                     
-L14dc               ldx L130d
+L14dc               ldx WriteChan
                     jsr kCHKOUT
-                    lda #$16
+                    lda #>Buffer2
                     sta $ff
-                    lda #$a4
+                    lda #<Buffer2
                     sta $fe
 L14ea               ldy #$00
                     lda ($fe),y
@@ -241,20 +242,21 @@ L14ea               ldy #$00
                     bne L14f7
                     inc $ff
 L14f7               lda $ff
-                    cmp L1313
+                    cmp EOBufH
                     bne L1503
                     lda $fe
-                    cmp L1312
+                    cmp EOBufL
 L1503               bcc L14ea
                     jmp kCLRCHN
                     
-L1508               ldx L130c
+;------------------------------------                    
+ReadFileBuf1        ldx ReadChan
                     jsr kCHKIN
-                    lda #$15
+                    lda #>Buffer1
                     sta $ff
-                    lda #$a4
+                    lda #<Buffer1
                     sta $fe
-                    ldx L130d
+                    ldx WriteChan
                     cpx #$ff
                     bne L152b
                     ldy #$00
@@ -265,7 +267,7 @@ L151f               jsr kCHRIN
                     jmp kCLRCHN
                     
 L152b               jsr kCHRIN
-                    sta L1311
+                    sta RLECode
                     cmp #$81
                     bcs L1561
 L1535               jsr kCHRIN
@@ -274,7 +276,7 @@ L1535               jsr kCHRIN
                     inc $fe
                     bne L1542
                     inc $ff
-L1542               dec L1311
+L1542               dec RLECode
                     bne L1535
                     lda $ff
                     cmp #$16
@@ -285,14 +287,14 @@ L1551               bcc L152b
                     beq L158d
 L1555               jsr kCLRCHN
                     lda #$ff
-                    sta L130c
-                    sta L130d
+                    sta ReadChan
+                    sta WriteChan
                     rts 
                     
-L1561               lda L1311
+L1561               lda RLECode
                     sec 
                     sbc #$80
-                    sta L1311
+                    sta RLECode
                     jsr kCHRIN
                     sta L130f
                     ldy #$00
@@ -300,18 +302,19 @@ L1572               sta ($fe),y
                     inc $fe
                     bne L157a
                     inc $ff
-L157a               dec L1311
+L157a               dec RLECode
                     bne L1572
                     lda $ff
-                    cmp #$16
+                    cmp #>Buffer2
                     bne L1589
                     lda $fe
-                    cmp #$a4
+                    cmp #<Buffer2
 L1589               bcc L152b
                     bne L1555
 L158d               jmp kCLRCHN
-                    
-L1590               ldx L130d
+
+;------------------------------------                    
+WriteBuf1           ldx WriteChan
                     jsr kCHKOUT
                     ldy #$00
 L1598               lda Buffer1,y
@@ -319,6 +322,7 @@ L1598               lda Buffer1,y
                     iny 
                     bne L1598
                     jmp kCLRCHN
+;------------------------------------                    
 Buffer1             byte 0
 Buffer2 = Buffer1 + 256
 BufferE = Buffer2 + 256
