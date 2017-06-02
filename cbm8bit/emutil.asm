@@ -1,4 +1,4 @@
-* = 1300
+* = $1300
 
 kCHKIN = $FFC6
 kCHKOUT = $FFC9
