@@ -322,7 +322,7 @@ L1598               lda Buffer1,y
                     jmp kCLRCHN
 ;------------------------------------                    
 CompBuf12           ldx #$00
-                    sta VarOne
+                    stx VarOne
 Lcmloop             lda Buffer1,x
                     cmp Buffer2,x
                     bne Lcmbad

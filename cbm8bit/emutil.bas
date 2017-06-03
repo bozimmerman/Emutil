@@ -5,7 +5,7 @@
 !- C64, C128, PET, Plus/4
 !--------------------------------------------------
 5 GOSUB3400:IFP>0THENPOKEP+1,(ML+1536)/256:CLR:GOSUB3400:POKEP,0:CLR:GOSUB3400
-10 MV=ML+(4*4):SP$="{space*21}":GOSUB3300
+10 MV=ML+(3*5):SP$="{space*21}":GOSUB3300
 20 SU=8:SD$="0":DU=8:DD$="0":F1$="Single{space*2}":F2$="Normal{space*3}":MN=1
 30 PRINT"{clear}{down*5}{ct n}Emutil v3.1":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
 40 PRINT"{down}...Planet Ink.":GOSUB50:GOSUB80:GOTO100
@@ -16,9 +16,9 @@
 100 PRINT"{clear}{down}Emutil Menu":PRINT"[S] Source Device:";SU;", ";SD$
 110 PRINT"[D] Destination Device:";DU;", ";DD$
 120 PRINT"[F] Format: ";F1$;" / ";F2$
-130 PRINT"[U] Unpack an image":PRINT"[P] Pack an image":M1$="{down}{up}"+CHR$(13)
-140 PRINT"[V] Validation mode: ";VM$(VM)
-150 PRINT"[I] Disk interface":PRINT"[X] Exit to BASIC":MN$="SDFUPVIX":M1=LEN(MN$)
+130 PRINT"[V] Unpack Validate: ";VM$(VM)
+140 PRINT"[U] Unpack an image":PRINT"[P] Pack an image":M1$="{down}{up}"+CHR$(13)
+150 PRINT"[I] Disk interface":PRINT"[X] Exit to BASIC":MN$="SDFVUPIX":M1=LEN(MN$)
 160 GOSUB200:GOTO220
 200 PRINT"{home}{down*2}";:FORI=1TOM1:O=0:IFI=MNTHENO=ASC("{reverse on}")
 210 PRINT"{right}";CHR$(O);MID$(MN$,I,1);"{reverse off}":NEXTI:RETURN
@@ -28,11 +28,12 @@
 320 IFO=M1+3THENO=MN
 330 IFO>M1THEN220
 335 MN=O:GOSUB200:O=MN
-340 O2=O:ONOGOTO500,600,700,1000,2000,350,800:END
+340 O2=O:ONOGOTO500,600,700,350,1000,2000,800:END
 350 VM=VM+1:IFVM>2THENVM=0
 360 GOTO100
 400 O=0:GETA$:IFA$=""THEN400
-410 A=ASC(A$):FORI=1TOLEN(X$):B=ASC(MID$(X$,I,1)):IFA=BOR(AOR128)=BANDO=0THENO=I
+410 A=ASC(A$)
+415 FORI=1TOLEN(X$):B=ASC(MID$(X$,I,1)):IF((A=B)OR((A OR 128)=B))AND(O=0)THENO=I
 420 NEXTI:IFO=0THEN400
 430 RETURN
 500 B$="Source ":X=SU:X$=SD$:GOSUB550:SU=X:SD$=X$:GOTO100
@@ -65,9 +66,9 @@
 930 INPUT#1,E1,E1$,E2,E3:CLOSE1:PRINTE1;",";E1$;",";E2;",";E3;">"
 940 GETA$:IFA$=""THEN940
 950 PRINT"{up}"SP$"{up}":GOTO820
-960 GET#2,A$:GET#2,A$
-970 GET#2,A$:GET#2,A$:IFST>0THENX=FRE(0):RETURN
-980 GET#2,A$:GET#2,B$:X=ASC(A$+CHR$(0))+256*ASC(B$+CHR$(0)):PRINTX;
+960 GET#2,A$,A$
+970 GET#2,A$,A$:IFST>0THENX=FRE(0):RETURN
+980 GET#2,A$,B$:X=ASC(A$+CHR$(0))+256*ASC(B$+CHR$(0)):PRINTX;
 990 GET#2,A$:IFA$=""THENPRINTCHR$(13);:GOTO970
 992 GETB$:IFB$=" "THENRETURN
 995 PRINTA$;:GOTO990
@@ -75,15 +76,21 @@
 997 X=ASC(A$+CHR$(0))+256*ASC(B$+CHR$(0)):RETURN
 1000 GOSUB1900:VL=0:IFF$=""ORLEFT$(SP$,LEN(F$))=F$THEN100
 1005 F$=F$+",s,r":OPEN2,DU,15,"i"+DD$+":":OPEN15,SU,15,"i"+SD$+":"
-1010 D0=SU:D0$=SD$:GOSUB1800:IFE=0THEN1020
+1010 T0=0:T1=0:D0=SU:D0$=SD$:GOSUB1800:IFE>0THEN1700
 1020 OPEN3,DU,3,"#":V1=0:EF=0:T=1:S=0:TT=0:E=0
 1040 IFEFTHENPRINT:PRINT"Done.":GOSUB50:GOTO1600
 1050 IFV1THEN1200
 1060 EF=0:PRINT:PRINT"{up}";SP$:PRINT"{up}Track";T;" Sector";S;
-1070 POKEMV+1,3:IFLEFT$(F2$,1)="N"THENPOKEMV+1,255
-1080 POKEMV,1:SYS(ML+(2*3)):EF=ST
-1085 IFPEEK(MV)=255THENPRINT"Invalid Archive!":GOTO1700
-1090 PRINT#2,"b-p";3;0:POKEMV+1,3:SYS(ML+(3*3)):V1=1
+1070 IFVM=0THEN1100
+1080 PRINT#2,"u1";3;VAL(DD$);T;S:INPUT#2,E,E$,E1,E2:IFE>=66THEN1250
+1090 PRINT#2,"b-p";3;0:POKEMV,3:POKEMV+1,255:SYS(ML+(0*3))
+1100 POKEMV+1,3:IFLEFT$(F2$,1)="N"THENPOKEMV+1,255
+1110 POKEMV,1:SYS(ML+(2*3)):EF=ST
+1120 IFPEEK(MV)=255THENPRINT"Invalid Archive!":GOTO1700
+1130 IFVM=0THEN1190
+1140 T0=T0+1:SYS(ML+(4*3)):IFPEEK(MV+2)=0THEN1250
+1150 T1=T1+1:IFVM=2THEN1250
+1190 PRINT#2,"b-p";3;0:POKEMV+1,3:SYS(ML+(3*3)):V1=1
 1200 PRINT#2,"u2";3;VAL(DD$);T;S:INPUT#2,E,E$,E1,E2:IFE=0THENV1=0:GOTO1250
 1210 IFE<66THENPRINTE,E$,E1,E2:NE=NE+1:V1=0
 1250 TT=TT+1:IFTT>200ANDLEFT$(F1$,1)="M"THENGOSUB1800:TT=0:EF=0
@@ -92,9 +99,10 @@
 1280 GOTO1700
 1600 PRINT#2,"i"+DD$+":":PRINT#15,"i"+SD$
 1700 CLOSE1:CLOSE15:CLOSE2:CLOSE3
-1710 PRINT:PRINT"Hit return: {reverse on} {reverse off}";
-1720 GETA$:IFA$<>CHR$(13)THEN1720
-1730 GOTO100
+1710 IFT0>0THENPRINT"Validated";(T0-T1);"/";T0;" sectors"
+1730 PRINT:PRINT"Hit return: {reverse on} {reverse off}";
+1740 GETA$:IFA$<>CHR$(13)THEN1740
+1750 GOTO100
 1800 VL$="":E=0:VL=VL+1:IFLEFT$(F1$,1)="M"THENIW$=MID$(STR$(VL),2)+"-"
 1810 IFLEFT$(F1$,1)="S"ORVL=1THEN1850
 1820 IFRIGHT$(F$,1)="r"THEN1850
@@ -148,10 +156,10 @@
 3170 DATA"acogppmobecanaookfppmjcdnaaekfpomjlmjanipadicammppkjppinapcainbacaga"
 3180 DATA"knbecadiojiainbecacampppinbccakaaajbpoogponaacogppmobecanapdkfppmjcd"
 3190 DATA"naaekfpomjlmjakanamiemmmppkobacacamjppkaaaljlmcccancppminaphemmmppkc"
-3200 DATA"aainbbcalnlmccnnlmcdnaaeoinapfgaoobbcaga"
+3200 DATA"aaiobbcalnlmccnnlmcdnaaeoinapfgaoobbcaga"
 3205 DATA""
 3210 DATA"cddddnldggdffldfddhddfdfdddndlddffddihddpdhgdkhdddhdddddifdijfdfln"
-3220 DATA"rddfdhhignddfdhhlddddddefyhifjmmugsdeggngqi"
+3220 DATA"rddfdhhignddfdhhlddddddefyhifjmmugsdeggngqioddj"
 3230 DATA""
 3300 P=ML:RESTORE:IFPEEK(P)=76THENRETURN
 3305 PRINT"reading ml data..."
