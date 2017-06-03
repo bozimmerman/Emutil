@@ -1,4 +1,4 @@
-* = $1300
+* = $2000  ; 2000
 
 kCHKIN = $FFC6
 kCHKOUT = $FFC9
@@ -6,26 +6,24 @@ kCLRCHN = $FFCC
 kCHRIN = $FFCF
 kCHROUT = $FFD2
 
-L1300               jmp L1316
-                    
-L1303               jmp L14dc
-                    
+PReadChanBuf2       jmp ReadChanBuf2 ; ReadChan, WriteChan=RLE Flag, destroy Buf2
+PWriteBuf2          jmp WriteBuf2
 PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
-                    
 PWriteBuf1          jmp WriteBuf1
+PCompBuf12          jmp CompBuf12
                     
 ReadChan            byte 0
 WriteChan           byte 0
-L130e               byte 0
-L130f               byte 0
-L1310               byte 0
+VarOne              byte 0
+VarTwo              byte 0
+Unknown             byte 0
 RLECode             byte 0
 EOBufL              byte 0
 EOBufH              byte 0
-L1314               byte 0
+BytRepCtr           byte 0
                     byte 0 
 
-L1316               ldx ReadChan
+ReadChanBuf2        ldx ReadChan
                     jsr kCHKIN
                     ldy #$00
 L131e               jsr kCHRIN
@@ -47,58 +45,58 @@ L133e               lda #>Buffer2
                     lda #<Buffer2
                     sta $fe
                     lda #$00
-                    sta L130e
-                    sta L1314
+                    sta VarOne
+                    sta BytRepCtr
 L134e               lda #$00
-                    sta L1314
-                    ldy L130e
+                    sta BytRepCtr
+                    ldy VarOne
                     lda Buffer1,y
                     ldy #$01
                     sta ($fe),y
                     sty RLECode
-                    sty L130f
-                    inc L130e
+                    sty VarTwo
+                    inc VarOne
                     bne L136b
                     jmp L1417
                     
-L136b               ldy L130e
+L136b               ldy VarOne
                     bne L1373
                     jmp L1417
                     
-L1373               inc L130e
+L1373               inc VarOne
                     lda Buffer1,y
-                    ldy L130f
+                    ldy VarTwo
                     iny 
                     sta ($fe),y
                     dey 
                     cmp ($fe),y
                     beq L13bc
                     lda #$00
-                    sta L1314
+                    sta BytRepCtr
                     lda RLECode
                     cmp #$80
                     bcs L139d
                     cmp #$80
                     beq L139d
-                    inc L130f
+                    inc VarTwo
                     inc RLECode
                     jmp L136b
                     
 L139d               ldy #$00
                     lda RLECode
                     sta ($fe),y
-                    dec L130e
-                    inc L130f
-                    lda L130f
+                    dec VarOne
+                    inc VarTwo
+                    lda VarTwo
                     clc 
                     adc $fe
                     sta $fe
-                    lda L1310
+                    lda Unknown
                     adc $ff
                     sta $ff
                     jmp L134e
                     
-L13bc               inc L1314
+L13bc               inc BytRepCtr
                     lda RLECode
                     cmp #$80
                     beq L139d
@@ -121,33 +119,33 @@ L13e4               clv
                     bvc L139d
 L13e7               cmp #$02
                     bne L13fb
-                    lda L1314
+                    lda BytRepCtr
                     cmp #$02
                     bcs L13d8
-L13f2               inc L130f
+L13f2               inc VarTwo
                     inc RLECode
                     jmp L136b
                     
-L13fb               lda L1314
+L13fb               lda BytRepCtr
                     cmp #$02
                     bcc L13f2
                     dec RLECode
                     dec RLECode
-                    dec L130f
-                    dec L130f
-                    dec L130e
-                    dec L130e
+                    dec VarTwo
+                    dec VarTwo
+                    dec VarOne
+                    dec VarOne
                     clv 
                     bvc L13e4
 L1417               ldy #$00
                     lda RLECode
                     sta ($fe),y
-                    inc L130f
-                    lda L130f
+                    inc VarTwo
+                    lda VarTwo
                     clc 
                     adc $fe
                     sta $fe
-                    lda L1310
+                    lda Unknown
                     adc $ff
                     sta $ff
                     lda $ff
@@ -162,7 +160,7 @@ S1440               lda #>Buffer2
                     lda #<Buffer2
                     sta $fe
                     lda #$00
-                    sta L130f
+                    sta VarTwo
 L144d               ldy #$00
                     lda ($fe),y
                     inc $fe
@@ -176,8 +174,8 @@ L145e               ldy #$00
                     inc $fe
                     bne L1468
                     inc $ff
-L1468               ldy L130f
-                    inc L130f
+L1468               ldy VarTwo
+                    inc VarTwo
                     cmp Buffer1,y
                     beq L1476
                     jmp L14c4
@@ -201,8 +199,8 @@ L148c               lda RLECode
                     inc $fe
                     bne L149f
                     inc $ff
-L149f               ldy L130f
-                    inc L130f
+L149f               ldy VarTwo
+                    inc VarTwo
                     cmp Buffer1,y
                     beq L14ad
                     jmp L14c4
@@ -221,15 +219,15 @@ L14c3               rts
                     
 L14c4               lda #$ff
                     sta ReadChan
-                    lda L130f
+                    lda VarTwo
                     sta WriteChan
-                    lda L1310
+                    lda Unknown
                     sta EOBufH
-                    lda L130f
+                    lda VarTwo
                     sta EOBufL
                     rts 
                     
-L14dc               ldx WriteChan
+WriteBuf2           ldx WriteChan
                     jsr kCHKOUT
                     lda #>Buffer2
                     sta $ff
@@ -279,10 +277,10 @@ L1535               jsr kCHRIN
 L1542               dec RLECode
                     bne L1535
                     lda $ff
-                    cmp #$16
+                    cmp #>Buffer2
                     bne L1551
                     lda $fe
-                    cmp #$a4
+                    cmp #<Buffer2
 L1551               bcc L152b
                     beq L158d
 L1555               jsr kCLRCHN
@@ -296,7 +294,7 @@ L1561               lda RLECode
                     sbc #$80
                     sta RLECode
                     jsr kCHRIN
-                    sta L130f
+                    sta VarTwo
                     ldy #$00
 L1572               sta ($fe),y
                     inc $fe
@@ -323,6 +321,17 @@ L1598               lda Buffer1,y
                     bne L1598
                     jmp kCLRCHN
 ;------------------------------------                    
+CompBuf12           ldx #$00
+                    sta VarOne
+Lcmloop             lda Buffer1,x
+                    cmp Buffer2,x
+                    bne Lcmbad
+                    inx
+                    bne Lcmloop
+                    rts
+Lcmbad              inc VarOne
+                    rts
+
 Buffer1             byte 0
 Buffer2 = Buffer1 + 256
 BufferE = Buffer2 + 256
