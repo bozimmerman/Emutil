@@ -69,6 +69,7 @@ public class D64Mod
 		byte[] header = null;
 		short[] dirLoc = new short[3]; 
 		List<short[]> tracksNSecs = new ArrayList<short[]>();
+		public String toString() { return filePath;}
 	}
 	
 	public static final String[] HEX=new String[256];
@@ -91,17 +92,17 @@ public class D64Mod
 		switch(type)
 		{
 		case D64:
-			return new short[]{18,0,4,143};
+			return new short[]{18,0,4,143,1,0};
 		case D71:
-			return new short[]{18,0,4,143};
+			return new short[]{18,0,4,143,1,0};
 		case D81:
-			return new short[]{40,1,16,255};
+			return new short[]{40,1,16,255,1,0};
 		case D80:
-			return new short[]{38,0,6,255};
+			return new short[]{38,0,6,255,1,0};
 		case D82:
-			return new short[]{38,0,6,255};
+			return new short[]{38,0,6,255,1,0};
 		case DNP:
-			return new short[]{1,2,32,255};
+			return new short[]{1,2,32,255,0,32};
 		}
 		return null;
 	}
@@ -114,23 +115,23 @@ public class D64Mod
 			return null;
 		case D71:
 			if(prev[0]==18)
-				return new short[]{53,0,0,104};
+				return new short[]{53,0,0,104,0,3};
 			return null;
 		case D81:
 			if((prev[0]==40)&&(prev[1]==1))
-				return new short[]{40,2,16,255};
+				return new short[]{40,2,16,255,1,0};
 			return null;
 		case D80:
 			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,140};
+				return new short[]{38,3,6,140,1,5};
 			return null;
 		case D82:
 			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,255};
+				return new short[]{38,3,6,255,1,5};
 			if((prev[0]==38)&&(prev[1]==3))
-				return new short[]{38,6,6,255};
+				return new short[]{38,6,6,255,1,5};
 			if((prev[0]==38)&&(prev[1]==6))
-				return new short[]{38,9,6,255};
+				return new short[]{38,9,6,255,1,5};
 			return null;
 		case DNP:
 			if(prev[1]>=33)
@@ -146,30 +147,39 @@ public class D64Mod
 	private static boolean bamCheck(byte[][][] bytes, IMAGE_TYPE type, short[] ts, long imageSize) throws IOException
 	{
 		short[] currBAM = getBAMStart(type);
-		byte[] bam=bytes[currBAM[0]-1][currBAM[1]];
+		byte[] bam=bytes[currBAM[0]][currBAM[1]];
 		short bamOffset = currBAM[2];
-		for(int t=1;t<getImageNumTracks(type, imageSize);t++)
+		for(int t=1;t<=getImageNumTracks(type, imageSize);t++)
 		{
-			if(bamOffset > currBAM[2])
+			if(bamOffset > currBAM[3])
 			{
 				currBAM = getBAMNext(currBAM, type);
 				if(currBAM==null)
 					throw new IOException("BAM failure, no sector found: "+ts[0]+","+ts[1]);
-				bam=bytes[currBAM[0]-1][currBAM[1]];
+				bam=bytes[currBAM[0]][currBAM[1]];
 				bamOffset = currBAM[2];
 			}
 			int secsPerTrack = getImageSecsPerTrack(type,t);
-			if(bam[bamOffset]!=secsPerTrack)
-				throw new IOException("BAM failure at "+currBAM[0]+","+currBAM[1]+"@"+currBAM[2]);
-			for(int s=0;s<secsPerTrack;s++)
+			int skipByte = currBAM[4];
+			if(ts[0]==t)
 			{
-				byte bamByte = bam[bamOffset + 1 + (int)Math.round(Math.ceil(s/8.0))];
-				short mask = (short)Math.round(Math.pow(2.0,s%8));
-				boolean set = (bamByte & mask) == mask;
-				if((ts[0]==t)&&(ts[1]==s))
-					return set;
+				//if(bam[bamOffset]!=secsPerTrack)
+				//	throw new IOException("BAM failure at "+currBAM[0]+","+currBAM[1]+"@"+bamOffset+" --- " + bam[bamOffset]+"!="+secsPerTrack);
+				for(int s=0;s<secsPerTrack;s++)
+				{
+					if((ts[0]==t)&&(ts[1]==s))
+					{
+						short bamByte = (short)(bam[bamOffset + skipByte + (int)Math.round(Math.floor(s/8.0))] & 0xff);
+						short mask = (short)Math.round(Math.pow(2.0,s%8));
+						boolean set = (bamByte & mask) == mask;
+						return set;
+					}
+				}
 			}
-			bamOffset+=(1 + (int)Math.round(Math.ceil(secsPerTrack/8.0)));
+			if(currBAM[5] != 0)
+				bamOffset += currBAM[5];
+			else
+				bamOffset+=(skipByte + (int)Math.round(Math.ceil(secsPerTrack/8.0)));
 		}
 		throw new IOException("BAM failure, no sector found: "+ts[0]+","+ts[1]);
 	}
@@ -323,11 +333,12 @@ public class D64Mod
 		try
 		{
 			final FileInputStream is=new FileInputStream(F);
-			int i=0;
-			while(i<buf.length)
+			int totalRead = 0;
+			while(totalRead < buf.length)
 			{
-				int x=is.read();
-				buf[i++]=(byte)x;
+				int read = is.read(buf,totalRead,buf.length-totalRead);
+				if(read>=0)
+					totalRead += read;
 			}
 			is.close();
 		}
@@ -352,18 +363,19 @@ public class D64Mod
 		return (ANTI_HEX.get(hex)).shortValue();
 	}
 
-	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, List<short[]> secsUsed) throws IOException
+	public static byte[] getFileContent(String fileName, byte[][][] tsmap, int t, int mt, int s, List<short[]> secsUsed) throws IOException
 	{
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		byte[] sector=null;
 		ByteArrayOutputStream out=new ByteArrayOutputStream();
 		if(t>=tsmap.length)
-			throw new IOException("Illegal Track "+t);
+			throw new IOException("Illegal Track "+t+" for "+fileName);
 		if(s>=tsmap[t].length)
-			throw new IOException("Illegal Sector ("+t+","+s+")");
+			throw new IOException("Illegal Sector ("+t+","+s+")"+" for "+fileName);
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
 		{
-			secsUsed.add(new short[]{(short)t,(short)s});
+			if(secsUsed != null)
+				secsUsed.add(new short[]{(short)t,(short)s});
 			int maxBytes=255;
 			sector=tsmap[t][s];
 			if(sector[0]==0) 
@@ -388,12 +400,13 @@ public class D64Mod
 		return (short)(0xFF & b);
 	}
 	
-	public static void finishFillFiledata(File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
+	public static void finishFillFileList(FileInfo dirInfo, File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT)
 	{
 		byte[] sector;
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
+			dirInfo.tracksNSecs.add(new short[]{(short)t,(short)s});
 			doneBefore.add(sector);
 			for(int i=2;i<256;i+=32)
 			{
@@ -425,6 +438,7 @@ public class D64Mod
 						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
 						{
 							f.header = ssec;
+							f.tracksNSecs.add(new short[]{(short)pht,(short)phs});
 							doneBefore.add(ssec);
 						}
 					}
@@ -452,15 +466,15 @@ public class D64Mod
 						switch(sector[i] & 0x0f)
 						{
 						case (byte) 0:
-							fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+							fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 							f.fileType = FileType.DEL;
 							break;
 						case (byte) 1:
-							fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+							fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 							f.fileType = FileType.SEQ;
 							break;
 						case (byte) 2:
-							fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+							fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 							f.fileType = FileType.PRG;
 							break;
 						case (byte) 3:
@@ -481,12 +495,12 @@ public class D64Mod
 									int vfileS=unsigned(vlirSec[vt+1]);
 									if((vfileT==0)&&(vfileS==255))
 										continue;
-									data.write(getFileContent(tsmap,vfileT,maxT,vfileS,f.tracksNSecs));
+									data.write(getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs));
 								}
 								fileData = data.toByteArray();
 							}
 							else
-								fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 							break;
 						case (byte) 4:
 							f.fileType = FileType.REL;
@@ -501,11 +515,24 @@ public class D64Mod
 									doneBefore.add(sides);
 									f.tracksNSecs.add(new short[]{(short)pht,(short)phs});
 									if(unsigned(sides[2])==254)
-										getFileContent(tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
+									{
+										if(sides[0]!=0)
+											getFileContent(f.fileName,tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
+										for(int si=3;si<254;si+=2)
+										{
+											short sit=unsigned(sides[si]);
+											short sis=unsigned(sides[si+1]);
+											if(sit != 0)
+												getFileContent(f.fileName,tsmap,sit,maxT,sis,f.tracksNSecs);
+										}
+									}
 									else
 									if(unsigned(sides[3])==recsz)
-										getFileContent(tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
-									fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+									{
+										if(sides[0]!=0)
+											getFileContent(f.fileName,tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
+									}
+									fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 								}
 								else
 									fileData = null;
@@ -513,18 +540,20 @@ public class D64Mod
 							break;
 						case (byte) 5:
 							f.fileType = FileType.CBM;
+							//$FALL-THROUGH$
 						case (byte) 6:
-							f.fileType = FileType.DIR;
+							if((sector[i] & 0x0f)==(byte)6)
+								f.fileType = FileType.DIR;
 							int newDirT=fileT;
 							int newDirS=fileS;
 							//if(flags.contains(COMP_FLAG.RECURSE))
-							fillFiledata(srcF,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f);
-							fileData=getFileContent(tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
-							finalData.remove(f);
+							fillFileListFromHeader(srcF,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f);
+							fileData=getFileContent(f.fileName,tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
+							//finalData.remove(f);
 							break;
 						default:
 							f.fileType = FileType.PRG;
-							fileData =getFileContent(tsmap,fileT,maxT,fileS,f.tracksNSecs);
+							fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 							break;
 						}
 						if(fileData==null)
@@ -547,7 +576,7 @@ public class D64Mod
 		}
 	}
 	
-	public static void fillFiledata(File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, FileInfo f) throws IOException
+	public static void fillFileListFromHeader(File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, FileInfo f) throws IOException
 	{
 		byte[] sector;
 		if((type != IMAGE_TYPE.D80)
@@ -565,15 +594,16 @@ public class D64Mod
 			int possDSector = unsigned(sector[160+12]);
 			if((possDTrack!=0)
 			&&(possDTrack<tsmap.length)
+			&&(f.fileType==FileType.DIR)
 			&&(possDSector<tsmap[possDTrack].length)
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))
 			{
-				finishFillFiledata(srcF,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT);
-				getFileContent(tsmap,possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
+				finishFillFileList(f,srcF,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT);
+				getFileContent("/",tsmap,possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
 			}
 		}
-		finishFillFiledata(srcF,type,prefix,tsmap,doneBefore,finalData,t,s,maxT);
+		finishFillFileList(f,srcF,type,prefix,tsmap,doneBefore,finalData,t,s,maxT);
 	}
 
 	
@@ -583,14 +613,73 @@ public class D64Mod
 		int maxT=D64Mod.getImageNumTracks(type, fileSize);
 		int s=getImageDirSector(type);
 		List<FileInfo> finalData=new Vector<FileInfo>();
+		short[] currBAM = getBAMStart(type);
+		FileInfo f=new FileInfo();
+		f.dirLoc=new short[]{currBAM[0],currBAM[1],currBAM[2]};
+		f.fileName="*BAM*";
+		f.filePath="/";
+		f.fileType=FileType.DIR;
+		f.size=0;
+		f.tracksNSecs.add(new short[]{(short)t,(short)s});
+		finalData.add(f);
+		if(currBAM[1]!=0)
+			f.tracksNSecs.add(new short[]{currBAM[0],(short)0});
+		while(currBAM != null)
+		{
+			f.tracksNSecs.add(new short[]{currBAM[0],currBAM[1]});
+			currBAM = getBAMNext(currBAM,type);
+		}
+		switch(type)
+		{
+		case D80:
+			currBAM = getBAMStart(type);
+			currBAM = getBAMNext(currBAM,type);
+			// sometimes a d80 is formatted like an 8250 if user fail.
+			t=39;//unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
+			s=1;//unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
+			break;
+		case D82:
+			currBAM = getBAMStart(type);
+			currBAM = getBAMNext(currBAM,type);
+			currBAM = getBAMNext(currBAM,type);
+			currBAM = getBAMNext(currBAM,type);
+			t=unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
+			s=unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
+			break;
+		default:
+			break;
+		}
 		Set<byte[]> doneBefore=new HashSet<byte[]>();
 		try
 		{
-			D64Mod.fillFiledata(srcF, type,"",tsmap, doneBefore, finalData, t, s, maxT,null);
+			f=new FileInfo();
+			f.dirLoc=new short[]{(short)t,(short)s,(short)0};
+			f.fileName="/";
+			f.filePath="/";
+			f.fileType=FileType.DIR;
+			f.size=0;
+			finalData.add(f);
+			D64Mod.fillFileListFromHeader(srcF, type,"",tsmap, doneBefore, finalData, t, s, maxT,f);
 		}
 		catch(IOException e)
 		{
 			System.err.println("Disk Dir Error: "+e.getMessage());
+		}
+		switch(type)
+		{
+		case D71:
+			for(int sec=1;sec<D64Mod.getImageSecsPerTrack(type, 53);sec++)
+			{
+				boolean found=false;
+				for(short[] chk : f.tracksNSecs)
+					if((chk[0]==53)&&(chk[1]==sec))
+						found=true;
+				if(!found)
+					f.tracksNSecs.add(new short[]{53,(short)sec});
+			}
+			break;
+		default:
+			break;
 		}
 		return finalData;
 	}
@@ -610,7 +699,12 @@ public class D64Mod
 	
 	enum Action
 	{
-		SCRATCH, EXTRACT, INSERT
+		SCRATCH, EXTRACT, INSERT, BAM
+	}
+	
+	enum BamAction
+	{
+		CHECK, FIX
 	}
 	
 	public static void main(String[] args)
@@ -625,6 +719,8 @@ public class D64Mod
 			System.out.println("  SCRATCH <file>");
 			System.out.println("  EXTRACT <file> <target path>");
 			System.out.println("  INSERT <source path> <file>");
+			System.out.println("  BAM CHECK");
+			System.out.println("  BAM FIX (similar to CBM Validate command)");
 			System.out.println("");
 			return;
 		}
@@ -646,10 +742,11 @@ public class D64Mod
 			System.exit(-1);
 		}
 		Action action = Action.EXTRACT;
+		BamAction bamAction = BamAction.CHECK;
 		String localFileStr="";
 		try
 		{
-			action=Action.valueOf(actionStr);
+			action=Action.valueOf(actionStr.toUpperCase().trim());
 			switch(action)
 			{
 			case SCRATCH:
@@ -671,6 +768,17 @@ public class D64Mod
 				}
 				localFileStr = args[3];
 				break;
+			case BAM:
+				try
+				{
+					bamAction=BamAction.valueOf(args[2].toUpperCase().trim());
+				}
+				catch(Exception e)
+				{
+					System.err.println("Invalid sub-command");
+					System.exit(-1);
+				}
+				break;
 			}
 		}
 		catch(Exception e)
@@ -681,12 +789,15 @@ public class D64Mod
 		final byte[][][] diskBytes = getDisk(imagetype,imageF);
 		final List<FileInfo> files = getDiskFiles(imageF, imagetype, diskBytes, imageF.length());
 		FileInfo file = null;
-		for(FileInfo f : files)
+		if(imageFileStr.length()>0)
 		{
-			if(f.filePath.equalsIgnoreCase(imageFileStr))
+			for(FileInfo f : files)
 			{
-				file = f;
-				break;
+				if(f.filePath.equalsIgnoreCase(imageFileStr))
+				{
+					file = f;
+					break;
+				}
 			}
 		}
 		if((action == Action.INSERT) && (file != null))
@@ -695,7 +806,7 @@ public class D64Mod
 			System.exit(-1);
 		}
 		else
-		if(file == null)
+		if((action != Action.BAM) && (file == null))
 		{
 			System.err.println("File not found in image: "+imageFileStr);
 			System.exit(-1);
@@ -716,6 +827,127 @@ public class D64Mod
 				fout.close();
 				System.out.println(file.data.length+" bytes written to "+localFileF.getAbsolutePath());
 			} catch (Exception e) {
+				System.err.println(e.getMessage());
+				System.exit(-1);
+			}
+			break;
+		}
+		case BAM:
+		{
+			HashSet<Integer> used = new HashSet<Integer>();
+			HashMap<String,HashSet<Integer>> qmap = new HashMap<String,HashSet<Integer>>();
+			for(FileInfo f : files)
+			{
+				HashSet<Integer> qset=new HashSet<Integer>();
+				qmap.put(f.filePath, qset);
+				for(short[] s : f.tracksNSecs)
+				{
+					Integer x=Integer.valueOf((s[0] << 8) + s[1]);
+					if(!used.contains(x))
+						used.add(x);
+					if(!qset.contains(x))
+						qset.add(x);
+				}
+			}
+			try
+			{
+				HashSet<Integer> unbammed=new HashSet<Integer>();
+				HashSet<Integer> overbammed=new HashSet<Integer>();
+				switch(bamAction)
+				{
+				case CHECK:
+				{
+					boolean error = false;
+					for(int t=1;t<=getImageNumTracks(imagetype, imageF.length());t++)
+					{
+						int secsPerTrack = getImageSecsPerTrack(imagetype,t);
+						final String ts=Integer.toString(t);
+						System.out.print(ts+spaces.substring(0,3-ts.length())+": ");
+						for(int s=0;s<secsPerTrack;s++)
+						{
+							Integer tsInt=Integer.valueOf((t << 8) + s);
+							boolean available = D64Mod.bamCheck(diskBytes, imagetype, new short[]{(short)t,(short)s}, imageF.length());
+							if(available)
+							{
+								if(used.contains(tsInt))
+								{
+									System.out.print("0");
+									unbammed.add(tsInt);
+									error=true;
+								}
+								else
+									System.out.print("o");
+							}
+							else
+							{
+								if(used.contains(tsInt))
+									System.out.print("x");
+								else
+								{
+									error=true;
+									overbammed.add(tsInt);
+									System.out.print("#");
+								}
+							}
+						}
+						System.out.println("");
+					}
+					if(error)
+					{
+						System.err.println("Not all sectors matched BAM allocation. 0=used, but not marked in bam.  #=UNUSED, but marked used in BAM.");
+						if(unbammed.size()>0)
+						{
+							System.err.println("Un-Bammed files:");
+							Set<String> unbammedS=new HashSet<String>();
+							for(Integer I : unbammed)
+								for(String fs : qmap.keySet())
+									if(qmap.get(fs).contains(I))
+										unbammedS.add(fs);
+							for(String path : unbammedS)
+							{
+								System.err.print(path);
+								HashSet<Integer> allF=qmap.get(path);
+								int numMissing=0;
+								for(Integer I : allF)
+									if(!unbammed.contains(I))
+										numMissing++;
+								if(numMissing==0)
+									System.err.println(" (total)");
+								else
+									System.err.println(" (partial "+(int)Math.round((double)numMissing/(double)allF.size()*100.0)+"%)");
+							}
+						}
+						System.exit(-1);
+					}
+					break;
+				}
+				case FIX:
+				{
+					System.out.println("Validating...");
+					for(int t=1;t<=getImageNumTracks(imagetype, imageF.length());t++)
+					{
+						int secsPerTrack = getImageSecsPerTrack(imagetype,t);
+						final String ts=Integer.toString(t);
+						for(int s=0;s<secsPerTrack;s++)
+						{
+							Integer tsInt=Integer.valueOf((t << 8) + s);
+							boolean available = D64Mod.bamCheck(diskBytes, imagetype, new short[]{(short)t,(short)s}, imageF.length());
+							if(available)
+							{
+								if(used.contains(tsInt))
+									unbammed.add(tsInt);
+							}
+							else
+							{
+								if(!used.contains(tsInt))
+									overbammed.add(tsInt);
+							}
+						}
+					}
+					break;
+				}
+				}
+			} catch (IOException e) {
 				System.err.println(e.getMessage());
 				System.exit(-1);
 			}
