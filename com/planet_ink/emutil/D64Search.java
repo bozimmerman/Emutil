@@ -18,18 +18,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-public class D64Search 
+public class D64Search extends D64Mod
 {
-	// todo: add file masks to options
-	public enum IMAGE_TYPE {
-		D64 { public String toString() { return ".D64";}},
-		D71 { public String toString() { return ".D71";}},
-		D81 { public String toString() { return ".D81";}},
-		D80 { public String toString() { return ".D80";}},
-		D82 { public String toString() { return ".D82";}},
-		DNP { public String toString() { return ".DNP";}},
-	};
-
 	public static class DatabaseInfo {
 		String user=null;
 		String pass=null;
@@ -41,13 +31,6 @@ public class D64Search
 		public boolean filled(){ return (user!=null)&&(pass!=null)&&(className!=null)&&(service!=null)&&(table!=null);}
 	}
 
-	public static class FileInfo {
-		String fileName = "";
-		String fileType = "";
-		int size = 0;
-		byte[] data = null;
-	}
-	
 	public enum SEARCH_FLAG {
 		CASESENSITIVE,
 		VERBOSE,
@@ -55,353 +38,12 @@ public class D64Search
 		INSIDE,
 		SHOWMD5;
 	};
+	
 	public enum FILE_FORMAT {
 		PETSCII,
 		ASCII,
 		HEX;
 	};
-	public static final String[] HEX=new String[256];
-	public static final Hashtable<String,Short> ANTI_HEX=new Hashtable<String,Short>();
-	public static final String HEX_DIG="0123456789ABCDEF";
-	static{
-		for(int h=0;h<16;h++)
-			for(int h2=0;h2<16;h2++)
-			{
-				HEX[(h*16)+h2]=""+HEX_DIG.charAt(h)+HEX_DIG.charAt(h2);
-				ANTI_HEX.put(HEX[(h*16)+h2],new Short((short)((h*16)+h2)));
-			}
-	}
-	
-	private static int getImageSecsPerTrack(IMAGE_TYPE type, int t)
-	{
-		if(type.equals(IMAGE_TYPE.D64))
-		{
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			return 17;
-		}
-		else
-		if(type.equals(IMAGE_TYPE.D71))
-		{
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			if(t<36) return 17;
-			if(t<53) return 21;
-			if(t<60) return 19;
-			if(t<66) return 18;
-			return 17;
-		}
-		else
-		if(type.equals(IMAGE_TYPE.D81))
-			return 40;
-		else
-		if(type.equals(IMAGE_TYPE.DNP))
-			return 256;
-		else
-		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
-		{
-			if(t<40) return 29;
-			if(t<54) return 27;
-			if(t<65) return 25;
-			if(t<78) return 23;
-			if(t<117) return 29;
-			if(t<131) return 27;
-			if(t<142) return 25;
-			if(t<155) return 23;
-			return 23;
-		}
-		return -1;
-	}
-
-	public static int getImageTotalBytes(IMAGE_TYPE type, long fileSize)
-	{
-		int ts=getImageNumTracks(type, fileSize);
-		int total=0;
-		for(int t=1;t<=ts;t++)
-			total+=(256*getImageSecsPerTrack(type,t));
-		return total;
-	}
-	
-	
-	public static int getImageDirTrack(IMAGE_TYPE type)
-	{
-		if(type.equals(IMAGE_TYPE.D64))
-			return 18;
-		if(type.equals(IMAGE_TYPE.D71))
-			return 18;
-		if(type.equals(IMAGE_TYPE.D81))
-			return 40;
-		if(type.equals(IMAGE_TYPE.DNP))
-			return 1;
-		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
-			return 39;
-		return -1;
-	}
-	
-	public static int getImageDirSector(IMAGE_TYPE type)
-	{
-		if(type.equals(IMAGE_TYPE.D64))
-			return 1;
-		if(type.equals(IMAGE_TYPE.D71))
-			return 1;
-		if(type.equals(IMAGE_TYPE.DNP))
-			return 34;
-		if(type.equals(IMAGE_TYPE.D81))
-			return 3;
-		if(type.equals(IMAGE_TYPE.D80)||type.equals(IMAGE_TYPE.D82))
-			return 1;
-		return -1;
-	}
-	
-	private static int getImageNumTracks(IMAGE_TYPE type, long fileSize)
-	{
-		if(type.equals(IMAGE_TYPE.D64))
-			return 35;
-		else
-		if(type.equals(IMAGE_TYPE.D71))
-			return 70;
-		else
-		if(type.equals(IMAGE_TYPE.D81))
-			return 79;
-		else
-		if(type.equals(IMAGE_TYPE.D80))
-			return 77;
-		else
-		if(type.equals(IMAGE_TYPE.D82))
-			return 2*77;
-		else
-		if(type.equals(IMAGE_TYPE.DNP))
-			return (int)(fileSize / 256 / 256);
-		return -1;
-	}
-	
-	private static char convertToPetscii(byte b)
-	{
-		if(b<65) return (char)b;
-		if(b<91) return Character.toLowerCase((char)b);
-		if(b<192) return (char)b;
-		if(b<219) return Character.toUpperCase((char)(b-128));
-		return (char)(b-128);
-	}
-	
-	private static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf, long fileSize)
-	{
-		int numTS=getImageNumTracks(type, fileSize);
-		byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(type,1)][256];
-		int index=0;
-		for(int t=1;t<=numTS;t++)
-		{
-			int secs=getImageSecsPerTrack(type,t);
-			for(int s=0;s<secs;s++)
-			{
-				for(int i=0;i<256;i++)
-					tsmap[t][s][i]=buf[index+i];
-				index+=256;
-			}
-		}
-		return tsmap;
-	}
-	
-	public static byte[][][] getDisk(IMAGE_TYPE type, File F)
-	{
-		byte[] buf=new byte[getImageTotalBytes(type,F.length())];
-		try
-		{
-			final FileInputStream is=new FileInputStream(F);
-			int i=0;
-			while(i<buf.length)
-			{
-				int x=is.read();
-				buf[i++]=(byte)x;
-			}
-			is.close();
-		}
-		catch(java.io.IOException e)
-		{
-			e.printStackTrace(System.err);
-		}
-		return parseMap(type,buf,F.length());
-	}
-	
-	public static String toHex(byte b){ return HEX[unsigned(b)];}
-	public static String toHex(byte[] buf){
-		StringBuffer ret=new StringBuffer("");
-		for(int b=0;b<buf.length;b++)
-			ret.append(toHex(buf[b]));
-		return ret.toString();
-	}
-
-	public static short fromHex(String hex)
-	{
-		return (ANTI_HEX.get(hex)).shortValue();
-	}
-
-	public static byte[] getFileContent(byte[][][] tsmap, int t, int mt, int s, FILE_FORMAT fmt)
-	{
-		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
-		byte[] sector=null;
-		ByteArrayOutputStream out=new ByteArrayOutputStream();
-		try
-		{
-			while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
-			{
-				int maxBytes=255;
-				sector=tsmap[t][s];
-				if(sector[0]==0) maxBytes=unsigned(sector[1]);
-				doneBefore.add(sector);
-				for(int i=2;i<=maxBytes;i++)
-					if(fmt==FILE_FORMAT.PETSCII)
-						out.write((byte)convertToPetscii(sector[i]));
-					else
-						out.write(sector[i]);
-				t=unsigned(sector[0]);
-				s=unsigned(sector[1]);
-			}
-			return out.toByteArray();
-		}
-		catch(Throwable th)
-		{
-			th.printStackTrace(System.err);
-			return null;
-		}
-	}
-
-	public static short unsigned(byte b)
-	{
-		return (short)(0xFF & b);
-	}
-	
-	public static Vector<FileInfo> getFileDir(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, int t, int s, int maxT)
-	{
-		Vector<FileInfo> finalData=new Vector<FileInfo>();
-		boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
-		boolean md5=flags.contains(SEARCH_FLAG.SHOWMD5);
-		//Vector<String> types=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		//Vector<String> sizes=flags.contains(SEARCH_FLAG.VERBOSE)?new Vector<String>():null;
-		//Vector<byte[]> data=(inside||md5)?new Vector<byte[]>():null;
-		byte[] sector=tsmap[1][0];
-		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
-		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
-		{
-			sector=tsmap[t][s];
-			doneBefore.add(sector);
-			for(int i=2;i<256;i+=32)
-			{
-				if((sector[i]==(byte)128)||(sector[i]&(byte)128)==0)
-					continue;
-				
-				int fn=i+19-1;
-				for(;fn>=i+3;fn--)
-					if((sector[fn]!=-96)&&(sector[fn]!=0))
-						break;
-				StringBuffer file=new StringBuffer("");
-				if((fmt==FILE_FORMAT.PETSCII)||inside)
-					for(int x=i+3;x<=fn;x++)
-						file.append(convertToPetscii(sector[x]));
-				else
-				if(fmt==FILE_FORMAT.ASCII)
-					for(int x=i+3;x<=fn;x++)
-						file.append((char)sector[x]);
-				else
-				for(int x=i+3;x<=fn;x++)
-					file.append(toHex(sector[x]));
-					
-				if(file.length()>0)
-				{
-					FileInfo f = new FileInfo();
-					finalData.add(f);
-					f.fileName=file.toString();
-					if(flags.contains(SEARCH_FLAG.VERBOSE))
-					{
-						short lb=unsigned(sector[i+28]);
-						short hb=unsigned(sector[i+29]);
-						int size=(256*(lb+(256*hb)));
-						if (size < 0)
-							System.err.println("Error: Invalid Size: " + lb + "," + hb + "," + size);
-						f.size = size;
-						
-						switch(sector[i])
-						{
-						case (byte) 129:
-							f.fileType = ("seq");
-							break;
-						case (byte) 130:
-							f.fileType = ("prg");
-							break;
-						case (byte) 131:
-							f.fileType = ("usr");
-							break;
-						case (byte) 132:
-							f.fileType = ("rel");
-							break;
-						case (byte) 133:
-						case (byte) 134:
-						{
-							f.fileType = ("dir");
-							int fileT=unsigned(sector[i+1]);
-							int fileS=unsigned(sector[i+2]);
-							if((type != IMAGE_TYPE.D80)
-							&&(type != IMAGE_TYPE.D82)
-							&&(fileT!=0)
-							&&(fileT<tsmap.length)
-							&&(fileS<tsmap[fileT].length)
-							&&(!doneBefore.contains(tsmap[fileT][fileS]))
-							&&(fileT<=maxT))
-							{
-								byte[] sector2=tsmap[fileT][fileS];
-								int possDTrack = unsigned(sector2[160+11]);
-								int possDSector = unsigned(sector2[160+12]);
-								if((possDTrack!=0)
-								&&(possDTrack<tsmap.length)
-								&&(possDSector<tsmap[possDTrack].length)
-								&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
-								&&(possDTrack<=maxT))
-								{
-									finalData.addAll(getFileDir(type,tsmap,flags,fmt,possDTrack,possDSector,maxT));
-								}
-								fileT=unsigned(sector2[0]);
-								fileS=unsigned(sector2[1]);
-								finalData.addAll(getFileDir(type,tsmap,flags,fmt,fileT,fileS,maxT));
-							}
-							break;
-						}
-						default:
-							f.fileType = ("?");
-							break;
-						}
-					}
-					if((inside||md5)
-					&&(sector[i] != (byte)134)
-					&&(sector[i] != (byte)133))
-					{
-						int fileT=unsigned(sector[i+1]);
-						int fileS=unsigned(sector[i+2]);
-						byte[] fileData =getFileContent(tsmap,fileT,maxT,fileS,fmt);
-						if(fileData==null)
-						{
-							System.err.println("Error reading: "+fileT+","+fileS);
-							return null;
-						}
-						else
-							f.data = fileData;
-					}
-				}
-			}
-			t=unsigned(sector[0]);
-			s=unsigned(sector[1]);
-		}
-		return finalData;
-	}
-
-	public static Vector<FileInfo> getFiledata(IMAGE_TYPE type, byte[][][] tsmap, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, long fileSize)
-	{
-		int t=getImageDirTrack(type);
-		int maxT=D64Search.getImageNumTracks(type,fileSize);
-		int s=getImageDirSector(type);
-		return getFileDir(type,tsmap,flags,fmt,t,s,maxT);
-	}
 
 	private static boolean check(String name, char[] expr, boolean caseSensitive)
 	{
@@ -529,7 +171,51 @@ public class D64Search
 							System.err.println("Stupid preparedStatement error: "+e.getMessage());
 						}
 					}
-					Vector<FileInfo> fileData=getFiledata(type,disk,flags,fmt,F.length());
+					List<FileInfo> fileData=getDiskFiles(F,type,disk,F.length());
+					if((fmt==FILE_FORMAT.PETSCII)||inside)
+					{
+						for(FileInfo info : fileData)
+						{
+							StringBuilder str=new StringBuilder("");
+							for(byte b : info.fileName.getBytes())
+								str.append(D64Search.convertToPetscii(b));
+							info.fileName = str.toString();
+						}
+					}
+					else
+					if(fmt==FILE_FORMAT.ASCII)
+					{
+						for(FileInfo info : fileData)
+						{
+							StringBuilder str=new StringBuilder("");
+							for(byte b : info.fileName.getBytes())
+								str.append((char)b);
+							info.fileName = str.toString();
+						}
+					}
+					else
+					if(fmt==FILE_FORMAT.ASCII)
+					{
+						for(FileInfo info : fileData)
+						{
+							StringBuilder str=new StringBuilder("");
+							for(byte b : info.fileName.getBytes())
+								str.append(toHex(b));
+							info.fileName = str.toString();
+						}
+					}
+					if(fmt==FILE_FORMAT.PETSCII)
+					{
+						for(FileInfo info : fileData)
+						{
+							if(info.data!=null)
+							{
+								for(int i=0;i<info.data.length;i++)
+									info.data[i]=(byte)(D64Search.convertToPetscii(info.data[i]) & 0xff);
+							}
+						}
+					}
+					
 					if(fileData==null)
 					{
 						System.err.println("Error reading :"+F.getName());
@@ -540,7 +226,7 @@ public class D64Search
 					for(int n=0;n<fileData.size();n++)
 					{
 						md5=null;
-						FileInfo f = fileData.elementAt(n);
+						FileInfo f = fileData.get(n);
 						if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
 						||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
 						{
@@ -566,7 +252,7 @@ public class D64Search
 									dbInfo.stmt.setInt(3, (n+1));
 									dbInfo.stmt.setInt(4, f.size);
 									dbInfo.stmt.setString(5, toHex(md5));
-									dbInfo.stmt.setString(6, f.fileType);
+									dbInfo.stmt.setString(6, f.fileType.toString().toLowerCase());
 									dbInfo.stmt.addBatch();
 								}
 								catch(SQLException e)
