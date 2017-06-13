@@ -83,9 +83,32 @@ OPTIONS:");
   -V verbose
   -D X Recursive depth X
 
-A tool for comparing the files inside a disk image, or a path of disk images, 
-with the files inside a second disk image, or a path of disk images.  A list 
-of matching, non-matching, and missing files are reported.
+-----------------------------------------------------------------------------
+D64Mod
+-----------
+A tool for viewing, extracting from, or modifying the contents of an
+image file.  
+
+Java version requires Java 1.6 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/D64Mod.jar 
+or
+java com.planet_ink.emutil.D64Mod
+
+D64Mod v1.0 (c)2017-2017 Bo Zimmerman
+
+USAGE: 
+  D64Mod <image file> <action> <action arguments>
+ACTIONS:
+  SCRATCH <file>
+  EXTRACT <file> <target path>
+  INSERT <source path> <file>
+  BAM CHECK
+  BAM ALLOC (Checks for sectors that need bam alloc)
+  BAM FREE (Checks for sectors that need bam free)
+  LIST <PATH>
+  LIST ALL
 
 -----------------------------------------------------------------------------
 CMDHDParser
