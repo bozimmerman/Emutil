@@ -71,8 +71,9 @@ public class D64Base
 	{
 		DEL,SEQ,PRG,USR,REL,CBM,DIR
 	}
-	
-	public static class FileInfo {
+
+	public static class FileInfo 
+	{
 		FileInfo parentF = null;
 		String fileName = "";
 		String filePath = "";
@@ -151,8 +152,7 @@ public class D64Base
 			total+=(256*getImageSecsPerTrack(type,t));
 		return total;
 	}
-	
-	
+
 	public static int getImageDirTrack(IMAGE_TYPE type)
 	{
 		switch(type)
@@ -166,6 +166,25 @@ public class D64Base
 		case D80:
 		case D82:
 			return 39;
+		case DNP:
+			return 1;
+		}
+		return -1;
+	}
+
+	public static short getImageInterleave(IMAGE_TYPE type)
+	{
+		switch(type)
+		{
+		case D64:
+			return 10;
+		case D71:
+			return 5;
+		case D81:
+			return 1;
+		case D80:
+		case D82:
+			return 10;
 		case DNP:
 			return 1;
 		}
@@ -213,11 +232,15 @@ public class D64Base
 	
 	protected static char convertToPetscii(byte b)
 	{
-		if(b<65) return (char)b;
-		if(b<91) return Character.toLowerCase((char)b);
-		if(b<192) return (char)b;
-		if(b<219) return Character.toUpperCase((char)(b-128));
-		return (char)(b-128);
+		if (b < 65)
+			return (char) b;
+		if (b < 91)
+			return Character.toLowerCase((char) b);
+		if (b < 192)
+			return (char) b;
+		if (b < 219)
+			return Character.toUpperCase((char) (b - 128));
+		return (char) (b - 128);
 	}
 	
 	protected static byte[][][] parseMap(IMAGE_TYPE type, byte[] buf, int fileLength)
@@ -261,8 +284,13 @@ public class D64Base
 		return parseMap(type,buf,(int)F.length());
 	}
 	
-	public static String toHex(byte b){ return HEX[unsigned(b)];}
-	public static String toHex(byte[] buf){
+	public static String toHex(byte b)
+	{
+		return HEX[unsigned(b)];
+	}
+
+	public static String toHex(byte[] buf)
+	{
 		StringBuffer ret=new StringBuffer("");
 		for(int b=0;b<buf.length;b++)
 			ret.append(toHex(buf[b]));
@@ -459,8 +487,6 @@ public class D64Base
 									if(readInside)
 										fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
 								}
-								else
-									fileData = null;
 							}
 							break;
 						case (byte) 5:
@@ -592,7 +618,7 @@ public class D64Base
 	
 	public interface BAMBack
 	{
-		public boolean call(int t, int s, boolean set, short[] curBAM, short bamByteOffset, short bamMask);
+		public boolean call(int t, int s, boolean set, short[] curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
 	}
 	
 	protected static void bamPeruse(byte[][][] bytes, IMAGE_TYPE type, long imageSize, BAMBack call) throws IOException
@@ -614,6 +640,7 @@ public class D64Base
 			int skipByte = currBAM[4];
 			for(int s=0;s<secsPerTrack;s++)
 			{
+				final short sumBamByteOffset = (short)((skipByte <= 0) ? -1 : (bamOffset + skipByte));
 				final short bamByteOffset = (short)(bamOffset + skipByte + (int)Math.round(Math.floor(s/8.0)));
 				final short bamByte = (short)(bam[bamByteOffset] & 0xff);
 				short mask;
@@ -622,7 +649,7 @@ public class D64Base
 				else
 					mask = (short)Math.round(Math.pow(2.0,s%8));
 				boolean set = (bamByte & mask) == mask;
-				if((call != null)&&(call.call(t, s, set, currBAM, bamByteOffset, mask)))
+				if((call != null)&&(call.call(t, s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
 					return;
 			}
 			if(currBAM[5] != 0)
