@@ -222,7 +222,7 @@ public class D64Mod extends D64Base
 	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, FileInfo file) throws IOException
 	{
 		byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
-		dirSector[file.dirLoc[2]]=(byte)(dirSector[file.dirLoc[2]]&0x7f);
+		dirSector[file.dirLoc[2]]=(byte)(0);
 		final Set<Integer> tsSet=new HashSet<Integer>();
 		for(short[] ts : file.tracksNSecs)
 			tsSet.add(Integer.valueOf((ts[0] << 8) + ts[1]));
@@ -721,7 +721,6 @@ public class D64Mod extends D64Base
 				if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
 					throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
 				//TODO: find free directory slot, allocate it if necessary
-				//TODO: write the directory entry here
 				int bufDex = 0;
 				int secDex = 0;
 				while(bufDex < fileData.length)
@@ -741,10 +740,19 @@ public class D64Mod extends D64Base
 						secBlock[0]=(byte)(nextSec[0] & 0xff);
 						secBlock[1]=(byte)(nextSec[1] & 0xff);
 					}
+					else
+					if(fileData.length-bufDex<=254)
+					{
+						secBlock[0]=0;
+						secBlock[1]=(byte)(1+bytesToWrite);
+					}
+					else
+						throw new IOException("Not enough sectors available for "+localFileF.getAbsolutePath());
 					bufDex += bytesToWrite;
 				}
 				if(secDex<sectorsToUse.size())
 					throw new IOException("Too many sectors found for "+localFileF.getAbsolutePath());
+				//TODO: write the directory entry here
 				D64Mod.allocateSectors(diskBytes, imagetype, imageF, sectorsToUse);
 				rewriteD64[0]=true;
 			}
