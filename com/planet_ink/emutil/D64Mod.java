@@ -1,6 +1,8 @@
 package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
+
+import com.planet_ink.emutil.D64Base.IMAGE_TYPE;
 /* 
 Copyright 2017-2017 Bo Zimmerman
 
@@ -64,7 +66,7 @@ public class D64Mod extends D64Base
 				if(numFree > 0)
 				{
 					short interleave=getImageInterleave(imagetype);
-					int secsOnTrack=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageF, track);
+					int secsOnTrack=D64Mod.getImageSecsPerTrack(imagetype, track);
 					for(short s1=0;s1<interleave;s1++)
 						for(short s=s1;s<secsOnTrack;s+=interleave)
 						{
@@ -261,6 +263,74 @@ public class D64Mod extends D64Base
 		return true;
 	}
 	
+	protected static short[] findDirectorySlotInSector(byte[] sector, short[] dirts) throws IOException
+	{
+		for(int i=2;i<256;i+=32)
+		{
+			if((sector[i]==(byte)128)||(sector[i]&(byte)128)==0)
+				return new short[]{dirts[0],dirts[1],(short)i};
+		}
+		return null;
+	}
+	
+	protected static short[] findDirectorySlot(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, final FileInfo parentDir) throws IOException
+	{
+		short[] dirts = parentDir.tracksNSecs.get(0);
+		if((parentDir.fileType != FileType.CBM)
+		&&(imagetype != IMAGE_TYPE.D80)
+		&&(imagetype != IMAGE_TYPE.D82)
+		&&(dirts[0]!=0)
+		&&(dirts[0]<diskBytes.length)
+		&&(dirts[1]<diskBytes[dirts[0]].length))
+		{
+			byte[] sec=diskBytes[dirts[0]][dirts[1]];
+			dirts[0]=unsigned(sec[0]);
+			dirts[1]=unsigned(sec[1]);
+		}
+		byte[] sec=diskBytes[dirts[0]][dirts[1]];
+		short[] found=findDirectorySlotInSector(sec,dirts);
+		if(found != null)
+			return found;
+		while(sec[0]!=0)
+		{
+			dirts[0]=unsigned(sec[0]);
+			dirts[1]=unsigned(sec[1]);
+			sec=diskBytes[dirts[0]][dirts[1]];
+			found=findDirectorySlotInSector(sec,dirts);
+			if(found != null)
+				return found;
+		}
+		if(imagetype != IMAGE_TYPE.DNP)
+		{
+			short track=dirts[0];
+			int numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageF,track);
+			if(numFree < 0)
+				throw new IOException("No root dir sectors free?!");
+			short interleave=3;
+			int secsOnTrack=D64Mod.getImageSecsPerTrack(imagetype, track);
+			for(short s1=0;s1<interleave;s1++)
+				for(short s=s1;s<secsOnTrack;s+=interleave)
+					if(!isSectorAllocated(diskBytes,imagetype,imageF,track,s))
+					{
+						sec[0]=(byte)(track & 0xff);
+						sec[1]=(byte)(s & 0xff);
+						byte[] newSec = diskBytes[track][s];
+						for(int i=2;i<256;i+=32)
+							newSec[i]=0;
+						List<short[]> allocs=new ArrayList<short[]>();
+						allocs.add(new short[]{track,s});
+						D64Mod.allocateSectors(diskBytes, imagetype, imageF, allocs);
+						return new short[]{track,s,2};
+					}
+			throw new IOException("No free root dir sectors found.");
+		}
+		else
+		{
+			//TODO:
+			return new short[]{0,0,0};
+		}
+	}
+	
 	protected static boolean allocateSectors(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, List<short[]> sectors) throws IOException
 	{
 		
@@ -299,6 +369,30 @@ public class D64Mod extends D64Base
 			}
 		});
 		return true;
+	}
+
+	public static FileInfo findFile(final String imageFileStr, List<FileInfo> files, boolean caseInsensitive)
+	{
+		if(imageFileStr.length()>0)
+		{
+			if(caseInsensitive)
+			{
+				for(FileInfo f : files)
+				{
+					if(f.filePath.equalsIgnoreCase(imageFileStr))
+						return f;
+				}
+			}
+			else
+			{
+				for(FileInfo f : files)
+				{
+					if(f.filePath.equals(imageFileStr))
+						return f;
+				}
+			}
+		}
+		return null;
 	}
 	
 	public static void main(String[] args)
@@ -395,18 +489,9 @@ public class D64Mod extends D64Base
 		}
 		final byte[][][] diskBytes = getDisk(imagetype,imageF);
 		final List<FileInfo> files = getDiskFiles(imageF, imagetype, diskBytes, imageF.length());
-		FileInfo file = null;
-		if(imageFileStr.length()>0)
-		{
-			for(FileInfo f : files)
-			{
-				if(f.filePath.equalsIgnoreCase(imageFileStr))
-				{
-					file = f;
-					break;
-				}
-			}
-		}
+		FileInfo file = findFile(imageFileStr,files,false);
+		if(file == null)
+			file = findFile(imageFileStr,files,true);
 		if(action == Action.LIST)
 		{
 			if((!imageFileStr.equalsIgnoreCase("ALL")) && (file == null))
@@ -427,7 +512,7 @@ public class D64Mod extends D64Base
 			System.exit(-1);
 		}
 		LinkedList<FileInfo> fileList=new LinkedList<FileInfo>();
-		if(file != null)
+		if((file != null)&&(action != Action.INSERT))
 		{
 			fileList.add(file);
 			if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
@@ -714,12 +799,68 @@ public class D64Mod extends D64Base
 				System.err.println(e.getMessage());
 				System.exit(-1);
 			}
+			FileInfo targetDir = findFile("/",files,false);
+			String targetFileName = null;
+			if((file != null)
+			&&((file.fileType==FileType.DIR)||(file.fileType==FileType.CBM)))
+			{
+				targetDir = file;
+				targetFileName = localFileF.getName().substring(0,16);
+			}
+			else
+			if(file !=null)
+			{
+				targetFileName = file.fileName;
+				if(file.parentF != null)
+					targetDir = file.parentF;
+				try
+				{
+					System.out.println("Removing old "+file.filePath);
+					D64Mod.scratchFile(diskBytes, imagetype, imageF, file);
+				}
+				catch(IOException e)
+				{
+					System.err.println(e.getMessage());
+					System.exit(-1);
+				}
+			}
+			else
+			{
+				x=imageFileStr.lastIndexOf('/');
+				while(x>=0)
+				{
+					FileInfo f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+					if(f==null)
+						f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+					if((f!=null)
+					&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
+					{
+						targetDir=f;
+						targetFileName=imageFileStr.substring(x+1).substring(0, 16).trim();
+						break;
+					}
+					else
+					if(f!=null)
+					{
+						targetFileName=imageFileStr.substring(0,16).trim();
+						break;
+					}
+					if(x<1)
+						break;
+					x=imageFileStr.lastIndexOf('/',x-1);
+				}
+				if(targetFileName == null)
+					targetFileName=imageFileStr.substring(0,16).trim();
+				if(targetFileName.length()==0)
+					targetFileName = localFileF.getName().substring(0,16);
+			}
 			int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
 			try
 			{
 				final List<short[]> sectorsToUse = D64Mod.getFreeSectors(diskBytes, imagetype, imageF, sectorsNeeded);
 				if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
 					throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
+				short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageF, targetDir);
 				//TODO: find free directory slot, allocate it if necessary
 				int bufDex = 0;
 				int secDex = 0;
