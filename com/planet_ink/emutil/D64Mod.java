@@ -30,6 +30,33 @@ public class D64Mod extends D64Base
 		CHECK, ALLOC, FREE
 	}
 	
+	public static short[] findFreeSector(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, short startTrack, short stopTrack, short dir, Set<Integer> skip) throws IOException
+	{
+		short track=startTrack;
+		short numFree=0;
+		while(track!=stopTrack)
+		{
+			numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageF,track);
+			if(numFree > 0)
+			{
+				short interleave=getImageInterleave(imagetype);
+				int secsOnTrack=D64Mod.getImageSecsPerTrack(imagetype, track);
+				for(short s1=0;s1<interleave;s1++)
+					for(short s=s1;s<secsOnTrack;s+=interleave)
+					{
+						final Integer sint = Integer.valueOf((track<<8)+s);
+						if((skip==null)||(!skip.contains(sint)))
+						{
+							if(!isSectorAllocated(diskBytes,imagetype,imageF,track,s))
+								return new short[]{track,s};
+						}
+					}
+			}
+			track+=dir;
+		}
+		return null;
+	}
+	
 	public static short[] nextFreeSectorInDirection(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, short dirTrack, short startTrack, short lastTrack, Set<Integer> skip) throws IOException
 	{
 		if(startTrack == dirTrack)
@@ -58,29 +85,7 @@ public class D64Mod extends D64Base
 				dir=-1;
 				stopTrack=0;
 			}
-			short track=startTrack;
-			short numFree=0;
-			while(track!=stopTrack)
-			{
-				numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageF,track);
-				if(numFree > 0)
-				{
-					short interleave=getImageInterleave(imagetype);
-					int secsOnTrack=D64Mod.getImageSecsPerTrack(imagetype, track);
-					for(short s1=0;s1<interleave;s1++)
-						for(short s=s1;s<secsOnTrack;s+=interleave)
-						{
-							final Integer sint = Integer.valueOf((track<<8)+s);
-							if(!skip.contains(sint))
-							{
-								if(!isSectorAllocated(diskBytes,imagetype,imageF,track,s))
-									return new short[]{track,s};
-							}
-						}
-				}
-				track+=dir;
-			}
-			return null;
+			return findFreeSector(diskBytes,imagetype,imageF,dirTrack,stopTrack,dir,skip);
 		}
 	}
 	
@@ -326,8 +331,21 @@ public class D64Mod extends D64Base
 		}
 		else
 		{
-			//TODO:
-			return new short[]{0,0,0};
+			short track=dirts[0];
+			short[] ts= findFreeSector(diskBytes,imagetype,imageF,track,(short)(D64Base.getImageNumTracks(imagetype, imageF.length())+1),(short)1,null);
+			if(ts == null)
+				ts= findFreeSector(diskBytes,imagetype,imageF,(short)1,(short)(D64Base.getImageNumTracks(imagetype, imageF.length())+1),(short)1,null);
+			if(ts == null)
+				throw new IOException("No sectors found for dir entry.");
+			sec[0]=(byte)(ts[0] & 0xff);
+			sec[1]=(byte)(ts[1] & 0xff);
+			byte[] newSec = diskBytes[ts[0]][ts[1]];
+			for(int i=2;i<256;i+=32)
+				newSec[i]=0;
+			List<short[]> allocs=new ArrayList<short[]>();
+			allocs.add(new short[]{ts[0],ts[1]});
+			D64Mod.allocateSectors(diskBytes, imagetype, imageF, allocs);
+			return new short[]{ts[0],ts[1],2};
 		}
 	}
 	
@@ -760,13 +778,13 @@ public class D64Mod extends D64Base
 		{
 			int x=localFileStr.lastIndexOf('.');
 			File localFileF;
-			FileType poss = FileType.PRG;
+			FileType cbmtype = FileType.PRG;
 			if(x>=0)
 			{
 				String ext=localFileStr.substring(x+1);
 				try
 				{ 
-					poss = FileType.valueOf(ext.toUpperCase().trim()); 
+					cbmtype = FileType.valueOf(ext.toUpperCase().trim()); 
 					localFileF=new File(localFileStr);
 					if(!localFileF.exists())
 						localFileF=new File(localFileStr.substring(0,x));
@@ -861,7 +879,6 @@ public class D64Mod extends D64Base
 				if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
 					throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
 				short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageF, targetDir);
-				//TODO: find free directory slot, allocate it if necessary
 				int bufDex = 0;
 				int secDex = 0;
 				while(bufDex < fileData.length)
@@ -893,7 +910,59 @@ public class D64Mod extends D64Base
 				}
 				if(secDex<sectorsToUse.size())
 					throw new IOException("Too many sectors found for "+localFileF.getAbsolutePath());
-				//TODO: write the directory entry here
+				byte[] dirSec=diskBytes[dirSlot[0]][dirSlot[1]];
+				short dirByte=dirSlot[2];
+				switch(cbmtype)
+				{
+				case CBM:
+					dirSec[dirByte]=tobyte(5+128);
+					break;
+				case DEL:
+					dirSec[dirByte]=tobyte(0+128);
+					break;
+				case DIR:
+					dirSec[dirByte]=tobyte(6+128);
+					break;
+				case PRG:
+					dirSec[dirByte]=tobyte(2+128);
+					break;
+				case REL:
+					dirSec[dirByte]=tobyte(4+128);
+					break;
+				case SEQ:
+					dirSec[dirByte]=tobyte(1+128);
+					break;
+				case USR:
+					dirSec[dirByte]=tobyte(3+128);
+					break;
+				}
+				dirSec[dirByte+1]=tobyte(sectorsToUse.get(0)[0]);
+				dirSec[dirByte+2]=tobyte(sectorsToUse.get(0)[1]);
+				for(int i=3;i<=18;i++)
+				{
+					int fnoffset=i-3;
+					if(fnoffset<=targetFileName.length())
+						dirSec[dirByte+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(fnoffset))));
+					else
+						dirSec[dirByte+i]=tobyte(160);
+				}
+				for(int i=19;i<=27;i++)
+					dirSec[dirByte+i]=0;
+				if(imagetype==IMAGE_TYPE.DNP)
+				{
+					Calendar C=Calendar.getInstance();
+					int year=C.get(Calendar.YEAR);
+					year-=(int)Math.round(Math.floor(year/100.0))*100;
+					dirSec[dirByte+23]=tobyte(year);
+					dirSec[dirByte+24]=tobyte(C.get(Calendar.MONTH)+1);
+					dirSec[dirByte+25]=tobyte(C.get(Calendar.DAY_OF_MONTH));
+					dirSec[dirByte+26]=tobyte(C.get(Calendar.HOUR_OF_DAY));
+					dirSec[dirByte+27]=tobyte(C.get(Calendar.MINUTE));
+				}
+				int szHB = (int)Math.round(Math.floor(sectorsToUse.size() / 256.0));
+				int szLB = sectorsToUse.size() - (szHB * 256);
+				dirSec[dirByte+28]=tobyte(szLB);
+				dirSec[dirByte+29]=tobyte(szHB);
 				D64Mod.allocateSectors(diskBytes, imagetype, imageF, sectorsToUse);
 				rewriteD64[0]=true;
 			}

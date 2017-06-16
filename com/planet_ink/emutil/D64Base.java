@@ -307,6 +307,11 @@ public class D64Base
 		return (short)(0xFF & b);
 	}
 	
+	public static byte tobyte(int b)
+	{
+		return (byte)(0xFF & b);
+	}
+	
 	public static byte[] getFileContent(String fileName, byte[][][] tsmap, int t, int mt, int s, List<short[]> secsUsed) throws IOException
 	{
 		HashSet<byte[]> doneBefore=new HashSet<byte[]>();
