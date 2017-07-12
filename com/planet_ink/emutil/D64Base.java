@@ -534,6 +534,26 @@ public class D64Base
 		}
 	}
 	
+	protected static boolean isSectorAllocated(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, final short track, final short sector) throws IOException
+	{
+		final boolean[] isAllocated = new boolean[]{false};
+		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+			@Override
+			public boolean call(int t, int s, boolean set,
+					short[] curBAM, short bamByteOffset,
+					short sumBamByteOffset, short bamMask) 
+			{
+				if((t==track)&&(s==sector))
+				{
+					isAllocated[0]=!set;
+					return true;
+				}
+				return false;
+			}
+		});
+		return isAllocated[0];
+	}
+
 	public static void fillFileListFromHeader(File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, FileInfo f, boolean readInside) throws IOException
 	{
 		byte[] sector;
@@ -548,11 +568,13 @@ public class D64Base
 			sector=tsmap[t][s];
 			t=unsigned(sector[0]);
 			s=unsigned(sector[1]);
-			int possDTrack = unsigned(sector[160+11]);
-			int possDSector = unsigned(sector[160+12]);
+			short possDTrack = unsigned(sector[160+11]);
+			short possDSector = unsigned(sector[160+12]);
 			if((possDTrack!=0)
 			&&(possDTrack<tsmap.length)
 			&&(f.fileType==FileType.DIR)
+			&&(D64Base.isSectorAllocated(tsmap, type, srcF, possDTrack, possDSector)
+				||(possDTrack==t))
 			&&(possDSector<tsmap[possDTrack].length)
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))

@@ -85,7 +85,7 @@ public class D64Mod extends D64Base
 				dir=-1;
 				stopTrack=0;
 			}
-			return findFreeSector(diskBytes,imagetype,imageF,dirTrack,stopTrack,dir,skip);
+			return findFreeSector(diskBytes,imagetype,imageF,(short)(dirTrack+dir),stopTrack,dir,skip);
 		}
 	}
 	
@@ -192,6 +192,8 @@ public class D64Mod extends D64Base
 	protected static int totalSectorsFree(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF) throws IOException
 	{
 		final int[] numAllocated = new int[]{0};
+		final int[] numFree = new int[]{0};
+		final int noTrack = D64Mod.getImageDirTrack(imagetype);
 		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
 			@Override
 			public boolean call(int t, int s, boolean set,
@@ -200,32 +202,15 @@ public class D64Mod extends D64Base
 			{
 				if(!set)
 					numAllocated[0]++;
+				else
+				if(t != noTrack)
+					numFree[0]++;
 				return false;
 			}
 		});
-		return numAllocated[0];
+		return numFree[0];
 	}
 	
-	protected static boolean isSectorAllocated(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, final short track, final short sector) throws IOException
-	{
-		final boolean[] isAllocated = new boolean[]{false};
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
-			@Override
-			public boolean call(int t, int s, boolean set,
-					short[] curBAM, short bamByteOffset,
-					short sumBamByteOffset, short bamMask) 
-			{
-				if((t==track)&&(s==sector))
-				{
-					isAllocated[0]=!set;
-					return true;
-				}
-				return false;
-			}
-		});
-		return isAllocated[0];
-	}
-
 	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, FileInfo file) throws IOException
 	{
 		byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
@@ -281,6 +266,7 @@ public class D64Mod extends D64Base
 	protected static short[] findDirectorySlot(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, final FileInfo parentDir) throws IOException
 	{
 		short[] dirts = parentDir.tracksNSecs.get(0);
+		/*
 		if((parentDir.fileType != FileType.CBM)
 		&&(imagetype != IMAGE_TYPE.D80)
 		&&(imagetype != IMAGE_TYPE.D82)
@@ -292,6 +278,7 @@ public class D64Mod extends D64Base
 			dirts[0]=unsigned(sec[0]);
 			dirts[1]=unsigned(sec[1]);
 		}
+		*/
 		byte[] sec=diskBytes[dirts[0]][dirts[1]];
 		short[] found=findDirectorySlotInSector(sec,dirts);
 		if(found != null)
@@ -823,7 +810,10 @@ public class D64Mod extends D64Base
 			&&((file.fileType==FileType.DIR)||(file.fileType==FileType.CBM)))
 			{
 				targetDir = file;
-				targetFileName = localFileF.getName().substring(0,16);
+				int len=16;
+				if(localFileF.getName().length()<16)
+					len=localFileF.getName().length();
+				targetFileName = localFileF.getName().substring(0,len);
 			}
 			else
 			if(file !=null)
@@ -890,7 +880,8 @@ public class D64Mod extends D64Base
 					int bytesToWrite=254;
 					if(fileData.length-bufDex<254)
 						bytesToWrite=fileData.length-bufDex;
-					for(int i=2;i<=255;i++)
+					Arrays.fill(secBlock, (byte)0);
+					for(int i=2;i<2+bytesToWrite;i++)
 						secBlock[i]=fileData[bufDex+i-2];
 					if(secDex < sectorsToUse.size())
 					{
@@ -941,7 +932,7 @@ public class D64Mod extends D64Base
 				for(int i=3;i<=18;i++)
 				{
 					int fnoffset=i-3;
-					if(fnoffset<=targetFileName.length())
+					if(fnoffset<targetFileName.length())
 						dirSec[dirByte+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(fnoffset))));
 					else
 						dirSec[dirByte+i]=tobyte(160);
