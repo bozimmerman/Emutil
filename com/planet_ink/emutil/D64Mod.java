@@ -446,6 +446,8 @@ public class D64Mod extends D64Base
 			switch(action)
 			{
 			case SCRATCH:
+				System.err.println("Not implemented");
+				System.exit(-1);
 				break;
 			case INSERT:
 				if(args.length<4)
@@ -453,6 +455,8 @@ public class D64Mod extends D64Base
 					System.err.println("Missing target file");
 					System.exit(-1);
 				}
+				System.err.println("Not implemented");
+				System.exit(-1);
 				localFileStr = args[2];
 				imageFileStr = args[3];
 				break;
