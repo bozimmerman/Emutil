@@ -434,18 +434,65 @@ public class D64Base
 							&&(!doneBefore.contains(tsmap[fileT][fileS]))&&(fileT<=maxT))
 							{
 								ByteArrayOutputStream data = new ByteArrayOutputStream();
+								if(readInside)
+								{
+									byte[] block = new byte[254];
+									byte[] dirLocBlock =tsmap[f.dirLoc[0]][f.dirLoc[1]]; 
+									for(int l=2;l<=31;l++)
+										block[l-2]=dirLocBlock[f.dirLoc[2]+l-2];
+									block[1]=0;
+									block[2]=0;
+									block[19]=0;
+									block[20]=0;
+									byte[] convertHeader=new String("PRG formatted GEOS file V1.0").getBytes("US-ASCII");
+									for(int l=30;l<30+convertHeader.length;l++)
+										block[l]=convertHeader[l-30];
+									data.write(block);
+									for(int l=0;l<block.length;l++)
+										block[l]=f.header[l+2];
+									data.write(block);
+								}
 								byte[] vlirSec = tsmap[fileT][fileS];
 								doneBefore.add(vlirSec);
 								f.tracksNSecs.add(new short[]{(short)fileT,(short)fileS});
+								byte[] vlirblock = new byte[254];
+								List<byte[]> contents = new ArrayList<byte[]>();
 								for(int vt=0;vt<=254;vt+=2)
 								{
 									int vfileT=unsigned(vlirSec[vt]);
 									int vfileS=unsigned(vlirSec[vt+1]);
 									if((vfileT==0)&&(vfileS==255))
+									{
+										if(vt>1)
+										{
+											vlirblock[vt-2]=0;
+											vlirblock[vt-1]=(byte)(255 & 0xff);
+										}
 										continue;
+									}
 									if(readInside)
-										data.write(getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs));
+									{
+										byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
+										int numBlocks = (int)Math.round(Math.ceil((double)content.length/254.0));
+										int lowBlocks = (int)Math.round(Math.floor((double)content.length/254.0));
+										int extra = content.length - (lowBlocks * 254) +1;
+										vlirblock[vt-2]=(byte)(numBlocks & 0xff);
+										vlirblock[vt-1]=(byte)(extra & 0xff);
+										for(int x=0;x<numBlocks*254;x+=254)
+										{
+											byte[] newConBlock = new byte[254];
+											for(int y=x;y<x+254;y++)
+												if(y<content.length)
+													newConBlock[y-x]=content[y];
+												//else
+												//	newConBlock[y-x]=(byte)((y-x+2) & 0xff);
+											contents.add(newConBlock);
+										}
+									}
 								}
+								data.write(vlirblock); //TODO: do different for seq
+								for(byte[] content : contents)
+									data.write(content);
 								if(readInside)
 									fileData = data.toByteArray();
 							}
