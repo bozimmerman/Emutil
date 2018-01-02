@@ -568,7 +568,12 @@ public class D64Mod extends D64Base
 		}
 		case EXTRACT:
 		{
-			File localFileF=new File(localFileStr);
+			int x=localFileStr.lastIndexOf(File.separator);
+			File localFileF;
+			if(x>0)
+				localFileF=new File(new File(localFileStr.substring(0,x)),localFileStr.substring(x+1).replaceAll("/", "_"));
+			else
+				localFileF=new File(localFileStr.replaceAll("/", "_"));
 			if((fileList.size()>1)&&(!localFileF.isDirectory()))
 			{
 				System.err.println(localFileStr+" needs to be a directory to extract "+fileList.size()+" files.");
@@ -582,7 +587,7 @@ public class D64Mod extends D64Base
 					FileOutputStream fout;
 					File outF;
 					if(localFileF.isDirectory())
-						outF = new File(localFileF,f.fileName);
+						outF = new File(localFileF,f.fileName.replaceAll("/", "_"));
 					else
 						outF = localFileF;
 					fout=new FileOutputStream(outF);
