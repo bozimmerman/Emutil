@@ -34,6 +34,13 @@ public class D64Duplifind
 		;
 	};
 
+	public enum SHOW_FLAG {
+		MATCHES1,
+		MATCHES2,
+		MISMATCHES1,
+		MISMATCHES2,
+		;
+	};
 	private static class DupFile
 	{
 		boolean contained=false;
@@ -438,6 +445,7 @@ public class D64Duplifind
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search");
 			System.out.println("  -V verbose");
+			System.out.println("  -S matches1 matches2 mismatches1 mismatches2");
 			//System.out.println("  -D deep compare");
 			System.out.println("  -1 add to path1");
 			System.out.println("  -2 add to path2");
@@ -446,6 +454,7 @@ public class D64Duplifind
 		HashSet<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
 		List<String> paths1=new LinkedList<String>();
 		List<String> paths2=new LinkedList<String>();
+		Set<SHOW_FLAG> shows=new HashSet<SHOW_FLAG>();
 		for(int i=0;i<args.length;i++)
 		{
 			if(args[i].startsWith("-"))
@@ -473,6 +482,31 @@ public class D64Duplifind
 					case '2':
 						paths2.add(args[++i].trim());
 						c=args[i].length();
+						break;
+					case 'S':
+					case 's':
+						c=args[i].length();
+						i++;
+						for(;i<args.length;i++)
+						{
+							if(args[i].startsWith("-"))
+							{
+								i--;
+								break;
+							}
+							else
+							{
+								try
+								{
+									shows.add(SHOW_FLAG.valueOf(args[i].toUpperCase().trim()));
+								}
+								catch(Exception e)
+								{
+									i--;
+									break;
+								}
+							}
+						}
 						break;
 					}
 				}
@@ -534,6 +568,17 @@ public class D64Duplifind
 					path2map.get(pathPrefix).add(D);
 				}
 			}
+			if(shows.contains(SHOW_FLAG.MISMATCHES1))
+			{
+				for(String hash : path1hashes.keySet())
+				{
+					for(DupFile p1 : path1hashes.get(hash))
+					{
+						if(!path2hashes.containsKey(hash))
+							System.out.println("Unatched "+p1.filePath);
+					}
+				}
+			}
 			for(String prefixDir : path2map.keySet())
 			{
 				long totalFiles = 0;
@@ -549,12 +594,19 @@ public class D64Duplifind
 							if(dF.length==path2f.length)
 							{
 								matches++;
-								//if(flags.contains(SEARCH_FLAG.VERBOSE))
-								//	System.out.println("Matched "+dF.filePath +" with "+d.filePath);
+								if(shows.contains(SHOW_FLAG.MATCHES1))
+									System.out.println("Matched "+dF.filePath +" with "+path2f.filePath);
+								else
+								if(shows.contains(SHOW_FLAG.MATCHES2))
+									System.out.println("Matched "+path2f.filePath +" with "+dF.filePath);
 								break;
 							}
 						}
 					}
+					else
+					if(shows.contains(SHOW_FLAG.MISMATCHES2))
+						System.out.println("Unatched "+path2f.filePath);
+						
 				}
 				int pct=(int)Math.round((double)matches/(double)totalFiles*100.0);
 				System.out.println("Matched: "+prefixDir+": "+matches+"/"+totalFiles + " ("+pct+"%)");
