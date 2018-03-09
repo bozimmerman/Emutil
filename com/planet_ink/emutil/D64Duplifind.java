@@ -102,7 +102,8 @@ public class D64Duplifind
 	public static  boolean goodExt(String name)
 	{
 		name=name.toLowerCase();
-		if(name.endsWith(".d64") || name.endsWith(".d81") 
+		if(name.endsWith(".d64") || name.endsWith(".d81")
+		|| name.endsWith(".d80") || name.endsWith(".d82")
 		|| name.endsWith(".zip") || name.endsWith(".gz") 
 		|| name.endsWith(".lnx") || name.endsWith(".arc")
 		|| name.endsWith(".tap") || name.endsWith(".t64")
