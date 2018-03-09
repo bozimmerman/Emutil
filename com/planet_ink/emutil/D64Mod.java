@@ -22,7 +22,7 @@ public class D64Mod extends D64Base
 {
 	enum Action
 	{
-		SCRATCH, EXTRACT, INSERT, BAM, LIST
+		SCRATCH, EXTRACT, INSERT, BAM, LIST, DIR
 	}
 	
 	enum BamAction
@@ -415,8 +415,8 @@ public class D64Mod extends D64Base
 			System.out.println("  BAM CHECK");
 			System.out.println("  BAM ALLOC (Checks for sectors that need bam alloc)");
 			System.out.println("  BAM FREE (Checks for sectors that need bam free)");
-			System.out.println("  LIST <PATH>");
-			System.out.println("  LIST ALL");
+			System.out.println("  LIST/DIR <PATH>");
+			System.out.println("  LIST/DIR ALL");
 			System.out.println("");
 			return;
 		}
@@ -479,6 +479,7 @@ public class D64Mod extends D64Base
 					System.exit(-1);
 				}
 				break;
+			case DIR:
 			case LIST:
 				/*
 				if(args.length<4)
@@ -501,7 +502,7 @@ public class D64Mod extends D64Base
 		FileInfo file = findFile(imageFileStr,files,false);
 		if(file == null)
 			file = findFile(imageFileStr,files,true);
-		if(action == Action.LIST)
+		if((action == Action.LIST)||(action == Action.DIR))
 		{
 			if((!imageFileStr.equalsIgnoreCase("ALL")) && (file == null))
 			{
@@ -985,6 +986,28 @@ public class D64Mod extends D64Base
 					System.out.println(f.filePath+","+f.fileType.toString().toLowerCase().charAt(0));
 			}
 			break;
+		case DIR:
+		{
+			Collection<FileInfo> fs = files;
+			if(!imageFileStr.equalsIgnoreCase("all"))
+				fs = fileList;
+			for(FileInfo f : fs)
+			{
+				if(f.fileName.equals("*BAM*") || f.fileName.equals("/"))
+					continue;
+				int blkLen = (int)Math.round(Math.floor(f.size / 254.0));
+				StringBuilder ln=new StringBuilder("");
+				ln.append(blkLen);
+				while(ln.length()<5)
+					ln.append(" ");
+				ln.append("\"").append(f.fileName).append("\"");
+				while(ln.length()<24)
+					ln.append(" ");
+				ln.append(f.fileType.toString().toLowerCase());
+				System.out.println(ln.toString());
+			}
+			break;
+		}
 		}
 		if(rewriteD64[0])
 		{
