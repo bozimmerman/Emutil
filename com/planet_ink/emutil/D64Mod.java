@@ -1,8 +1,6 @@
 package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
-
-import com.planet_ink.emutil.D64Base.IMAGE_TYPE;
 /* 
 Copyright 2017-2017 Bo Zimmerman
 
