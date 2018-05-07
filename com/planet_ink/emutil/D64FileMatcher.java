@@ -79,7 +79,7 @@ public class D64FileMatcher extends D64Mod
 								dirsLeft.add(F);
 						}
 						else
-						if(getImageType(F)!=null)
+						if(getImageTypeAndZipped(F)!=null)
 						{
 							if((P==null)||(P.matcher(F.getName().subSequence(0, F.getName().length())).matches()))
 								filesToDo.add(F);
@@ -94,7 +94,7 @@ public class D64FileMatcher extends D64Mod
 			}
 		}
 		else
-		if(getImageType(baseF)!=null)
+		if(getImageTypeAndZipped(baseF)!=null)
 		{
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
 				filesToDo.add(baseF);
@@ -186,14 +186,15 @@ public class D64FileMatcher extends D64Mod
 		for(File F1 : F1s)
 		{
 			Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
-			IMAGE_TYPE typeF1 = getImageType(F1);
+			IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
 			if(typeF1==null)
 			{
 				System.err.println("Error reading :"+F1.getName());
 				continue;
 			}
-			byte[][][] diskF1=getDisk(typeF1,F1);
-			List<FileInfo> fileData1=getDiskFiles(F1,typeF1,diskF1,F1.length());
+			int[] f1Len=new int[1];
+			byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
+			List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
 			if(fileData1==null)
 			{
 				System.err.println("Bad extension :"+F1.getName());
@@ -207,15 +208,16 @@ public class D64FileMatcher extends D64Mod
 			for(Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
 				File F2=f.next();
-				IMAGE_TYPE typeF2 = getImageType(F2);
+				IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
 				if(typeF2==null)
 				{
 					System.err.println("**** Error reading :"+F2.getName());
 					f.remove();
 					continue;
 				}
-				byte[][][] diskF2=getDisk(typeF2,F2);
-				List<FileInfo> fileData2=getDiskFiles(F2,typeF2,diskF2,F2.length());
+				int[] f2Len=new int[1];
+				byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
+				List<FileInfo> fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
 				if(fileData2==null)
 				{
 					System.err.println("**** Bad extension :"+F2.getName());

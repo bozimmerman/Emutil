@@ -57,14 +57,15 @@ public class D64Compare extends D64Base
 			System.exit(-1);
 		}
 		
-		IMAGE_TYPE typeF1 = getImageType(F1);
+		IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
 		if(typeF1==null)
 		{
 			System.err.println("Error reading :"+F1.getName());
 			System.exit(-1);
 		}
-		byte[][][] diskF1=getDisk(typeF1,F1);
-		List<FileInfo> fileData1=getDiskFiles(F1,typeF1,diskF1,F1.length());
+		int[] f1Len=new int[1];
+		byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
+		List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
 		if(fileData1==null)
 		{
 			System.err.println("Bad extension :"+F1.getName());
@@ -72,14 +73,15 @@ public class D64Compare extends D64Base
 		}
 		diskF1=null;
 		
-		IMAGE_TYPE typeF2 = getImageType(F2);
+		IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
 		if(typeF2==null)
 		{
 			System.err.println("Error reading :"+F2.getName());
 			System.exit(-1);
 		}
-		byte[][][] diskF2=getDisk(typeF2,F2);
-		List<FileInfo> fileData2=getDiskFiles(F2,typeF2,diskF2,F2.length());
+		int[] f2Len=new int[1];
+		byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
+		List<FileInfo> fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
 		if(fileData2==null)
 		{
 			System.err.println("Bad extension :"+F2.getName());

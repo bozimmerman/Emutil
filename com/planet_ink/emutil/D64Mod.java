@@ -28,13 +28,13 @@ public class D64Mod extends D64Base
 		CHECK, ALLOC, FREE
 	}
 	
-	public static short[] findFreeSector(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, short startTrack, short stopTrack, short dir, Set<Integer> skip) throws IOException
+	public static short[] findFreeSector(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, short startTrack, short stopTrack, short dir, Set<Integer> skip) throws IOException
 	{
 		short track=startTrack;
 		short numFree=0;
 		while(track!=stopTrack)
 		{
-			numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageF,track);
+			numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageFLen, track);
 			if(numFree > 0)
 			{
 				short interleave=getImageInterleave(imagetype);
@@ -45,7 +45,7 @@ public class D64Mod extends D64Base
 						final Integer sint = Integer.valueOf((track<<8)+s);
 						if((skip==null)||(!skip.contains(sint)))
 						{
-							if(!isSectorAllocated(diskBytes,imagetype,imageF,track,s))
+							if(!isSectorAllocated(diskBytes,imagetype,imageFLen,track,s))
 								return new short[]{track,s};
 						}
 					}
@@ -55,12 +55,12 @@ public class D64Mod extends D64Base
 		return null;
 	}
 	
-	public static short[] nextFreeSectorInDirection(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, short dirTrack, short startTrack, short lastTrack, Set<Integer> skip) throws IOException
+	public static short[] nextFreeSectorInDirection(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, short dirTrack, short startTrack, short lastTrack, Set<Integer> skip) throws IOException
 	{
 		if(startTrack == dirTrack)
 		{
-			short[] tryBelow = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,(short)(dirTrack-1),lastTrack,skip);
-			short[] tryAbove = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,(short)(dirTrack+1),lastTrack,skip);
+			short[] tryBelow = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,(short)(dirTrack-1),lastTrack,skip);
+			short[] tryAbove = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,(short)(dirTrack+1),lastTrack,skip);
 			if((tryAbove==null)&&(tryBelow==null))
 				return null;
 			if((tryAbove==null)&&(tryBelow != null))
@@ -83,42 +83,42 @@ public class D64Mod extends D64Base
 				dir=-1;
 				stopTrack=0;
 			}
-			return findFreeSector(diskBytes,imagetype,imageF,(short)(dirTrack+dir),stopTrack,dir,skip);
+			return findFreeSector(diskBytes,imagetype,imageFLen,(short)(dirTrack+dir),stopTrack,dir,skip);
 		}
 	}
 	
-	public static short[] firstFreeSector(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, Set<Integer> skip) throws IOException
+	public static short[] firstFreeSector(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, Set<Integer> skip) throws IOException
 	{
 		short dirTrack=(short)D64Base.getImageDirTrack(imagetype);
-		short lastTrack=(short)D64Base.getImageNumTracks(imagetype, imageF.length());
+		short lastTrack=(short)D64Base.getImageNumTracks(imagetype, imageFLen);
 		if(imagetype == IMAGE_TYPE.D71)
 		{
-			short[] sector = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,dirTrack,(short)35,skip);
+			short[] sector = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,dirTrack,(short)35,skip);
 			if(sector == null)
-				sector = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)53,(short)53,lastTrack,skip);
+				sector = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)53,(short)53,lastTrack,skip);
 			return sector;
 		}
 		else
 		if(imagetype == IMAGE_TYPE.D82)
 		{
-			short[] sector = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,dirTrack,(short)77,skip);
+			short[] sector = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,dirTrack,(short)77,skip);
 			if(sector == null)
-				sector = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)116,(short)116,lastTrack,skip);
+				sector = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)116,(short)116,lastTrack,skip);
 			return sector;
 		}
 		else
 		{
-			return nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,dirTrack,lastTrack,skip);
+			return nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,dirTrack,lastTrack,skip);
 		}
 	}
 	
-	public static List<short[]> getFreeSectors(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, int numSectors) throws IOException
+	public static List<short[]> getFreeSectors(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, int numSectors) throws IOException
 	{
 		List<short[]> list=new ArrayList<short[]>();
-		if(totalSectorsFree(diskBytes,imagetype,imageF)<numSectors)
+		if(totalSectorsFree(diskBytes,imagetype, imageFLen)<numSectors)
 			throw new IOException("Not enough free space.");
 		short[] ts=null;
-		short lastTrack=(short)D64Base.getImageNumTracks(imagetype, imageF.length());
+		short lastTrack=(short)D64Base.getImageNumTracks(imagetype, imageFLen);
 		short dirTrack=(short)D64Base.getImageDirTrack(imagetype);
 		HashSet<Integer> skip=new HashSet<Integer>();
 		while(list.size()<numSectors)
@@ -129,27 +129,27 @@ public class D64Mod extends D64Base
 				if(imagetype == IMAGE_TYPE.D71)
 				{
 					if(prevTrack<=35)
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,prevTrack,(short)35,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,prevTrack,(short)35,skip);
 					else
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)53,prevTrack,lastTrack,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)53,prevTrack,lastTrack,skip);
 					if((ts == null)&&(prevTrack<=35))
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)53,(short)53,lastTrack,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)53,(short)53,lastTrack,skip);
 				}
 				else
 				if(imagetype == IMAGE_TYPE.D82)
 				{
 					if(prevTrack<=35)
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,prevTrack,(short)77,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,prevTrack,(short)77,skip);
 					else
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)116,prevTrack,lastTrack,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)116,prevTrack,lastTrack,skip);
 					if((ts == null)&&(prevTrack<=35))
-						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,(short)116,(short)116,lastTrack,skip);
+						ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,(short)116,(short)116,lastTrack,skip);
 				}
 				else
-					ts = nextFreeSectorInDirection(diskBytes,imagetype,imageF,dirTrack,prevTrack,lastTrack,skip);
+					ts = nextFreeSectorInDirection(diskBytes,imagetype,imageFLen,dirTrack,prevTrack,lastTrack,skip);
 			}
 			if(ts == null)
-				ts=firstFreeSector(diskBytes,imagetype,imageF,skip);
+				ts=firstFreeSector(diskBytes,imagetype,imageFLen,skip);
 			if(ts != null)
 			{
 				
@@ -162,11 +162,11 @@ public class D64Mod extends D64Base
 		return list;
 	}
 	
-	protected static short sectorsFreeOnTrack(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, final short track) throws IOException
+	protected static short sectorsFreeOnTrack(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, final short track) throws IOException
 	{
 		final int[] numAllocated = new int[]{0};
 		final boolean[] leaveWhenDone=new boolean[]{false};
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
 			public boolean call(int t, int s, boolean set,
 					short[] curBAM, short bamByteOffset,
@@ -187,12 +187,12 @@ public class D64Mod extends D64Base
 		return (short)(D64Mod.getImageSecsPerTrack(imagetype, track) - numAllocated[0]);
 	}
 	
-	protected static int totalSectorsFree(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF) throws IOException
+	protected static int totalSectorsFree(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen) throws IOException
 	{
 		final int[] numAllocated = new int[]{0};
 		final int[] numFree = new int[]{0};
 		final int noTrack = D64Mod.getImageDirTrack(imagetype);
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
 			public boolean call(int t, int s, boolean set,
 					short[] curBAM, short bamByteOffset,
@@ -209,7 +209,7 @@ public class D64Mod extends D64Base
 		return numFree[0];
 	}
 	
-	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, FileInfo file) throws IOException
+	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, FileInfo file) throws IOException
 	{
 		byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
 		dirSector[file.dirLoc[2]]=(byte)(0);
@@ -217,7 +217,7 @@ public class D64Mod extends D64Base
 		for(short[] ts : file.tracksNSecs)
 			tsSet.add(Integer.valueOf((ts[0] << 8) + ts[1]));
 		
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack() 
+		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack() 
 		{
 			@Override
 			public boolean call(int t, int s, boolean set,
@@ -233,7 +233,7 @@ public class D64Mod extends D64Base
 						try
 						{
 							int totalSectors=D64Mod.getImageSecsPerTrack(imagetype, t);
-							int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageF, (short)t);
+							int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, (short)t);
 							if((sectorsFree<=totalSectors)
 							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
 								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)-1);
@@ -261,7 +261,7 @@ public class D64Mod extends D64Base
 		return null;
 	}
 	
-	protected static short[] findDirectorySlot(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, final FileInfo parentDir) throws IOException
+	protected static short[] findDirectorySlot(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, final FileInfo parentDir) throws IOException
 	{
 		short[] dirts = parentDir.tracksNSecs.get(0);
 		/*
@@ -293,14 +293,14 @@ public class D64Mod extends D64Base
 		if(imagetype != IMAGE_TYPE.DNP)
 		{
 			short track=dirts[0];
-			int numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageF,track);
+			int numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageFLen, track);
 			if(numFree < 0)
 				throw new IOException("No root dir sectors free?!");
 			short interleave=3;
 			int secsOnTrack=D64Mod.getImageSecsPerTrack(imagetype, track);
 			for(short s1=0;s1<interleave;s1++)
 				for(short s=s1;s<secsOnTrack;s+=interleave)
-					if(!isSectorAllocated(diskBytes,imagetype,imageF,track,s))
+					if(!isSectorAllocated(diskBytes,imagetype,imageFLen,track,s))
 					{
 						sec[0]=(byte)(track & 0xff);
 						sec[1]=(byte)(s & 0xff);
@@ -309,7 +309,7 @@ public class D64Mod extends D64Base
 							newSec[i]=0;
 						List<short[]> allocs=new ArrayList<short[]>();
 						allocs.add(new short[]{track,s});
-						D64Mod.allocateSectors(diskBytes, imagetype, imageF, allocs);
+						D64Mod.allocateSectors(diskBytes, imagetype, imageFLen, allocs);
 						return new short[]{track,s,2};
 					}
 			throw new IOException("No free root dir sectors found.");
@@ -317,9 +317,9 @@ public class D64Mod extends D64Base
 		else
 		{
 			short track=dirts[0];
-			short[] ts= findFreeSector(diskBytes,imagetype,imageF,track,(short)(D64Base.getImageNumTracks(imagetype, imageF.length())+1),(short)1,null);
+			short[] ts= findFreeSector(diskBytes,imagetype,imageFLen,track,(short)(D64Base.getImageNumTracks(imagetype, imageFLen)+1),(short)1,null);
 			if(ts == null)
-				ts= findFreeSector(diskBytes,imagetype,imageF,(short)1,(short)(D64Base.getImageNumTracks(imagetype, imageF.length())+1),(short)1,null);
+				ts= findFreeSector(diskBytes,imagetype,imageFLen,(short)1,(short)(D64Base.getImageNumTracks(imagetype, imageFLen)+1),(short)1,null);
 			if(ts == null)
 				throw new IOException("No sectors found for dir entry.");
 			sec[0]=(byte)(ts[0] & 0xff);
@@ -329,18 +329,18 @@ public class D64Mod extends D64Base
 				newSec[i]=0;
 			List<short[]> allocs=new ArrayList<short[]>();
 			allocs.add(new short[]{ts[0],ts[1]});
-			D64Mod.allocateSectors(diskBytes, imagetype, imageF, allocs);
+			D64Mod.allocateSectors(diskBytes, imagetype, imageFLen, allocs);
 			return new short[]{ts[0],ts[1],2};
 		}
 	}
 	
-	protected static boolean allocateSectors(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final File imageF, List<short[]> sectors) throws IOException
+	protected static boolean allocateSectors(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, List<short[]> sectors) throws IOException
 	{
 		
 		final HashSet<Integer> secsToDo=new HashSet<Integer>();
 		for(short[] sec : sectors)
 			secsToDo.add(Integer.valueOf((sec[0] << 8) + sec[1]));
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack() 
+		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack() 
 		{
 			@Override
 			public boolean call(int t, int s, boolean set,
@@ -356,7 +356,7 @@ public class D64Mod extends D64Base
 						try
 						{
 							int totalSectors=D64Mod.getImageSecsPerTrack(imagetype, t);
-							int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageF, (short)t);
+							int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, (short)t);
 							if((sectorsFree<=totalSectors)
 							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
 								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)+1);
@@ -429,7 +429,7 @@ public class D64Mod extends D64Base
 			System.err.println("image not found: "+imagePath);
 			System.exit(-1);
 		}
-		IMAGE_TYPE imagetype = getImageType(imageF);
+		IMAGE_TYPE imagetype = getImageTypeAndZipped(imageF);
 		if(imagetype == null)
 		{
 			System.err.println("File is not an image: "+imagePath);
@@ -495,8 +495,9 @@ public class D64Mod extends D64Base
 			System.err.println("Invalid action: "+actionStr);
 			System.exit(-1);
 		}
-		final byte[][][] diskBytes = getDisk(imagetype,imageF);
-		final List<FileInfo> files = getDiskFiles(imageF, imagetype, diskBytes, imageF.length());
+		int[] imageFLen=new int[1];
+		final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
+		final List<FileInfo> files = getDiskFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
 		FileInfo file = findFile(imageFileStr,files,false);
 		if(file == null)
 			file = findFile(imageFileStr,files,true);
@@ -554,7 +555,7 @@ public class D64Mod extends D64Base
 				FileInfo f = fileList.removeLast();
 				try
 				{
-					if(D64Mod.scratchFile(diskBytes, imagetype, imageF, f))
+					if(D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], f))
 						System.out.println("Scratched "+f.filePath);
 				}
 				catch(Exception e)
@@ -627,7 +628,7 @@ public class D64Mod extends D64Base
 				{
 					final int[] lastT={1};
 					System.out.print("1  : ");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 						@Override
 						public boolean call(int t, int s, boolean set,
 								short[] curBAM, short bamByteOffset,
@@ -699,7 +700,7 @@ public class D64Mod extends D64Base
 				case ALLOC:
 				{
 					System.out.print("Allocation need check...");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 						@Override
 						public boolean call(int t, int s, boolean set,
 								short[] curBAM, short bamByteOffset,
@@ -731,7 +732,7 @@ public class D64Mod extends D64Base
 				case FREE:
 				{
 					System.out.print("De-Allocation need check...");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 						@Override
 						public boolean call(int t, int s, boolean set,
 								short[] curBAM, short bamByteOffset,
@@ -832,7 +833,7 @@ public class D64Mod extends D64Base
 				try
 				{
 					System.out.println("Removing old "+file.filePath);
-					D64Mod.scratchFile(diskBytes, imagetype, imageF, file);
+					D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], file);
 				}
 				catch(IOException e)
 				{
@@ -873,10 +874,10 @@ public class D64Mod extends D64Base
 			int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
 			try
 			{
-				final List<short[]> sectorsToUse = D64Mod.getFreeSectors(diskBytes, imagetype, imageF, sectorsNeeded);
+				final List<short[]> sectorsToUse = D64Mod.getFreeSectors(diskBytes, imagetype, imageFLen[0], sectorsNeeded);
 				if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
 					throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
-				short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageF, targetDir);
+				short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageFLen[0], targetDir);
 				int bufDex = 0;
 				int secDex = 0;
 				while(bufDex < fileData.length)
@@ -962,7 +963,7 @@ public class D64Mod extends D64Base
 				int szLB = sectorsToUse.size() - (szHB * 256);
 				dirSec[dirByte+28]=tobyte(szLB);
 				dirSec[dirByte+29]=tobyte(szHB);
-				D64Mod.allocateSectors(diskBytes, imagetype, imageF, sectorsToUse);
+				D64Mod.allocateSectors(diskBytes, imagetype, imageFLen[0], sectorsToUse);
 				rewriteD64[0]=true;
 			}
 			catch(IOException e)

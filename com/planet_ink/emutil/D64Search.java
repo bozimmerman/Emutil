@@ -139,7 +139,8 @@ public class D64Search extends D64Mod
 				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
 					IMAGE_TYPE type=img;
-					byte[][][] disk=getDisk(type,F);
+					int[] fLen=new int[1];
+					byte[][][] disk=getDisk(type,F,fLen);
 					if(dbInfo!=null)
 					{
 						try
@@ -171,7 +172,7 @@ public class D64Search extends D64Mod
 							System.err.println("Stupid preparedStatement error: "+e.getMessage());
 						}
 					}
-					List<FileInfo> fileData=getDiskFiles(F,type,disk,F.length());
+					List<FileInfo> fileData=getDiskFiles(F.getName(),type,disk,fLen[0]);
 					if((fmt==FILE_FORMAT.PETSCII)||inside)
 					{
 						for(FileInfo info : fileData)

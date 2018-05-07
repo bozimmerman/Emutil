@@ -1,15 +1,19 @@
 package com.planet_ink.emutil;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
 import java.util.Vector;
+
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 
 /* 
 Copyright 2016-2017 Bo Zimmerman
@@ -215,11 +219,13 @@ public class D64Base
 		switch(type)
 		{
 		case D64:
+			if(fileSize >= 349696)
+				return 70;
 			return 35;
 		case D71:
 			return 70;
 		case D81:
-			return 79;
+			return 80;
 		case D80:
 			return 77;
 		case D82:
@@ -261,27 +267,52 @@ public class D64Base
 		return tsmap;
 	}
 	
-	public static byte[][][] getDisk(IMAGE_TYPE type, File F)
+	public static byte[][][] getDisk(IMAGE_TYPE type, File F, int[] fileLen)
 	{
-		byte[] buf=new byte[getImageTotalBytes(type,(int)F.length())];
+		int len=(int)F.length();
+		InputStream is=null;
 		try
 		{
-			final FileInputStream is=new FileInputStream(F);
+			if(F.getName().toUpperCase().endsWith(".GZ"))
+			{
+				GzipCompressorInputStream in = new GzipCompressorInputStream(new FileInputStream(F));
+				byte[] lbuf = new byte[4096];
+				int read=in.read(lbuf);
+				ByteArrayOutputStream bout=new ByteArrayOutputStream(len*2);
+				while(read >= 0)
+				{
+					bout.write(lbuf,0,read);
+					read=in.read(lbuf);
+				}
+				in.close();
+				len=bout.toByteArray().length;
+				is=new ByteArrayInputStream(bout.toByteArray());
+			}
+			if(len == 0)
+			{
+				System.err.println(F.getName()+": Error: Failed to read at ALL!");
+				return new byte[D64Base.getImageNumTracks(type, len)][255][256];
+			}
+			byte[] buf=new byte[getImageTotalBytes(type,len)];
+			if(is == null)
+				is=new FileInputStream(F);
 			int totalRead = 0;
-			while(totalRead < buf.length)
+			while(totalRead < len)
 			{
 				int read = is.read(buf,totalRead,buf.length-totalRead);
 				if(read>=0)
 					totalRead += read;
 			}
 			is.close();
+			if((fileLen != null)&&(fileLen.length>0))
+				fileLen[0]=len;
+			return parseMap(type,buf,len);
 		}
 		catch(java.io.IOException e)
 		{
 			e.printStackTrace(System.err);
-			System.exit(-1);
+			return new byte[D64Base.getImageNumTracks(type, len)][255][256];
 		}
-		return parseMap(type,buf,(int)F.length());
 	}
 	
 	public static String toHex(byte b)
@@ -344,7 +375,7 @@ public class D64Base
 		return out.toByteArray();
 	}
 
-	public static void finishFillFileList(FileInfo dirInfo, File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, boolean readInside)
+	public static void finishFillFileList(FileInfo dirInfo, String imgName, int srcFLen, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, boolean readInside)
 	{
 		byte[] sector;
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
@@ -377,7 +408,8 @@ public class D64Base
 					int phs = unsigned(sector[i+20]);
 					if(((sector[i] & 0x0f)!=4) //rel files never have headers
 					&&(pht!=0)
-					&&(pht<=maxT))
+					&&(pht<=maxT)
+					&&(phs<=tsmap[pht].length))
 					{
 						final byte[] ssec = tsmap[pht][phs];
 						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
@@ -550,7 +582,7 @@ public class D64Base
 							int newDirT=fileT;
 							int newDirS=fileS;
 							//if(flags.contains(COMP_FLAG.RECURSE))
-							fillFileListFromHeader(srcF,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, readInside);
+							fillFileListFromHeader(imgName,srcFLen,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, readInside);
 							if(readInside)
 								fileData=getFileContent(f.fileName,tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
 							//finalData.remove(f);
@@ -563,7 +595,7 @@ public class D64Base
 						}
 						if(fileData==null)
 						{
-							System.err.println(srcF.getName()+": Error reading: "+f.fileName+": "+fileT+","+fileS);
+							System.err.println(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
 							return;
 						}
 						else
@@ -571,7 +603,7 @@ public class D64Base
 					}
 					catch(IOException e)
 					{
-						System.err.println(srcF.getName()+": Error: "+f.filePath+": "+e.getMessage());
+						System.err.println(imgName+": Error: "+f.filePath+": "+e.getMessage());
 						return;
 					}
 				}
@@ -581,10 +613,10 @@ public class D64Base
 		}
 	}
 	
-	protected static boolean isSectorAllocated(final byte[][][] diskBytes, IMAGE_TYPE imagetype, File imageF, final short track, final short sector) throws IOException
+	protected static boolean isSectorAllocated(final byte[][][] diskBytes, IMAGE_TYPE imagetype, int imageFLen, final short track, final short sector) throws IOException
 	{
 		final boolean[] isAllocated = new boolean[]{false};
-		D64Mod.bamPeruse(diskBytes, imagetype, imageF.length(), new BAMBack(){
+		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
 			public boolean call(int t, int s, boolean set,
 					short[] curBAM, short bamByteOffset,
@@ -601,7 +633,7 @@ public class D64Base
 		return isAllocated[0];
 	}
 
-	public static void fillFileListFromHeader(File srcF, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, FileInfo f, boolean readInside) throws IOException
+	public static void fillFileListFromHeader(String imgName, int srcFLen, IMAGE_TYPE type, String prefix, byte[][][] tsmap, Set<byte[]> doneBefore, List<FileInfo> finalData, int t, int s, int maxT, FileInfo f, boolean readInside) throws IOException
 	{
 		byte[] sector;
 		if((type != IMAGE_TYPE.D80)
@@ -620,17 +652,17 @@ public class D64Base
 			if((possDTrack!=0)
 			&&(possDTrack<tsmap.length)
 			&&(f.fileType==FileType.DIR)
-			&&(D64Base.isSectorAllocated(tsmap, type, srcF, possDTrack, possDSector)
+			&&(D64Base.isSectorAllocated(tsmap, type, srcFLen, possDTrack, possDSector)
 				||(possDTrack==t))
 			&&(possDSector<tsmap[possDTrack].length)
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))
 			{
-				finishFillFileList(f,srcF,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT, readInside);
+				finishFillFileList(f,imgName,srcFLen,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT, readInside);
 				getFileContent("/",tsmap,possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
 			}
 		}
-		finishFillFileList(f,srcF,type,prefix,tsmap,doneBefore,finalData,t,s,maxT, readInside);
+		finishFillFileList(f,imgName,srcFLen,type,prefix,tsmap,doneBefore,finalData,t,s,maxT, readInside);
 	}
 
 	protected static short[] getBAMStart(IMAGE_TYPE type)
@@ -733,7 +765,7 @@ public class D64Base
 		}
 	}
 	
-	public static List<FileInfo> getDiskFiles(File srcF, IMAGE_TYPE type, byte[][][] tsmap, long fileSize)
+	public static List<FileInfo> getDiskFiles(String imgName, IMAGE_TYPE type, byte[][][] tsmap, int fileSize)
 	{
 		int t=getImageDirTrack(type);
 		int maxT=getImageNumTracks(type, fileSize);
@@ -785,11 +817,11 @@ public class D64Base
 			f.fileType=FileType.DIR;
 			f.size=0;
 			finalData.add(f);
-			fillFileListFromHeader(srcF, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, true);
+			fillFileListFromHeader(imgName, fileSize, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, true);
 		}
 		catch(IOException e)
 		{
-			System.err.println("Disk Dir Error: "+e.getMessage());
+			System.err.println(imgName+": disk Dir Error: "+e.getMessage());
 		}
 		switch(type)
 		{
@@ -825,4 +857,17 @@ public class D64Base
 		return null;
 	}
 	
+	protected static IMAGE_TYPE getImageTypeAndZipped(File F)
+	{
+		for(IMAGE_TYPE img : IMAGE_TYPE.values())
+		{
+			if(F.getName().toUpperCase().endsWith(img.toString())
+			||F.getName().toUpperCase().endsWith(img.toString()+".GZ"))
+			{
+				IMAGE_TYPE type=img;
+				return type;
+			}
+		}
+		return null;
+	}
 }
