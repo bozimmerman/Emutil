@@ -22,13 +22,20 @@ public class D64FileMatcher extends D64Mod
 	public enum COMP_FLAG {
 		VERBOSE,
 		RECURSE,
+		CACHE
 	};
 	public enum FILE_FORMAT {
 		PETSCII,
 		ASCII,
 		HEX;
 	};
-	
+
+	private static class FMCache
+	{
+		byte[][][]		diskF		= null;
+		int[]			fLen		= null;
+		List<FileInfo>	fileData1	= null;
+	}
 	
 	public static List<File> getAllFiles(String filename, int depth) throws IOException
 	{
@@ -106,13 +113,14 @@ public class D64FileMatcher extends D64Mod
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64FileMatcher v1.0 (c)2017-2017 Bo Zimmerman");
+			System.out.println("D64FileMatcher v1.1 (c)2017-2017 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64FileMatcher <file/path1> <file/path2>");
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search inside DNP");
 			System.out.println("  -V verbose");
+			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
 			System.out.println("");
 			return;
@@ -136,6 +144,10 @@ public class D64FileMatcher extends D64Mod
 					case 'v':
 					case 'V': 
 						flags.add(COMP_FLAG.VERBOSE); 
+						break;
+					case 'c':
+					case 'C': 
+						flags.add(COMP_FLAG.CACHE); 
 						break;
 					case 'd':
 					case 'D':
@@ -183,6 +195,9 @@ public class D64FileMatcher extends D64Mod
 			}
 		}
 		
+		if(!flags.contains(COMP_FLAG.VERBOSE))
+			System.setErr(new PrintStream(new OutputStream() {public void write(int b) {}}));
+		Map<File,FMCache> cache=new TreeMap<File,FMCache>();
 		for(File F1 : F1s)
 		{
 			Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
@@ -215,9 +230,29 @@ public class D64FileMatcher extends D64Mod
 					f.remove();
 					continue;
 				}
-				int[] f2Len=new int[1];
-				byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
-				List<FileInfo> fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
+				int[] f2Len;
+				byte[][][] diskF2;
+				List<FileInfo> fileData2;
+				if(cache.containsKey(F2))
+				{
+					f2Len=cache.get(F2).fLen;
+					diskF2=cache.get(F2).diskF;
+					fileData2=cache.get(F2).fileData1;
+				}
+				else
+				{
+					f2Len=new int[1];
+					diskF2=getDisk(typeF2,F2,f2Len);
+					fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
+					if(flags.contains(COMP_FLAG.CACHE))
+					{
+						FMCache cacheEntry=new FMCache();
+						cacheEntry.diskF=diskF2;
+						cacheEntry.fLen=f2Len;
+						cacheEntry.fileData1=fileData2;
+						cache.put(F2, cacheEntry);
+					}
+				}
 				if(fileData2==null)
 				{
 					System.err.println("**** Bad extension :"+F2.getName());
@@ -241,42 +276,75 @@ public class D64FileMatcher extends D64Mod
 				}
 			}
 			StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
-			str.append("---------- Files Not Found for Diffing: \n");
+			if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
+				str.append("---------- Files Not Found for Diffing: \n");
 			StringBuilder subStr=new StringBuilder("");
 			List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(FileInfo key : report.keySet())
 				sortedKeys.add(key);
-			Collections.sort(sortedKeys,new Comparator<FileInfo>(){
+			Collections.sort(sortedKeys,new Comparator<FileInfo>() {
 				@Override
 				public int compare(FileInfo o1, FileInfo o2) {
 					return o1.filePath.compareTo(o2.filePath);
 				}
 			});
 			subStr.setLength(0);
+			int numFiles=0;
+			int numMatchedAnywhere=0;
+			Map<File,int[]> reverseMatches=new HashMap<File,int[]>();
 			for(FileInfo key : sortedKeys)
 			{
+				if(key.fileType == FileType.DIR)
+					continue;
+				numFiles++;
 				List<D64Report> rep = report.get(key);
 				String fs1 = "  " + key.filePath+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
-				subStr.append(fs1).append("\n");
-				if(rep.size()==0)
+				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
 				{
-					subStr.append("    N/A (No matches found on any target disks)").append("\n");
-					continue;
+					subStr.append(fs1).append("\n");
+					if(rep.size()==0)
+					{
+						subStr.append("    N/A (No matches found on any target disks)").append("\n");
+						continue;
+					}
 				}
+				boolean hasMatch=false;
 				for(D64Report r : rep)
 				{
-					String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
-					int len=50;
-					if(fs1.length()>len)
-						len=fs1.length();
-					int dlen=20;
-					if(r.diskF.getName().length()>dlen)
-						dlen=r.diskF.getName().length();
-					subStr.append("    "+(r.equal?"MATCH:":"DIFF :")).append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+					if(r.compareFD.fileType == FileType.DIR)
+						continue;
+					hasMatch = hasMatch || r.equal;
+					if(r.equal)
+					{
+						if(!reverseMatches.containsKey(r.diskF))
+							reverseMatches.put(r.diskF, new int[1]);
+						reverseMatches.get(r.diskF)[0]++;
+					}
+					if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
+					{
+						String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
+						int len=50;
+						if(fs1.length()>len)
+							len=fs1.length();
+						int dlen=20;
+						if(r.diskF.getName().length()>dlen)
+							dlen=r.diskF.getName().length();
+						subStr.append("    "+(r.equal?"MATCH:":"DIFF :")).append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+					}
 				}
+				if(hasMatch)
+					numMatchedAnywhere++;
+			}
+			if(numMatchedAnywhere > 0)
+			{
+				subStr.append(numMatchedAnywhere+"/"+numFiles+" files matched SOMEWHERE. ");
+				for(File f : reverseMatches.keySet())
+					if(reverseMatches.get(f)[0] >= numFiles)
+						subStr.append(reverseMatches.get(f)[0]+"/"+numFiles+" matched in "+f.getAbsolutePath()+" ");
+				subStr.append("\n");
 			}
 			if(subStr.length()==0)
-				str.append("NONE!\n");
+				str.append("No Matches!\n");
 			else
 				str.append(subStr.toString());
 			System.out.println(str.toString());

@@ -439,7 +439,7 @@ public class D64Duplifind
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Duplifind v1.6 (c)2016-2017 Bo Zimmerman");
+			System.out.println("D64Duplifind v1.7 (c)2016-2017 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Duplifind <options>");

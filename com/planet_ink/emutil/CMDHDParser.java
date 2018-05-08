@@ -35,7 +35,7 @@ public class CMDHDParser
 	}
 	private static void instructOut()
 	{
-		System.out.println("CMDHDParser v1.0 (c)2016-2017 Bo Zimmerman");
+		System.out.println("CMDHDParser v1.1 (c)2016-2017 Bo Zimmerman");
 		System.out.println("");
 		System.out.println("USAGE: ");
 		System.out.println("  CMDHDParser LIST <CMDHD_RAWIMAGE>");

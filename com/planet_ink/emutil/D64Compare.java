@@ -22,7 +22,7 @@ public class D64Compare extends D64Base
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Compare v1.0 (c)2016-2017 Bo Zimmerman");
+			System.out.println("D64Compare v1.1 (c)2016-2017 Bo Zimmerman");
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Compare <file1> <file2>");

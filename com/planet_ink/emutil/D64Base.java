@@ -297,7 +297,7 @@ public class D64Base
 			if(is == null)
 				is=new FileInputStream(F);
 			int totalRead = 0;
-			while(totalRead < len)
+			while((totalRead < len) && (totalRead < buf.length))
 			{
 				int read = is.read(buf,totalRead,buf.length-totalRead);
 				if(read>=0)
