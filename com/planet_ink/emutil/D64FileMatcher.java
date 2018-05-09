@@ -120,6 +120,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search inside DNP");
 			System.out.println("  -V verbose");
+			System.out.println("  -P X verbose on disks with X percent matches");
 			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
 			System.out.println("");
@@ -129,6 +130,7 @@ public class D64FileMatcher extends D64Mod
 		String path=null;
 		String expr="";
 		int depth=Integer.MAX_VALUE;
+		double pct=100.0;
 		for(int i=0;i<args.length;i++)
 		{
 			if((args[i].startsWith("-")&&(path==null)))
@@ -154,6 +156,16 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							depth=Integer.parseInt(args[i+1]);
+							i++;
+						}
+						break;
+					case 'p':
+					case 'P':
+						if(i<args.length-1)
+						{
+							pct=Double.parseDouble(args[i+1]);
+							if(pct > 1)
+								pct=pct/100.0;
 							i++;
 						}
 						break;
@@ -309,6 +321,8 @@ public class D64FileMatcher extends D64Mod
 					}
 				}
 				boolean hasMatch=false;
+				double highestPercent=0.0;
+				double totalD=numFiles;
 				for(D64Report r : rep)
 				{
 					if(r.compareFD.fileType == FileType.DIR)
@@ -319,17 +333,40 @@ public class D64FileMatcher extends D64Mod
 						if(!reverseMatches.containsKey(r.diskF))
 							reverseMatches.put(r.diskF, new int[1]);
 						reverseMatches.get(r.diskF)[0]++;
+						double d=reverseMatches.get(r.diskF)[0]/totalD;
+						if(d > highestPercent)
+							highestPercent = d;
 					}
-					if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
+				}
+				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE)
+					||((highestPercent > pct)&&((pct < 100.0))))
+				{
+					
+					for(Iterator<File> f=F2s.iterator();f.hasNext();)
 					{
-						String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
-						int len=50;
-						if(fs1.length()>len)
-							len=fs1.length();
-						int dlen=20;
-						if(r.diskF.getName().length()>dlen)
-							dlen=r.diskF.getName().length();
-						subStr.append("    "+(r.equal?"MATCH:":"DIFF :")).append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+						File diskF=f.next();
+						for(D64Report r : rep)
+						{
+							if((r.diskF != diskF)
+							||(r.compareFD.fileType == FileType.DIR))
+								continue;
+							if(pct < 100.0)
+							{
+								if(!reverseMatches.containsKey(r.diskF))
+									continue;
+								double d=reverseMatches.get(r.diskF)[0]/totalD;
+								if(d < pct)
+									continue;
+							}
+							String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
+							int len=50;
+							if(fs1.length()>len)
+								len=fs1.length();
+							int dlen=20;
+							if(r.diskF.getName().length()>dlen)
+								dlen=r.diskF.getName().length();
+							subStr.append("    "+(r.equal?"MATCH:":"DIFF :")).append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+						}
 					}
 				}
 				if(hasMatch)
@@ -337,11 +374,10 @@ public class D64FileMatcher extends D64Mod
 			}
 			if(numMatchedAnywhere > 0)
 			{
-				subStr.append(numMatchedAnywhere+"/"+numFiles+" files matched SOMEWHERE. ");
+				subStr.append(numMatchedAnywhere+"/"+numFiles+" files matched somewhere.\n");
 				for(File f : reverseMatches.keySet())
 					if(reverseMatches.get(f)[0] >= numFiles)
-						subStr.append(reverseMatches.get(f)[0]+"/"+numFiles+" matched in "+f.getAbsolutePath()+" ");
-				subStr.append("\n");
+						subStr.append(reverseMatches.get(f)[0]+"/"+numFiles+" matched in "+f.getAbsolutePath()+"\n");
 			}
 			if(subStr.length()==0)
 				str.append("No Matches!\n");
