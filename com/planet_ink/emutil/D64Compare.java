@@ -147,11 +147,13 @@ public class D64Compare extends D64Base
 			}
 		}
 		System.out.println("");
+		boolean perfectMatch=true;
 		if(missingFromDisk1.size()>0)
 		{
 			System.out.println("Found in disk 2, but missing from disk 1:");
 			for(FileInfo f : missingFromDisk1)
 				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
+			perfectMatch=false;
 			System.out.println("");
 		}
 		if(missingFromDisk2.size()>0)
@@ -159,6 +161,7 @@ public class D64Compare extends D64Base
 			System.out.println("Found in disk 1, but missing from disk 2:");
 			for(FileInfo f : missingFromDisk2)
 				System.out.println(f.filePath+"("+f.fileType+"): "+f.size+" bytes.");
+			perfectMatch=false;
 			System.out.println("");
 		}
 		if(wrongPathFromDisks.size()>0)
@@ -166,6 +169,7 @@ public class D64Compare extends D64Base
 			System.out.println("Found in one disk, but at a different path from the other disk:");
 			for(FileInfo[] f : wrongPathFromDisks)
 				System.out.println("1: "+f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus 2: "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+			perfectMatch=false;
 			System.out.println("");
 		}
 		if(foundButNotEqual.size()>0)
@@ -173,7 +177,10 @@ public class D64Compare extends D64Base
 			System.out.println("Found, but with different data:");
 			for(FileInfo[] f : foundButNotEqual)
 				System.out.println("1: "+f[0].filePath+"("+f[0].fileType+"): "+f[0].size+" bytes, versus 2: "+f[1].filePath+"("+f[1].fileType+"): "+f[1].size+" bytes");
+			perfectMatch=false;
 			System.out.println("");
 		}
+		if(perfectMatch)
+			System.out.println(fileData1.size()+" files matched perfectly on both images.");
 	}
 }
