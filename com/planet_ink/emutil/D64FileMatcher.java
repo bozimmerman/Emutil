@@ -2,7 +2,7 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
-/* 
+/*
 Copyright 2017-2017 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +36,8 @@ public class D64FileMatcher extends D64Mod
 		int[]			fLen		= null;
 		List<FileInfo>	fileData1	= null;
 	}
-	
-	public static List<File> getAllFiles(String filename, int depth) throws IOException
+
+	public static List<File> getAllFiles(final String filename, final int depth) throws IOException
 	{
 		java.util.regex.Pattern P=null;
 		File baseF = new File(filename);
@@ -59,19 +59,19 @@ public class D64FileMatcher extends D64Mod
 		return getAllFiles(baseF,P,depth);
 	}
 
-	public static List<File> getAllFiles(File baseF, Pattern P, int depth)
+	public static List<File> getAllFiles(final File baseF, final Pattern P, final int depth)
 	{
-		List<File> filesToDo=new LinkedList<File>();
+		final List<File> filesToDo=new LinkedList<File>();
 		if(baseF.isDirectory())
 		{
 			try
 			{
-				LinkedList<File> dirsLeft=new LinkedList<File>();
+				final LinkedList<File> dirsLeft=new LinkedList<File>();
 				dirsLeft.add(baseF);
 				while(dirsLeft.size()>0)
 				{
-					File dir=dirsLeft.removeFirst();
-					for(File F : dir.listFiles())
+					final File dir=dirsLeft.removeFirst();
+					for(final File F : dir.listFiles())
 					{
 						if(F.isDirectory())
 						{
@@ -94,7 +94,7 @@ public class D64FileMatcher extends D64Mod
 					}
 				}
 			}
-			catch(Exception e)
+			catch(final Exception e)
 			{
 				e.printStackTrace();
 				System.exit(-1);
@@ -108,8 +108,8 @@ public class D64FileMatcher extends D64Mod
 		}
 		return filesToDo;
 	}
-	
-	public static void main(String[] args)
+
+	public static void main(final String[] args)
 	{
 		if(args.length<2)
 		{
@@ -126,7 +126,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("");
 			return;
 		}
-		HashSet<COMP_FLAG> flags=new HashSet<COMP_FLAG>();
+		final HashSet<COMP_FLAG> flags=new HashSet<COMP_FLAG>();
 		String path=null;
 		String expr="";
 		int depth=Integer.MAX_VALUE;
@@ -140,16 +140,16 @@ public class D64FileMatcher extends D64Mod
 					switch(args[i].charAt(c))
 					{
 					case 'r':
-					case 'R': 
-						flags.add(COMP_FLAG.RECURSE); 
+					case 'R':
+						flags.add(COMP_FLAG.RECURSE);
 						break;
 					case 'v':
-					case 'V': 
-						flags.add(COMP_FLAG.VERBOSE); 
+					case 'V':
+						flags.add(COMP_FLAG.VERBOSE);
 						break;
 					case 'c':
-					case 'C': 
-						flags.add(COMP_FLAG.CACHE); 
+					case 'C':
+						flags.add(COMP_FLAG.CACHE);
 						break;
 					case 'd':
 					case 'D':
@@ -189,53 +189,53 @@ public class D64FileMatcher extends D64Mod
 		try {
 			F1s = getAllFiles(path,depth);
 			F2s = getAllFiles(expr,depth);
-		} catch (IOException e) {
+		} catch (final IOException e) {
 			System.err.println(e.getMessage());
 			System.exit(-1);
 		}
-		
+
 		class D64Report
 		{
 			File diskF=null;
 			boolean equal = false;
 			FileInfo compareFD=null;
-			public D64Report(File diskF, boolean equal, FileInfo compareFD)
+			public D64Report(final File diskF, final boolean equal, final FileInfo compareFD)
 			{
 				this.diskF=diskF;
 				this.equal=equal;
 				this.compareFD=compareFD;
 			}
 		}
-		
+
 		if(!flags.contains(COMP_FLAG.VERBOSE))
-			System.setErr(new PrintStream(new OutputStream() {public void write(int b) {}}));
-		Map<File,FMCache> cache=new TreeMap<File,FMCache>();
-		for(File F1 : F1s)
+			System.setErr(new PrintStream(new OutputStream() {public void write(final int b) {}}));
+		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
+		for(final File F1 : F1s)
 		{
-			Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
-			IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
+			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
+			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
 			if(typeF1==null)
 			{
 				System.err.println("Error reading :"+F1.getName());
 				continue;
 			}
-			int[] f1Len=new int[1];
+			final int[] f1Len=new int[1];
 			byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
-			List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
+			final List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
 			if(fileData1==null)
 			{
 				System.err.println("Bad extension :"+F1.getName());
 				continue;
 			}
-			
+
 			diskF1=null;
 			report.clear();
-			for(FileInfo fff : fileData1)
+			for(final FileInfo fff : fileData1)
 				report.put(fff, new LinkedList<D64Report>());
-			for(Iterator<File> f=F2s.iterator();f.hasNext();)
+			for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
-				File F2=f.next();
-				IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
+				final File F2=f.next();
+				final IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
 				if(typeF2==null)
 				{
 					System.err.println("**** Error reading :"+F2.getName());
@@ -258,7 +258,7 @@ public class D64FileMatcher extends D64Mod
 					fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
 					if(flags.contains(COMP_FLAG.CACHE))
 					{
-						FMCache cacheEntry=new FMCache();
+						final FMCache cacheEntry=new FMCache();
 						cacheEntry.diskF=diskF2;
 						cacheEntry.fLen=f2Len;
 						cacheEntry.fileData1=fileData2;
@@ -272,13 +272,13 @@ public class D64FileMatcher extends D64Mod
 					continue;
 				}
 				diskF2=null;
-				for(FileInfo f2 : fileData2)
+				for(final FileInfo f2 : fileData2)
 				{
-					for(FileInfo f1 : fileData1)
+					for(final FileInfo f1 : fileData1)
 					{
 						if(f2.fileName.equals(f1.fileName))
 						{
-							List<D64Report> rep = report.get(f1);
+							final List<D64Report> rep = report.get(f1);
 							if(!Arrays.equals(f1.data, f2.data))
 								rep.add(new D64Report(F2,false,f2));
 							else
@@ -287,30 +287,30 @@ public class D64FileMatcher extends D64Mod
 					}
 				}
 			}
-			StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
+			final StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
 			if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
 				str.append("---------- Files Not Found for Diffing: \n");
-			StringBuilder subStr=new StringBuilder("");
-			List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
-			for(FileInfo key : report.keySet())
+			final StringBuilder subStr=new StringBuilder("");
+			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
+			for(final FileInfo key : report.keySet())
 				sortedKeys.add(key);
 			Collections.sort(sortedKeys,new Comparator<FileInfo>() {
 				@Override
-				public int compare(FileInfo o1, FileInfo o2) {
+				public int compare(final FileInfo o1, final FileInfo o2) {
 					return o1.filePath.compareTo(o2.filePath);
 				}
 			});
 			subStr.setLength(0);
 			int numFiles=0;
 			int numMatchedAnywhere=0;
-			Map<File,int[]> reverseMatches=new HashMap<File,int[]>();
-			for(FileInfo key : sortedKeys)
+			final Map<File,int[]> reverseMatches=new HashMap<File,int[]>();
+			for(final FileInfo key : sortedKeys)
 			{
 				if(key.fileType == FileType.DIR)
 					continue;
 				numFiles++;
-				List<D64Report> rep = report.get(key);
-				String fs1 = "  " + key.filePath+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
+				final List<D64Report> rep = report.get(key);
+				final String fs1 = "  " + key.filePath+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
 				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
 				{
 					subStr.append(fs1).append("\n");
@@ -322,8 +322,8 @@ public class D64FileMatcher extends D64Mod
 				}
 				boolean hasMatch=false;
 				double highestPercent=0.0;
-				double totalD=numFiles;
-				for(D64Report r : rep)
+				final double totalD=numFiles;
+				for(final D64Report r : rep)
 				{
 					if(r.compareFD.fileType == FileType.DIR)
 						continue;
@@ -333,7 +333,7 @@ public class D64FileMatcher extends D64Mod
 						if(!reverseMatches.containsKey(r.diskF))
 							reverseMatches.put(r.diskF, new int[1]);
 						reverseMatches.get(r.diskF)[0]++;
-						double d=reverseMatches.get(r.diskF)[0]/totalD;
+						final double d=reverseMatches.get(r.diskF)[0]/totalD;
 						if(d > highestPercent)
 							highestPercent = d;
 					}
@@ -341,11 +341,11 @@ public class D64FileMatcher extends D64Mod
 				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE)
 					||((highestPercent > pct)&&((pct < 100.0))))
 				{
-					
-					for(Iterator<File> f=F2s.iterator();f.hasNext();)
+
+					for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 					{
-						File diskF=f.next();
-						for(D64Report r : rep)
+						final File diskF=f.next();
+						for(final D64Report r : rep)
 						{
 							if((r.diskF != diskF)
 							||(r.compareFD.fileType == FileType.DIR))
@@ -354,11 +354,11 @@ public class D64FileMatcher extends D64Mod
 							{
 								if(!reverseMatches.containsKey(r.diskF))
 									continue;
-								double d=reverseMatches.get(r.diskF)[0]/totalD;
+								final double d=reverseMatches.get(r.diskF)[0]/totalD;
 								if(d < pct)
 									continue;
 							}
-							String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
+							final String fs2 = r.compareFD.filePath+"("+r.compareFD.fileType+"): "+(r.compareFD.data==null?"null":Integer.toString(r.compareFD.data.length));
 							int len=50;
 							if(fs1.length()>len)
 								len=fs1.length();
@@ -375,7 +375,7 @@ public class D64FileMatcher extends D64Mod
 			if(numMatchedAnywhere > 0)
 			{
 				subStr.append(numMatchedAnywhere+"/"+numFiles+" files matched somewhere.\n");
-				for(File f : reverseMatches.keySet())
+				for(final File f : reverseMatches.keySet())
 					if(reverseMatches.get(f)[0] >= numFiles)
 						subStr.append(reverseMatches.get(f)[0]+"/"+numFiles+" matched in "+f.getAbsolutePath()+"\n");
 			}
