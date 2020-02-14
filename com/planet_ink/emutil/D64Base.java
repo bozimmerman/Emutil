@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.Vector;
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -36,6 +37,8 @@ public class D64Base
 	public D64Base() {}
 
 	final static String spaces="                                                                                                               ";
+	
+	protected static TreeSet<String> repeatedErrors = new TreeSet<String>();
 
 	// todo: add file masks to options
 	public enum IMAGE_TYPE {
@@ -123,6 +126,15 @@ public class D64Base
 		}
 	}
 
+	protected static void errMsg(final String errMsg)
+	{
+		if(!repeatedErrors.contains(errMsg))
+		{
+			repeatedErrors.add(errMsg);
+			System.err.println(errMsg);
+		}
+	}
+	
 	protected static int getImageSecsPerTrack(final IMAGE_TYPE type, final int t)
 	{
 		switch(type)
@@ -287,13 +299,41 @@ public class D64Base
 
 	public static byte[][][] getDisk(final IMAGE_TYPE type, final File F, final int[] fileLen)
 	{
-		int len=(int)F.length();
+		FileInputStream fi=null;
+		try
+		{
+			fi=new FileInputStream(F);
+			return getDisk(type, fi, F.getName(), (int)F.length(), fileLen);
+		}
+		catch(IOException e)
+		{
+			e.printStackTrace(System.err);
+			return new byte[D64Base.getImageNumTracks(type, (int)F.length())][255][256];
+		}
+		finally
+		{
+			if(fi != null)
+			{
+				try
+				{
+					fi.close();
+				}
+				catch(Exception e)
+				{}
+			}
+		}
+	}
+	
+	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen, final int[] fileLen)
+	{
+		int len=(int)fLen;
 		InputStream is=null;
 		try
 		{
-			if(F.getName().toUpperCase().endsWith(".GZ"))
+			if(fileName.toUpperCase().endsWith(".GZ"))
 			{
-				final GzipCompressorInputStream in = new GzipCompressorInputStream(new FileInputStream(F));
+				@SuppressWarnings("resource")
+				final GzipCompressorInputStream in = new GzipCompressorInputStream(fin);
 				final byte[] lbuf = new byte[4096];
 				int read=in.read(lbuf);
 				final ByteArrayOutputStream bout=new ByteArrayOutputStream(len*2);
@@ -302,18 +342,18 @@ public class D64Base
 					bout.write(lbuf,0,read);
 					read=in.read(lbuf);
 				}
-				in.close();
+				//in.close(); dont do it -- this might be from a zip
 				len=bout.toByteArray().length;
 				is=new ByteArrayInputStream(bout.toByteArray());
 			}
 			if(len == 0)
 			{
-				System.err.println(F.getName()+": Error: Failed to read at ALL!");
+				System.err.println("?: Error: Failed to read at ALL!");
 				return new byte[D64Base.getImageNumTracks(type, len)][255][256];
 			}
 			final byte[] buf=new byte[getImageTotalBytes(type,len)];
 			if(is == null)
-				is=new FileInputStream(F);
+				is=fin;
 			int totalRead = 0;
 			while((totalRead < len) && (totalRead < buf.length))
 			{
@@ -321,7 +361,6 @@ public class D64Base
 				if(read>=0)
 					totalRead += read;
 			}
-			is.close();
 			if((fileLen != null)&&(fileLen.length>0))
 				fileLen[0]=len;
 			return parseMap(type,buf,len);
@@ -613,7 +652,7 @@ public class D64Base
 						}
 						if(fileData==null)
 						{
-							System.err.println(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
+							errMsg(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
 							return;
 						}
 						else
@@ -621,7 +660,7 @@ public class D64Base
 					}
 					catch(final IOException e)
 					{
-						System.err.println(imgName+": Error: "+f.filePath+": "+e.getMessage());
+						errMsg(imgName+": Error: "+f.filePath+": "+e.getMessage());
 						return;
 					}
 				}
@@ -839,7 +878,7 @@ public class D64Base
 		}
 		catch(final IOException e)
 		{
-			System.err.println(imgName+": disk Dir Error: "+e.getMessage());
+			errMsg(imgName+": disk Dir Error: "+e.getMessage());
 		}
 		switch(type)
 		{
@@ -864,37 +903,49 @@ public class D64Base
 
 	public static FileInfo getLooseFile(final File F1) throws IOException
 	{
-		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(F1);
-		final byte[] filedata;
-		try(final FileInputStream fi=new FileInputStream(F1))
+		FileInputStream fi=null;
+		try
 		{
-			filedata = new byte[(int)F1.length()];
-			int lastLen = 0;
-			while(lastLen < F1.length())
-			{
-				final int readBytes = fi.read(filedata, lastLen, (int)F1.length()-lastLen);
-				if(readBytes < 0)
-					break;
-				lastLen += readBytes;
-			}
+			fi=new FileInputStream(F1);
+			return getLooseFile(fi, F1.getName(), (int)F1.length());
+		}
+		finally
+		{
+			if(fi != null)
+				fi.close();
+		}
+	}
+	
+	public static FileInfo getLooseFile(final InputStream fin, final String fileName, final int fileLen) throws IOException
+	{
+		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(fileName);
+		final byte[] filedata;
+		filedata = new byte[(int)fileLen];
+		int lastLen = 0;
+		while(lastLen < fileLen)
+		{
+			final int readBytes = fin.read(filedata, lastLen, (int)fileLen-lastLen);
+			if(readBytes < 0)
+				break;
+			lastLen += readBytes;
 		}
 		final FileInfo file = new FileInfo();
 		switch(typ)
 		{
 		case CVT:
-			file.fileName = F1.getName();
+			file.fileName = fileName;
 			file.fileType = D64Base.FileType.USR;
 			break;
 		case PRG:
-			file.fileName = F1.getName().substring(0,F1.getName().length()-4);
+			file.fileName = fileName.substring(0,fileName.length()-4);
 			file.fileType = D64Base.FileType.PRG;
 			break;
 		case SEQ:
-			file.fileName = F1.getName().substring(0,F1.getName().length()-4);
+			file.fileName = fileName.substring(0,fileName.length()-4);
 			file.fileType = D64Base.FileType.SEQ;
 			break;
 		}
-		file.size = (int)F1.length();
+		file.size = (int)fileLen;
 		file.data = filedata;
 		return file;
 	}
@@ -912,12 +963,12 @@ public class D64Base
 		return null;
 	}
 
-	protected static IMAGE_TYPE getImageTypeAndZipped(final File F)
+	protected static IMAGE_TYPE getImageTypeAndZipped(final String fileName)
 	{
 		for(final IMAGE_TYPE img : IMAGE_TYPE.values())
 		{
-			if(F.getName().toUpperCase().endsWith(img.toString())
-			||F.getName().toUpperCase().endsWith(img.toString()+".GZ"))
+			if(fileName.toUpperCase().endsWith(img.toString())
+			||fileName.toUpperCase().endsWith(img.toString()+".GZ"))
 			{
 				final IMAGE_TYPE type=img;
 				return type;
@@ -926,17 +977,31 @@ public class D64Base
 		return null;
 	}
 
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final File F)
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final String fileName)
 	{
 		for(final LOOSE_IMAGE_TYPE img : LOOSE_IMAGE_TYPE.values())
 		{
-			if(F.getName().toUpperCase().endsWith(img.toString())
-			||F.getName().toUpperCase().endsWith(img.toString()+".GZ"))
+			if(fileName.toUpperCase().endsWith(img.toString())
+			||fileName.toUpperCase().endsWith(img.toString()+".GZ"))
 			{
 				final LOOSE_IMAGE_TYPE type=img;
 				return type;
 			}
 		}
 		return null;
+	}
+
+	protected static IMAGE_TYPE getImageTypeAndZipped(final File F)
+	{
+		if(F==null)
+			return null;
+		return getImageTypeAndZipped(F.getName());
+	}
+
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final File F)
+	{
+		if(F==null)
+			return null;
+		return getLooseImageTypeAndZipped(F.getName());
 	}
 }
