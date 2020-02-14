@@ -2,6 +2,9 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
+
+import com.planet_ink.emutil.D64Base.FileInfo;
+import com.planet_ink.emutil.D64Base.FileType;
 /*
 Copyright 2017-2017 Bo Zimmerman
 
@@ -214,34 +217,45 @@ public class D64FileMatcher extends D64Mod
 		{
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
 			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
-			if(typeF1==null)
+			final List<FileInfo> fileData1;
+			if(typeF1 != null)
+			{
+				final int[] f1Len=new int[1];
+				byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
+				fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
+				if(fileData1==null)
+				{
+					System.err.println("Bad extension :"+F1.getName());
+					continue;
+				}
+				diskF1=null;
+			}
+			else
+			if(getLooseImageTypeAndZipped(F1) != null)
+			{
+				fileData1 = new ArrayList<FileInfo>();
+				try
+				{
+					fileData1.add(D64FileMatcher.getLooseFile(F1));
+				}
+				catch(final IOException e)
+				{
+					System.err.println(F1.getName()+": "+e.getMessage());
+					continue;
+				}
+			}
+			else
 			{
 				System.err.println("Error reading :"+F1.getName());
 				continue;
 			}
-			final int[] f1Len=new int[1];
-			byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
-			final List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
-			if(fileData1==null)
-			{
-				System.err.println("Bad extension :"+F1.getName());
-				continue;
-			}
 
-			diskF1=null;
 			report.clear();
 			for(final FileInfo fff : fileData1)
 				report.put(fff, new LinkedList<D64Report>());
 			for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
 				final File F2=f.next();
-				final IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
-				if(typeF2==null)
-				{
-					System.err.println("**** Error reading :"+F2.getName());
-					f.remove();
-					continue;
-				}
 				int[] f2Len;
 				byte[][][] diskF2;
 				List<FileInfo> fileData2;
@@ -254,15 +268,39 @@ public class D64FileMatcher extends D64Mod
 				else
 				{
 					f2Len=new int[1];
-					diskF2=getDisk(typeF2,F2,f2Len);
-					fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
-					if(flags.contains(COMP_FLAG.CACHE))
+					final IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
+					if(typeF2 != null)
 					{
-						final FMCache cacheEntry=new FMCache();
-						cacheEntry.diskF=diskF2;
-						cacheEntry.fLen=f2Len;
-						cacheEntry.fileData1=fileData2;
-						cache.put(F2, cacheEntry);
+						diskF2=getDisk(typeF2,F2,f2Len);
+						fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
+						if(flags.contains(COMP_FLAG.CACHE))
+						{
+							final FMCache cacheEntry=new FMCache();
+							cacheEntry.diskF=diskF2;
+							cacheEntry.fLen=f2Len;
+							cacheEntry.fileData1=fileData2;
+							cache.put(F2, cacheEntry);
+						}
+					}
+					else
+					if(getLooseImageTypeAndZipped(F2) != null)
+					{
+						fileData2 = new ArrayList<FileInfo>();
+						try
+						{
+							fileData1.add(D64FileMatcher.getLooseFile(F2));
+						}
+						catch(final IOException e)
+						{
+							System.err.println(F2.getName()+": "+e.getMessage());
+							continue;
+						}
+					}
+					else
+					{
+						System.err.println("**** Error reading :"+F2.getName());
+						f.remove();
+						continue;
 					}
 				}
 				if(fileData2==null)
