@@ -38,6 +38,140 @@ public class D64FileMatcher extends D64Mod
 		List<FileInfo>	fileData1	= null;
 	}
 
+	public static List<FileInfo> getLNXDeepContents(final File F) throws IOException
+	{
+		FileInputStream fin=new FileInputStream(F);
+		try
+		{
+			long fileLen = F.length();
+			return getLNXDeepContents(fin);
+		}
+		finally
+		{
+			fin.close();
+		}
+	}
+	
+	public static String getNextLYNXLineFromInputStream(final InputStream in, int[] bytesRead) throws IOException
+	{
+		StringBuilder line=new StringBuilder("");
+		while(in.available()>0)
+		{
+			int b=in.read();
+			if(b<0)
+				throw new IOException("Unexpected EOF");
+			if(bytesRead != null)
+				bytesRead[0]++;
+			if(b==13)
+			{
+				if(line.length()>0)
+					break;
+			}
+			if(b == 160)
+				continue;
+			b = D64Base.convertToAscii(b);
+			if(b != 0)
+				line.append((char)b);
+		}
+		return line.toString();
+	}
+	
+	public static List<FileInfo> getLNXDeepContents(final InputStream in) throws IOException
+	{
+		final List<FileInfo> list = new ArrayList<FileInfo>();
+		int[] bytesSoFar=new int[1];
+		int zeroes=0;
+		while(in.available()>0)
+		{
+			int b = in.read();
+			if(b<0)
+				break;
+			bytesSoFar[0]++;
+			if(b == 0)
+			{
+				zeroes++;
+				if(zeroes==3)
+					break;
+			}
+			else
+				zeroes=0;
+		}
+		if(zeroes != 3)
+			throw new IOException("Illegal LNX format: missing 0 0 0");
+		final String sigLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
+		int headerSize = 0;
+		final String[] splitSig = sigLine.split(" ");
+		final String sz = splitSig[0].trim();
+		if((sz.length()>0)
+		&&(Character.isDigit(sz.charAt(0)))
+		&&(sz.length()<20))
+			headerSize = Integer.parseInt(sz);
+		if((sigLine.length()==0)
+		||(headerSize <= 0)
+		||(sigLine.indexOf("LYNX")<0))
+			throw new IOException("Illegal signature: "+sigLine);
+		final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
+		if((numEntryLine.length()==0)
+		||(!Character.isDigit(numEntryLine.charAt(0))))
+			throw new IOException("Illegal numEntries: "+numEntryLine);
+		final int numEntries = Integer.parseInt(numEntryLine);
+		final byte[] rawDirBlock = new byte[(254 - bytesSoFar[0]) + ((headerSize-1) * 254)];
+		int bytesRead = 0;
+		while((in.available()>0) && (bytesRead < rawDirBlock.length))
+		{
+			int justRead = in.read(rawDirBlock, bytesRead, rawDirBlock.length-bytesRead);
+			if(justRead < 0)
+				break;
+			if(justRead > 0)
+				bytesRead += justRead;
+		}
+		if(bytesRead < rawDirBlock.length)
+			throw new IOException("Incomplete Directory Block");
+		final ByteArrayInputStream bin=new ByteArrayInputStream(rawDirBlock);
+		for(int i=0;i<numEntries;i++)
+		{
+			final String fileName =  getNextLYNXLineFromInputStream(bin, null); // don't trim, cuz spaces are valid.
+			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
+			final String typChar =   getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
+			final String lastBlockSz=getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
+			if((fileName.length()==0)
+			||(numBlockSz.length()==0)||(!Character.isDigit(numBlockSz.charAt(0)))
+			||(typChar.length()==0)||(typChar.length()>3)
+			||(lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
+				throw new IOException("Bad directory entry "+(i+1)+": "+fileName+"."+typChar+": "+numBlockSz+"("+lastBlockSz+")");
+			FileInfo file = new FileInfo();
+			file.fileName = fileName;
+			file.fileType = FileType.fileType(typChar);
+			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue();
+			list.add(file);
+		}
+		for(FileInfo f : list)
+		{
+			int fbytesRead = 0;
+			int numBlocks = (int)Math.round(Math.floor((double)f.size / 254.0));
+			if((f.size % 254) > 0)
+				numBlocks++;
+			int allBlocksSize = numBlocks * 254;
+			byte[] fileSubBytes = new byte[allBlocksSize];
+			while((in.available()>0) && (fbytesRead < allBlocksSize))
+			{
+				int justRead = in.read(fileSubBytes, fbytesRead, allBlocksSize-fbytesRead);
+				if(justRead < 0)
+					break;
+				if(justRead > 0)
+					fbytesRead += justRead;
+			}
+			if(fbytesRead < allBlocksSize)
+			{
+				if((list.get(list.size()-1)!=f)
+				||(fbytesRead < f.size-1024))
+					throw new IOException("Incomplete data for "+f.fileName);
+			}
+			f.data = Arrays.copyOf(fileSubBytes, f.size);
+		}
+		return list;
+	}
+	
 	public static List<FileInfo> getZipDeepContents(final File F) throws IOException
 	{
 		final ZipArchiveInputStream zin = new ZipArchiveInputStream(new FileInputStream(F));
@@ -141,7 +275,8 @@ public class D64FileMatcher extends D64Mod
 						else
 						if((getImageTypeAndZipped(F)!=null)
 						||(D64FileMatcher.getLooseImageTypeAndZipped(F)!=null)
-						||(F.getName().toUpperCase().endsWith(".ZIP")))
+						||(F.getName().toUpperCase().endsWith(".ZIP"))
+						||(F.getName().toUpperCase().endsWith(".LNX")))
 						{
 							if((P==null)||(P.matcher(F.getName().subSequence(0, F.getName().length())).matches()))
 								filesToDo.add(F);
@@ -195,6 +330,19 @@ public class D64FileMatcher extends D64Mod
 			try
 			{
 				fileData = D64FileMatcher.getZipDeepContents(F);
+			}
+			catch(final IOException e)
+			{
+				System.err.println(F.getName()+": "+e.getMessage());
+				return null;
+			}
+		}
+		else
+		if(F.getName().toUpperCase().endsWith(".LNX"))
+		{
+			try
+			{
+				fileData = D64FileMatcher.getLNXDeepContents(F);
 			}
 			catch(final IOException e)
 			{
