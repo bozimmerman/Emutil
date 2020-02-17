@@ -119,6 +119,22 @@ public class D64Base
 		short[] dirLoc = new short[3];
 		List<short[]> tracksNSecs = new ArrayList<short[]>();
 		public String toString() { return filePath;}
+		private long hash = -1;
+		public long hash()
+		{
+			if(hash ==-1)
+			{
+				if(data != null)
+				{
+					hash=size;
+					for(int bn=0;bn<data.length-1;bn+=2)
+						hash ^= ( (((int)data[bn+1]) << 8) | ((int)data[bn]));
+					
+				}
+			}
+			return hash;
+		}
+		
 	}
 
 	public static final String[] HEX=new String[256];

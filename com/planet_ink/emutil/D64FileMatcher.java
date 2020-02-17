@@ -520,6 +520,13 @@ public class D64FileMatcher extends D64Mod
 							else
 								rep.add(new D64Report(F2,true,f2));
 						}
+						else
+						if((f2.hash() == f1.hash())
+						&&(Arrays.equals(f1.data, f2.data)))
+						{
+							final List<D64Report> rep = report.get(f1);
+							rep.add(new D64Report(F2,true,f2));
+						}
 					}
 				}
 			}
@@ -530,7 +537,8 @@ public class D64FileMatcher extends D64Mod
 			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(final FileInfo key : report.keySet())
 				sortedKeys.add(key);
-			Collections.sort(sortedKeys,new Comparator<FileInfo>() {
+			Collections.sort(sortedKeys,new Comparator<FileInfo>() 
+			{
 				@Override
 				public int compare(final FileInfo o1, final FileInfo o2) {
 					return o1.filePath.compareTo(o2.filePath);
