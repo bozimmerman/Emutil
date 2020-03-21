@@ -37,7 +37,7 @@ public class D64Base
 	public D64Base() {}
 
 	final static String spaces="                                                                                                               ";
-	
+
 	protected static TreeSet<String> repeatedErrors = new TreeSet<String>();
 
 	// todo: add file masks to options
@@ -128,13 +128,13 @@ public class D64Base
 				{
 					hash=size;
 					for(int bn=0;bn<data.length-1;bn+=2)
-						hash ^= ( (((int)data[bn+1]) << 8) | ((int)data[bn]));
-					
+						hash ^= ( ((data[bn+1]) << 8) | (data[bn]));
+
 				}
 			}
 			return hash;
 		}
-		
+
 	}
 
 	public static final String[] HEX=new String[256];
@@ -160,7 +160,7 @@ public class D64Base
 			System.err.println(errMsg);
 		}
 	}
-	
+
 	protected static int getImageSecsPerTrack(final IMAGE_TYPE type, final int t)
 	{
 		switch(type)
@@ -331,8 +331,8 @@ public class D64Base
 		0xe0,0xe1,0xe2,0xe3,0xe4,0xe5,0xe6,0xe7,0xe8,0xe9,0xea,0xeb,0xec,0xed,0xee,0xef,
 		0xf0,0xf1,0xf2,0xf3,0xf4,0xf5,0xf6,0xf7,0xf8,0xf9,0xfa,0xfb,0xfc,0xfd,0xfe,0xff
 	};
-	
-	protected static char convertToPetscii(byte b)
+
+	protected static char convertToPetscii(final byte b)
 	{
 		if(b<65) return (char)b;
 		if(b<91) return Character.toLowerCase((char)b);
@@ -374,7 +374,7 @@ public class D64Base
 			fi=new FileInputStream(F);
 			return getDisk(type, fi, F.getName(), (int)F.length(), fileLen);
 		}
-		catch(IOException e)
+		catch(final IOException e)
 		{
 			e.printStackTrace(System.err);
 			return new byte[D64Base.getImageNumTracks(type, (int)F.length())][255][256];
@@ -387,15 +387,15 @@ public class D64Base
 				{
 					fi.close();
 				}
-				catch(Exception e)
+				catch(final Exception e)
 				{}
 			}
 		}
 	}
-	
+
 	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen, final int[] fileLen)
 	{
-		int len=(int)fLen;
+		int len=fLen;
 		InputStream is=null;
 		try
 		{
@@ -628,6 +628,9 @@ public class D64Base
 										}
 										continue;
 									}
+									else
+									if(vt==0) // this is a corrupt file.. and this is NOT a record
+										continue;
 									if(readInside)
 									{
 										final byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
@@ -984,16 +987,16 @@ public class D64Base
 				fi.close();
 		}
 	}
-	
+
 	public static FileInfo getLooseFile(final InputStream fin, final String fileName, final int fileLen) throws IOException
 	{
 		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(fileName);
 		final byte[] filedata;
-		filedata = new byte[(int)fileLen];
+		filedata = new byte[fileLen];
 		int lastLen = 0;
 		while(lastLen < fileLen)
 		{
-			final int readBytes = fin.read(filedata, lastLen, (int)fileLen-lastLen);
+			final int readBytes = fin.read(filedata, lastLen, fileLen-lastLen);
 			if(readBytes < 0)
 				break;
 			lastLen += readBytes;
@@ -1014,7 +1017,7 @@ public class D64Base
 			file.fileType = D64Base.FileType.SEQ;
 			break;
 		}
-		file.size = (int)fileLen;
+		file.size = fileLen;
 		file.data = filedata;
 		return file;
 	}
