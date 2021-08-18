@@ -3,7 +3,7 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
-/* 
+/*
 Copyright 2006-2017 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,14 +38,14 @@ public class D64Search extends D64Mod
 		INSIDE,
 		SHOWMD5;
 	};
-	
+
 	public enum FILE_FORMAT {
 		PETSCII,
 		ASCII,
 		HEX;
 	};
 
-	private static boolean check(String name, char[] expr, boolean caseSensitive)
+	private static boolean check(final String name, final char[] expr, final boolean caseSensitive)
 	{
 		int n=0;
 		int ee=0;
@@ -77,16 +77,16 @@ public class D64Search extends D64Mod
 		return name.length()-n==expr.length-ee;
 	}
 
-	private static boolean checkInside(byte[] buf, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT fmt, boolean caseSensitive)
+	private static boolean checkInside(byte[] buf, final char[] expr, final HashSet<SEARCH_FLAG> flags, final FILE_FORMAT fmt, final boolean caseSensitive)
 	{
 		if(!caseSensitive)
 		{
-			byte[] chk=new byte[buf.length];
+			final byte[] chk=new byte[buf.length];
 			for(int b=0;b<buf.length;b++)
 				chk[b]=(byte)Character.toUpperCase((char)buf[b]);
 			buf=chk;
 		}
-		boolean byteFormat=fmt==FILE_FORMAT.HEX;
+		final boolean byteFormat=fmt==FILE_FORMAT.HEX;
 		int bb=0;
 		int e=0;
 		for(int b=0;b<buf.length;b++)
@@ -116,31 +116,31 @@ public class D64Search extends D64Mod
 		}
 		return false;
 	}
-	
-	private static void search(File F, char[] expr, HashSet<SEARCH_FLAG> flags, FILE_FORMAT  fmt, DatabaseInfo dbInfo)
+
+	private static void search(final File F, final char[] expr, final HashSet<SEARCH_FLAG> flags, final FILE_FORMAT  fmt, final DatabaseInfo dbInfo)
 	{
 		if(F.isDirectory())
 		{
-			File[] files=F.listFiles();
+			final File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
 				search(files[f],expr,flags,fmt, dbInfo);
 		}
 		else
 		{
-			boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
-			boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
+			final boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
+			final boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
 			MessageDigest MD=null;
 			if(flags.contains(SEARCH_FLAG.SHOWMD5))
 			{
-				try{MD=MessageDigest.getInstance("MD5");}catch(Exception e){e.printStackTrace(System.err);}
+				try{MD=MessageDigest.getInstance("MD5");}catch(final Exception e){e.printStackTrace(System.err);}
 			}
-			for(IMAGE_TYPE img : IMAGE_TYPE.values())
+			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
 			{
 				if(F.getName().toUpperCase().endsWith(img.toString()))
 				{
-					IMAGE_TYPE type=img;
-					int[] fLen=new int[1];
-					byte[][][] disk=getDisk(type,F,fLen);
+					final IMAGE_TYPE type=img;
+					final int[] fLen=new int[1];
+					final byte[][][] disk=getDisk(type,F,fLen);
 					if(dbInfo!=null)
 					{
 						try
@@ -158,7 +158,7 @@ public class D64Search extends D64Mod
 									//bout.write(disk[b1][b2]);
 								}
 							}
-							byte[] md5 = MD.digest();
+							final byte[] md5 = MD.digest();
 							dbInfo.stmt.setString(1, F.getName());
 							dbInfo.stmt.setString(2, "*");
 							dbInfo.stmt.setInt(3, 0);
@@ -167,18 +167,18 @@ public class D64Search extends D64Mod
 							dbInfo.stmt.setString(6, "dsk");
 							dbInfo.stmt.addBatch();
 						}
-						catch(Exception e)
+						catch(final Exception e)
 						{
 							System.err.println("Stupid preparedStatement error: "+e.getMessage());
 						}
 					}
-					List<FileInfo> fileData=getDiskFiles(F.getName(),type,disk,fLen[0]);
+					final List<FileInfo> fileData=getDiskFiles(F.getName(),type,disk,fLen[0]);
 					if((fmt==FILE_FORMAT.PETSCII)||inside)
 					{
-						for(FileInfo info : fileData)
+						for(final FileInfo info : fileData)
 						{
-							StringBuilder str=new StringBuilder("");
-							for(byte b : info.fileName.getBytes())
+							final StringBuilder str=new StringBuilder("");
+							for(final byte b : info.fileName.getBytes())
 								str.append(D64Search.convertToPetscii(b));
 							info.fileName = str.toString();
 						}
@@ -186,10 +186,10 @@ public class D64Search extends D64Mod
 					else
 					if(fmt==FILE_FORMAT.ASCII)
 					{
-						for(FileInfo info : fileData)
+						for(final FileInfo info : fileData)
 						{
-							StringBuilder str=new StringBuilder("");
-							for(byte b : info.fileName.getBytes())
+							final StringBuilder str=new StringBuilder("");
+							for(final byte b : info.fileName.getBytes())
 								str.append((char)b);
 							info.fileName = str.toString();
 						}
@@ -197,17 +197,17 @@ public class D64Search extends D64Mod
 					else
 					if(fmt==FILE_FORMAT.ASCII)
 					{
-						for(FileInfo info : fileData)
+						for(final FileInfo info : fileData)
 						{
-							StringBuilder str=new StringBuilder("");
-							for(byte b : info.fileName.getBytes())
+							final StringBuilder str=new StringBuilder("");
+							for(final byte b : info.fileName.getBytes())
 								str.append(toHex(b));
 							info.fileName = str.toString();
 						}
 					}
 					if(fmt==FILE_FORMAT.PETSCII)
 					{
-						for(FileInfo info : fileData)
+						for(final FileInfo info : fileData)
 						{
 							if(info.data!=null)
 							{
@@ -216,7 +216,7 @@ public class D64Search extends D64Mod
 							}
 						}
 					}
-					
+
 					if(fileData==null)
 					{
 						System.err.println("Error reading :"+F.getName());
@@ -227,7 +227,9 @@ public class D64Search extends D64Mod
 					for(int n=0;n<fileData.size();n++)
 					{
 						md5=null;
-						FileInfo f = fileData.get(n);
+						final FileInfo f = fileData.get(n);
+						if(f.data==null)
+							continue;
 						if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
 						||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
 						{
@@ -237,7 +239,7 @@ public class D64Search extends D64Mod
 								announced=true;
 							}
 							String name=f.fileName;
-							StringBuffer asciiName=new StringBuffer("");
+							final StringBuffer asciiName=new StringBuffer("");
 							for(int x=0;x<name.length();x++)
 								asciiName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
 							if(dbInfo!=null)
@@ -256,7 +258,7 @@ public class D64Search extends D64Mod
 									dbInfo.stmt.setString(6, f.fileType.toString().toLowerCase());
 									dbInfo.stmt.addBatch();
 								}
-								catch(SQLException e)
+								catch(final SQLException e)
 								{
 									System.err.println("Stupid preparedStatement error: "+e.getMessage());
 								}
@@ -268,7 +270,7 @@ public class D64Search extends D64Mod
 								else
 								if(fmt==FILE_FORMAT.HEX)
 								{
-									StringBuffer newName=new StringBuffer("");
+									final StringBuffer newName=new StringBuffer("");
 									for(int x=0;x<name.length();x+=2)
 										newName.append((char)fromHex(name.substring(0,2)));
 									name=newName.toString();
@@ -299,15 +301,15 @@ public class D64Search extends D64Mod
 				{
 					dbInfo.stmt.executeBatch();
 				}
-				catch(SQLException e)
+				catch(final SQLException e)
 				{
 					System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
 				}
 			}
 		}
 	}
-	
-	public static void main(String[] args)
+
+	public static void main(final String[] args)
 	{
 		if(args.length<2)
 		{
@@ -335,7 +337,7 @@ public class D64Search extends D64Mod
 			System.out.println("* Hex expressions include hex digits, *, and ?.");
 			return;
 		}
-		HashSet<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
+		final HashSet<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
 		FILE_FORMAT fmt=FILE_FORMAT.PETSCII;
 		String path=null;
 		String expr="";
@@ -371,7 +373,7 @@ public class D64Search extends D64Mod
 					case 'x':
 					case 'X':
 					{
-						int x=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
+						final int x=(c<args[i].length()-1)?"PAH".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
 						if(x<0)
 						{
 							System.err.println("Error: -x  must be followed by a,p,or h");
@@ -383,7 +385,7 @@ public class D64Search extends D64Mod
 					case 'd':
 					case 'D':
 					{
-						int x=(c<args[i].length()-1)?"UPCST".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
+						final int x=(c<args[i].length()-1)?"UPCST".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
 						if(x<0)
 						{
 							System.err.println("Error: -d  must be followed by u, p, c, s, or t");
@@ -445,21 +447,21 @@ public class D64Search extends D64Mod
 				System.err.println("DBInfo incomplete!");
 				return;
 			}
-			flags.add(SEARCH_FLAG.VERBOSE); 
-			flags.add(SEARCH_FLAG.SHOWMD5); 
+			flags.add(SEARCH_FLAG.VERBOSE);
+			flags.add(SEARCH_FLAG.SHOWMD5);
 			try
 			{
 				Class.forName(dbInfo.className);
 				dbInfo.conn = DriverManager.getConnection(dbInfo.service,dbInfo.user,dbInfo.pass );
 				dbInfo.stmt=dbInfo.conn.prepareStatement("insert into "+dbInfo.table+" (imagepath, filename, filenum,size, md5, filetype) values (?,?,?,?,?,?)");
 			}
-			catch(Exception e)
+			catch(final Exception e)
 			{
 				System.err.println("Unable to connect to database: "+e.getMessage());
 				return;
 			}
 		}
-		char[] exprCom=expr.toCharArray();
+		final char[] exprCom=expr.toCharArray();
 		if((!flags.contains(SEARCH_FLAG.CASESENSITIVE))||(fmt==FILE_FORMAT.HEX))
 			for(int e=0;e<exprCom.length;e++)
 				exprCom[e]=Character.toUpperCase(exprCom[e]);
@@ -470,10 +472,10 @@ public class D64Search extends D64Mod
 					System.err.println("Illegal hex '"+exprCom[e]+"' in expression.");
 					return;
 				}
-		File F=new File(path);
+		final File F=new File(path);
 		if(F.isDirectory())
 		{
-			File[] files=F.listFiles();
+			final File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
 				search(files[f],exprCom,flags,fmt,dbInfo);
 		}

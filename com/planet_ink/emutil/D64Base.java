@@ -667,6 +667,8 @@ public class D64Base
 								final int recsz = unsigned(sector[i+21]);
 								if((pht!=0)
 								&&(recsz!=0)
+								&&(pht<tsmap.length)
+								&&(phs<tsmap[pht].length)
 								&&(!doneBefore.contains(tsmap[pht][phs]))
 								&&(pht<=maxT))
 								{
