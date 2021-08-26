@@ -23,14 +23,20 @@
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Duplifind"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64FileDiffer.jar" basedir="." includes="com/planet_ink/emutil/D64FileDiffer*.class, com/planet_ink/emutil/D64Base*.class">
+		<jar destfile="bin/D64FileMatcher.jar" basedir="." includes="com/planet_ink/emutil/D64FileMatcher*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class">
+			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
-				<attribute name="Main-Class" value="com.planet_ink.emutil.D64FileDiffer"/>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64FileMatcher"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64Search.jar" basedir="." includes="com/planet_ink/emutil/D64Search*.class, com/planet_ink/emutil/D64Base*.class">
+		<jar destfile="bin/D64Search.jar" basedir="." includes="com/planet_ink/emutil/D64Search*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class">
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Search"/>
+			</manifest>
+		</jar>
+		<jar destfile="bin/D64Mod.jar" basedir="." includes="com/planet_ink/emutil/D64Mod*.class, com/planet_ink/emutil/D64Base*.class">
+			<manifest>
+				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Mod"/>
 			</manifest>
 		</jar>
 		<echo>Compiliation done.</echo>
