@@ -16,38 +16,35 @@ ReadChan            byte 0
 WriteChan           byte 0
 VarOne              byte 0
 VarTwo              byte 0
+Index               byte 0
 Unknown             byte 0
 RLECode             byte 0
-EOBufL              byte 0
-EOBufH              byte 0
+EOBuf               byte 0
 BytRepCtr           byte 0
                     byte 0 
 
+;------------------------------------                    
+; Pack from file channel -> ?buffer
+;------------------------------------                    
 ReadChanBuf2        ldx ReadChan
-                    jsr kCHKIN
-                    ldy #$00
-L131e               jsr kCHRIN
+                    jsr kCHKIN    ; set the read channel
+_ClrBufLp           jsr kCHRIN    ; and fill the buffers
                     sta Buffer1,y
                     sta Buffer2,y
                     iny 
-                    bne L131e
-                    ldx WriteChan
+                    bne _ClrBufLp
+                    ldx WriteChan  ; check for rle flag
                     cpx #$ff
-                    bne L133e
-                    lda #>BufferE
-                    sta EOBufH
-                    lda #<BufferE
-                    sta EOBufL
+                    bne _ReadChanRLE ; rle flag set, so go do it
+                    lda #0
+                    sta EOBuf    ; otherwise, we are done
                     jmp kCLRCHN
                     
-L133e               lda #>Buffer2
-                    sta $ff
-                    lda #<Buffer2
-                    sta $fe
-                    lda #$00
+_ReadChanRLE        lda #$00       ; clear VarOne, also $fe=Buffer2
+                    sta Index      ; Buffer2 Index
                     sta VarOne
                     sta BytRepCtr
-L134e               lda #$00
+_ReadRLELp          lda #$00
                     sta BytRepCtr
                     ldy VarOne
                     lda Buffer1,y
@@ -94,7 +91,7 @@ L139d               ldy #$00
                     lda Unknown
                     adc $ff
                     sta $ff
-                    jmp L134e
+                    jmp _ReadRLELp
                     
 L13bc               inc BytRepCtr
                     lda RLECode
@@ -248,78 +245,77 @@ L1503               bcc L14ea
                     jmp kCLRCHN
                     
 ;------------------------------------                    
-ReadFileBuf1        ldx ReadChan
-                    jsr kCHKIN
-                    lda #>Buffer1
-                    sta $ff
-                    lda #<Buffer1
-                    sta $fe
+; Unpack from file channel -> buffer
+;------------------------------------                    
+ReadFileBuf1        ldx ReadChan ; read from channel -> Buffer1
+                    jsr kCHKIN   ; set input channel to read from
                     ldx WriteChan
-                    cpx #$ff
-                    bne L152b
-                    ldy #$00
-L151f               jsr kCHRIN
-                    sta Buffer1,y
+                    ldy #$00      
+                    sty Index     ; set pos 0 in Buffer1
+                    cpx #$ff     ; if write channel not $ff, do unRLE
+                    bne _ReadRLE
+_ReadImage          jsr kCHRIN    ; otherwise, just fill straight bytes
+                    sta Buffer1,y ; write byte from CHRIN
                     iny 
-                    bne L151f
-                    jmp kCLRCHN
+                    bne L151f     ; until Buffer1 is full from CHKRIN
+                    jmp kCLRCHN   ; and then we're done
                     
-L152b               jsr kCHRIN
-                    sta RLECode
-                    cmp #$81
-                    bcs L1561
-L1535               jsr kCHRIN
-                    ldy #$00
-                    sta ($fe),y
-                    inc $fe
-                    bne L1542
-                    inc $ff
-L1542               dec RLECode
-                    bne L1535
-                    lda $ff
-                    cmp #>Buffer2
-                    bne L1551
-                    lda $fe
-                    cmp #<Buffer2
-L1551               bcc L152b
-                    beq L158d
-L1555               jsr kCLRCHN
+_ReadRLE            jsr kCHRIN    ; begin RLE unpack read
+                    sta RLECode   ; save the codee
+                    cmp #$81      ; >= $81 means it is a repeated byte
+                    bcs _ReadRLERep
+_ReadRLEBlk         jsr kCHRIN    ; otherwise, it's just that many to read
+                    ldy Index     ; .. so read a byte and prepare index
+                    sta Buffer1,y ; write CHRIN straight to buffer
+                    inc Index     ; increase target index, and check for err
+                    beq _ReadRLEBChk
+                    dec RLECode   ; consume a byte ctr
+                    bne _ReadRLEBlk ; if there more bytes, go read them
+                    lda Index
+                    cmp #0        ; see if we're out of target space
+                    beq _ReadRLEExit ; yes, so exit happily
+                    bne _ReadRLE  ; no, so go read more!
+
+_ReadRLEBChk        dec RLECode    ; reached end of targ buf, so chk RLECode
+                    beq _ReadRLEExit ; rlecode also 0, so happy exit
+_ReadRLEErr         jsr kCLRCHN    ; begin unhappy error exit
                     lda #$ff
-                    sta ReadChan
+                    sta ReadChan   ; set error code 255
                     sta WriteChan
                     rts 
                     
-L1561               lda RLECode
+_ReadRLERep         lda RLECode    ; fix the rle code for repeat bytes
                     sec 
-                    sbc #$80
+                    sbc #$80       ; by removing the repeat flag
                     sta RLECode
-                    jsr kCHRIN
-                    sta VarTwo
-                    ldy #$00
-L1572               sta ($fe),y
-                    inc $fe
-                    bne L157a
-                    inc $ff
-L157a               dec RLECode
-                    bne L1572
-                    lda $ff
-                    cmp #>Buffer2
-                    bne L1589
-                    lda $fe
-                    cmp #<Buffer2
-L1589               bcc L152b
-                    bne L1555
-L158d               jmp kCLRCHN
-
+                    jsr kCHRIN     ; now read the One and Only Byte
+                    ldy Index
+_ReadRLERepLp       sta Buffer1,y
+                    iny
+                    beq _ReadRLEChk ; if index loops around, check for problem
+                    dec RLECode ; otherwise, decrease rle counter
+                    bne _ReadRLERepLp ; still more to do, so go write more
+                    sty Index ; no more, so save y index for others
+                    cpy #0    ; check if out of buffer space
+                    bne _ReadRLE ; nope, so go back for more
+_ReadRLEExit        jmp kCLRCHN ; out of buffer space, so OK exit
+_ReadRLEChk         dec RLECode
+                    bne _ReadRLEErr ; still more codes, so error occurred
+                    beq _ReadRLEExit ; was no more codes, so exit OK
+                    
+;------------------------------------                    
+; Dump Buffer1 -> Write Channel
 ;------------------------------------                    
 WriteBuf1           ldx WriteChan
                     jsr kCHKOUT
                     ldy #$00
-L1598               lda Buffer1,y
+LWB1Lp              lda Buffer1,y
                     jsr kCHROUT
                     iny 
-                    bne L1598
+                    bne LWB1Lp
                     jmp kCLRCHN
+;------------------------------------                    
+; Compare Buffer1 & Buffer2
 ;------------------------------------                    
 CompBuf12           ldx #$00
                     stx VarOne
