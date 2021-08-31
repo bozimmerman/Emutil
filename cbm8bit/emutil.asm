@@ -42,10 +42,7 @@ _ClrBufLp           jsr kCHRIN
                     sta EOBufP
                     jmp kCLRCHN
                     
-_ReadChanRLE        lda #>Buffer2
-                    sta $ff
-                    lda #<Buffer2
-                    sta $fe
+_ReadChanRLE        jsr ResetBuffer2ToZP
                     lda #$00
                     sta VarOne
                     sta BytRepCtr
@@ -157,26 +154,19 @@ L1417               ldy #$00
                     jsr S1440
                     jmp kCLRCHN
                     
-S1440               lda #>Buffer2
-                    sta $ff
-                    lda #<Buffer2
-                    sta $fe
+S1440               jsr ResetBuffer2ToZP
                     lda #$00
                     sta VarTwo
 L144d               ldy #$00
                     lda ($fe),y
-                    inc $fe
-                    bne L1457
-                    inc $ff
-L1457               sta RLECode
+                    jsr IncZP
+                    sta RLECode
                     cmp #$81
                     bcs L148c
 L145e               ldy #$00
                     lda ($fe),y
-                    inc $fe
-                    bne L1468
-                    inc $ff
-L1468               ldy VarTwo
+                    jsr IncZP
+                    ldy VarTwo
                     inc VarTwo
                     cmp Buffer1,y
                     beq L1476
@@ -184,12 +174,8 @@ L1468               ldy VarTwo
                     
 L1476               dec RLECode
                     bne L145e
-                    lda $ff
-                    cmp EOBufP+1
-                    bne L1487
-                    lda $fe
-                    cmp EOBufP
-L1487               bcs L14c3
+                    jsr cmpZP2EOBuf
+                    bcs L14c3
                     clv 
                     bvc L144d
 L148c               lda RLECode
@@ -198,9 +184,7 @@ L148c               lda RLECode
                     sta RLECode
                     ldy #$00
                     lda ($fe),y
-                    inc $fe
-                    bne L149f
-                    inc $ff
+                    jsr IncZP
 L149f               ldy VarTwo
                     inc VarTwo
                     cmp Buffer1,y
@@ -209,12 +193,8 @@ L149f               ldy VarTwo
                     
 L14ad               dec RLECode
                     bne L149f
-                    lda $ff
-                    cmp EOBufP+1
-                    bne L14be
-                    lda $fe
-                    cmp EOBufP
-L14be               bcs L14c3
+                    jsr cmpZP2EOBuf
+                    bcs L14c3
                     clv 
                     bvc L144d
 L14c3               rts 
@@ -234,23 +214,31 @@ L14c4               lda #$ff
 ;------------------------------------                    
 WriteBuf2           ldx WriteChan
                     jsr kCHKOUT    ; set output channel
-                    lda #>Buffer2
-                    sta $ff
-                    lda #<Buffer2
-                    sta $fe ; reset Buffer2 Pointer for Reading
+                    jsr ResetBuffer2ToZP
 _WB2Loop            ldy #0
                     lda Buffer2    ; read a byte from Buffer2 & inc
-                    inc $fe
-                    bne _WB2IncX
-                    inc $ff
-_WB2IncX            jsr kCHROUT    ; write buffer byte to channel
-                    lda $fe ; now see if we reached the end
-                    cmp EOBufP+1
-                    bne _WB2Comp
-                    lda $ff
-                    cmp EOBufP
-_WB2Comp            bcc _WB2Loop
+                    jsr kCHROUT    ; write buffer byte to channel
+                    jsr IncZP
+                    jsr cmpZP2EOBuf
+                    bcc _WB2Loop
                     jmp kCLRCHN
+
+ResetBuffer2ToZP    lda #>Buffer2
+                    sta $ff
+                    lda #<Buffer2
+                    sta $fe        ; reset Buffer2 Pointer for Reading
+                    rts
+IncZP               inc $fe
+                    bne _IncZPX
+                    inc $ff
+_IncZPX             rts
+
+cmpZP2EOBuf         lda $ff
+                    cmp EOBufP+1
+                    bne _cmpZP2EOBuf
+                    lda $fe
+                    cmp EOBufP
+_cmpZP2EOBuf        rts
 
 ;------------------------------------                    
 ; Unpack from file channel -> buffer
