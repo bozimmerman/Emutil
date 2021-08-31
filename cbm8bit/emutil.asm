@@ -7,47 +7,49 @@ kCHRIN = $FFCF
 kCHROUT = $FFD2
 
 PReadChanBuf2       jmp ReadChanBuf2 ; ReadChan, WriteChan=RLE Flag, destroy Buf2
-PWriteBuf2          jmp WriteBuf2
+PWriteBuf2          jmp WriteBuf2    ; Write X bytes in Buffer2 to channel
 PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
-PWriteBuf1          jmp WriteBuf1
-PCompBuf12          jmp CompBuf12
+PWriteBuf1          jmp WriteBuf1    ; Write 256 bytes in Buffer1 to channel
+PCompBuf12          jmp CompBuf12    ; Compare Buffer1 to Buffer2, Res in VarOne
                     
 ReadChan            byte 0
 WriteChan           byte 0
-VarOne              byte 0
-VarTwo              byte 0
-Unknown             byte 0
+VarOne              byte 0    ; Comp flag in CompBuf12
+VarTwo              byte 0, 0
 RLECode             byte 0
-EOBufL              byte 0
-EOBufH              byte 0
-BytRepCtr           byte 0
+EOBufP              byte 0, 0 ; Used by WriteBuf2
+BytRepCtr           byte 0    ; BytRepCtr in ReadFileBuf1
+Index               byte 0    ; Write Buffer Index in ReadFileBuf1
                     byte 0 
 
+;------------------------------------                    
+; Pack from file channel -> ?buffer
+;------------------------------------                    
 ReadChanBuf2        ldx ReadChan
                     jsr kCHKIN
                     ldy #$00
-L131e               jsr kCHRIN
+_ClrBufLp           jsr kCHRIN
                     sta Buffer1,y
                     sta Buffer2,y
                     iny 
-                    bne L131e
+                    bne _ClrBufLp
                     ldx WriteChan
                     cpx #$ff
-                    bne L133e
+                    bne _ReadChanRLE
                     lda #>BufferE
-                    sta EOBufH
+                    sta EOBufP+1
                     lda #<BufferE
-                    sta EOBufL
+                    sta EOBufP
                     jmp kCLRCHN
                     
-L133e               lda #>Buffer2
+_ReadChanRLE        lda #>Buffer2
                     sta $ff
                     lda #<Buffer2
                     sta $fe
                     lda #$00
                     sta VarOne
                     sta BytRepCtr
-L134e               lda #$00
+_ReadRLELp          lda #$00
                     sta BytRepCtr
                     ldy VarOne
                     lda Buffer1,y
@@ -91,10 +93,10 @@ L139d               ldy #$00
                     clc 
                     adc $fe
                     sta $fe
-                    lda Unknown
+                    lda VarTwo+1
                     adc $ff
                     sta $ff
-                    jmp L134e
+                    jmp _ReadRLELp
                     
 L13bc               inc BytRepCtr
                     lda RLECode
@@ -145,13 +147,13 @@ L1417               ldy #$00
                     clc 
                     adc $fe
                     sta $fe
-                    lda Unknown
+                    lda VarTwo+1
                     adc $ff
                     sta $ff
                     lda $ff
-                    sta EOBufH
+                    sta EOBufP+1
                     lda $fe
-                    sta EOBufL
+                    sta EOBufP
                     jsr S1440
                     jmp kCLRCHN
                     
@@ -183,10 +185,10 @@ L1468               ldy VarTwo
 L1476               dec RLECode
                     bne L145e
                     lda $ff
-                    cmp EOBufH
+                    cmp EOBufP+1
                     bne L1487
                     lda $fe
-                    cmp EOBufL
+                    cmp EOBufP
 L1487               bcs L14c3
                     clv 
                     bvc L144d
@@ -208,10 +210,10 @@ L149f               ldy VarTwo
 L14ad               dec RLECode
                     bne L149f
                     lda $ff
-                    cmp EOBufH
+                    cmp EOBufP+1
                     bne L14be
                     lda $fe
-                    cmp EOBufL
+                    cmp EOBufP
 L14be               bcs L14c3
                     clv 
                     bvc L144d
@@ -221,117 +223,101 @@ L14c4               lda #$ff
                     sta ReadChan
                     lda VarTwo
                     sta WriteChan
-                    lda Unknown
-                    sta EOBufH
+                    lda VarTwo+1
+                    sta EOBufP+1
                     lda VarTwo
-                    sta EOBufL
+                    sta EOBufP
                     rts 
                     
+;------------------------------------                    
+; Write X bytes from Buffer2 -> channel
+;------------------------------------                    
 WriteBuf2           ldx WriteChan
-                    jsr kCHKOUT
+                    jsr kCHKOUT    ; set output channel
                     lda #>Buffer2
                     sta $ff
                     lda #<Buffer2
-                    sta $fe
-L14ea               ldy #$00
-                    lda ($fe),y
-                    jsr kCHROUT
+                    sta $fe ; reset Buffer2 Pointer for Reading
+_WB2Loop            ldy #0
+                    lda Buffer2    ; read a byte from Buffer2 & inc
                     inc $fe
-                    bne L14f7
+                    bne _WB2IncX
                     inc $ff
-L14f7               lda $ff
-                    cmp EOBufH
-                    bne L1503
-                    lda $fe
-                    cmp EOBufL
-L1503               bcc L14ea
+_WB2IncX            jsr kCHROUT    ; write buffer byte to channel
+                    lda $fe ; now see if we reached the end
+                    cmp EOBufP+1
+                    bne _WB2Comp
+                    lda $ff
+                    cmp EOBufP
+_WB2Comp            bcc _WB2Loop
                     jmp kCLRCHN
+
+;------------------------------------                    
+; Unpack from file channel -> buffer
+;------------------------------------                    
+ReadFileBuf1        ldx ReadChan ; read from channel -> Buffer1
+                    jsr kCHKIN   ; set input channel to read from
+                    ldx WriteChan
+                    ldy #$00      
+                    sty Index     ; set pos 0 in Buffer1
+                    cpx #$ff      ; if write channel not $ff, do unRLE
+                    bne _ReadRLE
+_ReadImgLp          jsr kCHRIN    ; otherwise, just fill straight bytes
+                    sta Buffer1,y ; write byte from CHRIN
+                    iny 
+                    bne _ReadImgLp; until Buffer1 is full from CHKRIN
+_ReadDone           jmp kCLRCHN   ; and then we're done
+                    
+_ReadRLE            lda #0
+                    sta RLECode   ; clear RLE code (0=read, $ff=repeat)
+                    jsr kCHRIN    ; begin RLE unpack read
+                    cmp #$81      ; $81 or higher is a repeter
+                    bcc _ReadRLECtr ; but lower or eq to $80 is not
+                    dec RLECode   ; make RLECode $ff for repeats
+                    and #$7f      ; clear Rep bit from counter
+_ReadRLECtr         sta BytRepCtr
+_ReadRLEByt         jsr kCHRIN    ; read the next byte, which always matters
+_ReadRLERep         ldy Index     ; .. so read a byte and prepare index
+                    sta Buffer1,y ; write CHRIN straight to buffer
+                    dec BytRepCtr ; dec rle chats check if out of rle chars
+                    bne _ReadRLEMore 
+                    inc Index     ; increase target index, and check for err
+                    beq _ReadDone ; so Index better have also?
+                    bne _ReadRLE  ; need more, so go back
+_ReadRLEMore        inc Index     ;
+                    bne _ReadRLEMOK ; if Index has more to do, then OK
+                    lda #$ff      ; but if it rolled over, there's a prob
+                    sta ReadChan  ; set error code 255
+                    sta WriteChan
+                    jmp kCLRCHN
+_ReadRLEMOK         bit RLECode     ; here is the magic
+                    bne _ReadRLERep ; 7 bit SET, so just repeat .a byt
+                    beq _ReadRLEByt ; 7 bit not set, so more reading 2 do
                     
 ;------------------------------------                    
-ReadFileBuf1        ldx ReadChan
-                    jsr kCHKIN
-                    lda #>Buffer1
-                    sta $ff
-                    lda #<Buffer1
-                    sta $fe
-                    ldx WriteChan
-                    cpx #$ff
-                    bne L152b
-                    ldy #$00
-L151f               jsr kCHRIN
-                    sta Buffer1,y
-                    iny 
-                    bne L151f
-                    jmp kCLRCHN
-                    
-L152b               jsr kCHRIN
-                    sta RLECode
-                    cmp #$81
-                    bcs L1561
-L1535               jsr kCHRIN
-                    ldy #$00
-                    sta ($fe),y
-                    inc $fe
-                    bne L1542
-                    inc $ff
-L1542               dec RLECode
-                    bne L1535
-                    lda $ff
-                    cmp #>Buffer2
-                    bne L1551
-                    lda $fe
-                    cmp #<Buffer2
-L1551               bcc L152b
-                    beq L158d
-L1555               jsr kCLRCHN
-                    lda #$ff
-                    sta ReadChan
-                    sta WriteChan
-                    rts 
-                    
-L1561               lda RLECode
-                    sec 
-                    sbc #$80
-                    sta RLECode
-                    jsr kCHRIN
-                    sta VarTwo
-                    ldy #$00
-L1572               sta ($fe),y
-                    inc $fe
-                    bne L157a
-                    inc $ff
-L157a               dec RLECode
-                    bne L1572
-                    lda $ff
-                    cmp #>Buffer2
-                    bne L1589
-                    lda $fe
-                    cmp #<Buffer2
-L1589               bcc L152b
-                    bne L1555
-L158d               jmp kCLRCHN
-
+; Dump Buffer1 -> Write Channel
 ;------------------------------------                    
 WriteBuf1           ldx WriteChan
                     jsr kCHKOUT
                     ldy #$00
-L1598               lda Buffer1,y
+_WB1Lp              lda Buffer1,y
                     jsr kCHROUT
                     iny 
-                    bne L1598
+                    bne _WB1Lp
                     jmp kCLRCHN
 ;------------------------------------                    
+; Compare Buffer1 & Buffer2
+;------------------------------------                    
 CompBuf12           ldx #$00
-                    stx VarOne
-Lcmloop             lda Buffer1,x
+                    stx VarOne    ; is this a flag?, seems to be a flag...
+_cmloop             lda Buffer1,x
                     cmp Buffer2,x
-                    bne Lcmbad
+                    bne _cmbad
                     inx
-                    bne Lcmloop
+                    bne _cmloop
                     rts
-Lcmbad              inc VarOne
+_cmbad              inc VarOne
                     rts
-
 Buffer1             byte 0
 Buffer2 = Buffer1 + 256
 BufferE = Buffer2 + 256
