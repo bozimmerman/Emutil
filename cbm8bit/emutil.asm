@@ -11,7 +11,7 @@ PWriteBuf2          jmp WriteBuf2    ; Write X bytes in Buffer2 to channel
 PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
 PWriteBuf1          jmp WriteBuf1    ; Write 256 bytes in Buffer1 to channel
 PCompBuf12          jmp CompBuf12    ; Compare Buffer1 to Buffer2, Res in VarOne
-                    
+; offset here is *+15
 ReadChan            byte 0
 WriteChan           byte 0
 VarOne              byte 0    ; Comp flag in CompBuf12
@@ -19,31 +19,34 @@ VarTwo              byte 0, 0
 RLECode             byte 0
 EOBufP              byte 0, 0 ; Used by WriteBuf2
 BytRepCtr           byte 0    ; BytRepCtr in ReadFileBuf1
-Index               byte 0    ; Write Buffer Index in ReadFileBuf1
                     byte 0 
+Index               byte 0    ; Write Buffer Index in ReadFileBuf1
+Buffer2             byte <Buffer1, >Buffer1 + 1
+BufferE             byte <Buffer1, >Buffer1 + 2
+; offset here is *+30
 
 ;------------------------------------                    
 ; Pack from file channel -> ?buffer
 ;------------------------------------                    
 ReadChanBuf2        ldx ReadChan
                     jsr kCHKIN
+                    jsr ResetBuffer2ToZP
                     ldy #$00
 _ClrBufLp           jsr kCHRIN
                     sta Buffer1,y
-                    sta Buffer2,y
+                    sta ($fe),y
                     iny 
                     bne _ClrBufLp
                     ldx WriteChan
                     cpx #$ff
                     bne _ReadChanRLE
-                    lda #>BufferE
+                    lda BufferE+1
                     sta EOBufP+1
-                    lda #<BufferE
+                    lda BufferE
                     sta EOBufP
                     jmp kCLRCHN
                     
-_ReadChanRLE        jsr ResetBuffer2ToZP
-                    lda #$00
+_ReadChanRLE        lda #$00
                     sta VarOne
                     sta BytRepCtr
 _ReadRLELp          lda #$00
@@ -86,13 +89,7 @@ L139d               ldy #$00
                     sta ($fe),y
                     dec VarOne
                     inc VarTwo
-                    lda VarTwo
-                    clc 
-                    adc $fe
-                    sta $fe
-                    lda VarTwo+1
-                    adc $ff
-                    sta $ff
+                    jsr addVarTwoToZP
                     jmp _ReadRLELp
                     
 L13bc               inc BytRepCtr
@@ -140,13 +137,7 @@ L1417               ldy #$00
                     lda RLECode
                     sta ($fe),y
                     inc VarTwo
-                    lda VarTwo
-                    clc 
-                    adc $fe
-                    sta $fe
-                    lda VarTwo+1
-                    adc $ff
-                    sta $ff
+                    jsr addVarTwoToZP
                     lda $ff
                     sta EOBufP+1
                     lda $fe
@@ -216,18 +207,19 @@ WriteBuf2           ldx WriteChan
                     jsr kCHKOUT    ; set output channel
                     jsr ResetBuffer2ToZP
 _WB2Loop            ldy #0
-                    lda Buffer2    ; read a byte from Buffer2 & inc
+                    lda ($fe),y    ; read a byte from Buffer2 
                     jsr kCHROUT    ; write buffer byte to channel
                     jsr IncZP
                     jsr cmpZP2EOBuf
                     bcc _WB2Loop
                     jmp kCLRCHN
 
-ResetBuffer2ToZP    lda #>Buffer2
+ResetBuffer2ToZP    lda Buffer2+1
                     sta $ff
-                    lda #<Buffer2
+                    lda Buffer2
                     sta $fe        ; reset Buffer2 Pointer for Reading
                     rts
+
 IncZP               inc $fe
                     bne _IncZPX
                     inc $ff
@@ -239,6 +231,16 @@ cmpZP2EOBuf         lda $ff
                     lda $fe
                     cmp EOBufP
 _cmpZP2EOBuf        rts
+
+addVarTwoToZP       lda VarTwo
+                    clc 
+                    adc $fe
+                    sta $fe
+                    lda VarTwo+1
+                    adc $ff
+                    sta $ff
+                    rts
+
 
 ;------------------------------------                    
 ; Unpack from file channel -> buffer
@@ -296,16 +298,16 @@ _WB1Lp              lda Buffer1,y
 ;------------------------------------                    
 ; Compare Buffer1 & Buffer2
 ;------------------------------------                    
-CompBuf12           ldx #$00
-                    stx VarOne    ; is this a flag?, seems to be a flag...
-_cmloop             lda Buffer1,x
-                    cmp Buffer2,x
+CompBuf12           jsr ResetBuffer2ToZP
+                    ldy #$00
+                    sty VarOne    ; is this a flag?, seems to be a flag...
+_cmloop             lda Buffer1,y
+                    cmp ($fe),y
                     bne _cmbad
                     inx
                     bne _cmloop
                     rts
 _cmbad              inc VarOne
                     rts
+
 Buffer1             byte 0
-Buffer2 = Buffer1 + 256
-BufferE = Buffer2 + 256
