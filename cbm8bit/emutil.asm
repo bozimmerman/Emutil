@@ -21,15 +21,17 @@ EOBufP              byte 0, 0 ; Used by WriteBuf2
 BytRepCtr           byte 0    ; BytRepCtr in ReadFileBuf1
                     byte 0 
 Index               byte 0    ; Write Buffer Index in ReadFileBuf1
+CBM2Flag            byte 0
 Buffer2             byte <Buffer1, >Buffer1 + 1
 BufferE             byte <Buffer1, >Buffer1 + 2
-; offset here is *+30
+; offset here is *+31
 
 ;------------------------------------                    
 ; Pack from file channel -> ?buffer
 ;------------------------------------                    
 ReadChanBuf2        ldx ReadChan
                     jsr kCHKIN
+                    jsr CBM2Fix
                     jsr ResetBuffer2ToZP
                     ldy #$00
 _ClrBufLp           jsr kCHRIN
@@ -205,6 +207,7 @@ L14c4               lda #$ff
 ;------------------------------------                    
 WriteBuf2           ldx WriteChan
                     jsr kCHKOUT    ; set output channel
+                    jsr CBM2Fix
                     jsr ResetBuffer2ToZP
 _WB2Loop            ldy #0
                     lda ($fe),y    ; read a byte from Buffer2 
@@ -241,6 +244,11 @@ addVarTwoToZP       lda VarTwo
                     sta $ff
                     rts
 
+CBM2Fix             lda CBM2Flag
+                    bne _CBM2Fix
+                    rts
+_CBM2Fix            sta $01
+                    rts
 
 ;------------------------------------                    
 ; Unpack from file channel -> buffer
@@ -298,7 +306,8 @@ _WB1Lp              lda Buffer1,y
 ;------------------------------------                    
 ; Compare Buffer1 & Buffer2
 ;------------------------------------                    
-CompBuf12           jsr ResetBuffer2ToZP
+CompBuf12           jsr CBM2Fix
+                    jsr ResetBuffer2ToZP
                     ldy #$00
                     sty VarOne    ; is this a flag?, seems to be a flag...
 _cmloop             lda Buffer1,y

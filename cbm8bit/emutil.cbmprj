@@ -41,11 +41,9 @@
         <PostBuildCommands />
     </BuildEvents>
     <BuildList>
-        <FileName>emutil.bas</FileName>
         <FileName>emutil.asm</FileName>
-        <FileName>datamaker.bas</FileName>
     </BuildList>
-    <DetermineBuildOrder>0</DetermineBuildOrder>
+    <DetermineBuildOrder>1</DetermineBuildOrder>
     <PaddingByte>0</PaddingByte>
     <!--Screen designer settings-->
     <AssyBinaryFileLocation />
@@ -60,7 +58,7 @@
             <Regions />
             <Breakpoints />
             <Bookmarks />
-            <Topmost>True</Topmost>
+            <Topmost>False</Topmost>
             <FileOpen>True</FileOpen>
         </SourceFile>
         <SourceFile>
@@ -71,7 +69,7 @@
             <Regions />
             <Breakpoints />
             <Bookmarks />
-            <Topmost>False</Topmost>
+            <Topmost>True</Topmost>
             <FileOpen>True</FileOpen>
         </SourceFile>
         <SourceFile>

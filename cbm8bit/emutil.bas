@@ -5,12 +5,12 @@
 !- C64, C128, PET, Plus/4
 !--------------------------------------------------
 5 GOSUB3400:IFP>0THENPOKEP+1,(ML+1536)/256:CLR:GOSUB3400:POKEP,0:CLR:GOSUB3400
-10 MV=ML+(3*5):SP$="{space*21}":GOSUB3300
+10 MV=ML+(3*5):SP$="{space*21}":GOSUB3300:GOSUB3400
 20 SU=8:SD$="0":DU=8:DD$="0":F1$="Single{space*2}":F2$="Normal{space*3}":MN=1
 30 PRINT"{clear}{down*5}{ct n}Emutil v4.0":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
 40 PRINT"{down}...Planet Ink.":GOSUB50:GOSUB80:GOTO100
 50 TI$="000000"
-60 IFTI<200THEN60
+60 IFTI$<"000002"THEN60
 70 RETURN
 80 VM=0:DIM VM$(3):VM$(0)="None":VM$(1)="Auto":VM$(2)="Only":RETURN
 100 PRINT"{clear}{down}Emutil Menu":PRINT"[S] Source Device:";SU;", ";SD$
@@ -136,30 +136,29 @@
 2120 IFE<66ANDS<255THENS=S+1:GOTO2040
 2130 IFE<70ANDS>0THENT=T+1:S=0:GOTO2040
 2140 PRINT:PRINT"{down}Done!":GOTO1700
-3000 DATA"embjcaemnpcbemalccemjdccemkhccaaaaaaaaaaaaaaaaaaaakoapcacamgppkaaaca"
-3010 DATA"mpppjjlmccjjlmcdminapekobacaoappnaankjceinbgcakjlminbfcaemmmppkjcdif"
-3020 DATA"ppkjlmifpokjaainbbcainbhcakjaainbhcakmbbcaljlmcckaabjbpoimbecaimbcca"
-3030 DATA"oobbcanaadembkcbkmbbcanaadembkcboobbcaljlmcckmbccamijbpoiinbpopadikj"
-3040 DATA"aainbhcaknbecamjialaanmjiapaajoobccaoobecaemgocakaaaknbecajbpomobbca"
-3050 DATA"oobccaknbccabigfpoifpoknbdcagfppifppemfbcaoobhcaknbecamjiapanhmjibja"
-3060 DATA"akmjpppampoobecaemgocamjabnaapknbecabigjibinbecaemgocalifalgmjacnaba"
-3070 DATA"knbhcamjaclaogoobccaoobecaemgocaknbhcamjacjapamobecamobecamobccamobc"
-3080 DATA"camobbcamobbcalifamnkaaaknbecajbpooobccaknbccabigfpoifpoknbdcagfppif"
-3090 DATA"ppkfppinbgcakfpoinbfcacaedcbemmmppkjcdifppkjlmifpokjaainbccakaaalbpo"
-3100 DATA"ogponaacogppinbecamjiblacokaaalbpoogponaacogppkmbccaoobccanjlmccpaad"
-3110 DATA"emmhcbmobecanaodkfppmnbgcanaafkfpomnbfcaladklifambknbecadiojiainbeca"
-3120 DATA"kaaalbpoogponaacogppkmbccaoobccanjlmccpaademmhcbmobecanaonkfppmnbgca"
-3130 DATA"naafkfpomnbfcalaadlifaikgakjppinapcaknbccainbacaknbdcainbgcaknbccain"
-3140 DATA"bfcagakobacacamjppkjcdifppkjlmifpokaaalbpocancppogponaacogppkfppmnbg"
-3150 DATA"canaafkfpomnbfcajaofemmmppkoapcacamgppkjccifppkjlmifpokobacaoappnaao"
-3160 DATA"kaaacampppjjlmccminaphemmmppcampppinbecamjiblacmcampppkaaajbpoogpona"
-3170 DATA"acogppmobecanaookfppmjcdnaaekfpomjlmjanipadicammppkjppinapcainbacaga"
-3180 DATA"knbecadiojiainbecacampppinbccakaaajbpoogponaacogppmobecanapdkfppmjcd"
-3190 DATA"naaekfpomjlmjakanamiemmmppkobacacamjppkaaaljlmcccancppminaphemmmppkc"
-3200 DATA"aaiobbcalnlmccnnlmcdnaaeoinapfgaoobbcaga"
-3205 DATA""
-3210 DATA"cddddnldggdffldfddhddfdfdddndlddffddihddpdhgdkhdddhdddddifdijfdfln"
-3220 DATA"rddfdhhignddfdhhlddddddefyhifjmmugsdeggngqioddj"
+3000 DATA"embpcaemkmcbemacccemgaccemheccaaaaaaaaaaaaaaaaaaaaaaaaiocdiocekoapca"
+3010 DATA"camgppcapjcbcamkcbkaaacampppjjioccjbpominapfkobacaoappnaapknbocainbg"
+3020 DATA"caknbncainbfcaemmmppkjaainbbcainbhcakjaainbhcakmbbcaljiocckaabjbpoim"
+3030 DATA"becaimbccaoobbcanaadembdcbkmbbcanaadembdcboobbcaljiocckmbccamijbpoii"
+3040 DATA"nbpopacmkjaainbhcaknbecamjialaanmjiapaajoobccaoobecaemhdcakaaaknbeca"
+3050 DATA"jbpomobbcaoobccacaojcbemfgcaoobhcaknbecamjiapaodmjibjaakmjpppanloobe"
+3060 DATA"caemhdcamjabnaapknbecabigjibinbecaemhdcalifamcmjacnabaknbhcamjaclaog"
+3070 DATA"oobccaoobecaemhdcaknbhcamjacjapamobecamobecamobccamobccamobbcamobbca"
+3080 DATA"lifamnkaaaknbecajbpooobccacaojcbkfppinbgcakfpoinbfcacadacbemmmppcamk"
+3090 DATA"cbkjaainbccakaaalbpocanfcbinbecamjiblacckaaalbpocanfcbkmbccaoobccanj"
+3100 DATA"ioccpaademjecbmobecanaogcanmcblacolifanaknbecadiojiainbecakaaalbpoca"
+3110 DATA"nfcbkmbccaoobccanjioccpaademjecbmobecanaoncanmcblaadlifakfgakjppinap"
+3120 DATA"caknbccainbacaknbdcainbgcaknbccainbfcagakobacacamjppcapjcbcamkcbkaaa"
+3130 DATA"lbpocancppcanfcbcanmcbjapbemmmppknbmcaifppknblcaifpogaogponaacogppga"
+3140 DATA"kfppmnbgcanaafkfpomnbfcagaknbccabigfpoifpoknbdcagfppifppgaknbkcanaab"
+3150 DATA"gaifabgakoapcacamgppkobacakaaaimbjcaoappnaamcampppjjioccminaphemmmpp"
+3160 DATA"kjaainbecacampppmjibjaafmobecacjhpinbhcacampppkmbjcajjioccmobhcanaah"
+3170 DATA"oobjcapangnanhoobjcanaalkjppinapcainbacaemmmppcmbecananjpanekobacaca"
+3180 DATA"mjppkaaaljiocccancppminaphemmmppcapjcbcamkcbkaaaimbbcaljioccnbponaae"
+3190 DATA"oinapggaoobbcagaaa"
+3200 DATA""
+3210 DATA"cddddocdgdiihdddidfddhddfdfdddndlddffdddddpdhgdkhdddhdddddifdffdgfhd"
+3220 DATA"ldddfdfighdddfdflddddddegdkdifpheiijgfklkfgddfhhdghimdfdl"
 3230 DATA""
 3300 P=ML:RESTORE:IFPEEK(P)=76THENRETURN
 3305 PRINT"reading ml data..."
@@ -176,5 +175,6 @@
 3420 IFP=61THENML=4864:P=0:BANK15:RETURN
 3430 IFP=246THENML=13312:P=45:RETURN
 3440 IFP=34THENML=13824:P=45:RETURN
-3450 IFP=151THENML=1024:P=0:BANK15:RETURN
+3450 IFP=151THENML=1024:BANK15:POKEML+26,15:POKEML+27,0:POKEML+28,214
+3451 IFP=151THENPOKEML+30,215:POKEML+29,0:P=0:RETURN
 3490 PRINT"unsupported computer.":STOP
