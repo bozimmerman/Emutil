@@ -7,7 +7,7 @@
 5 GOSUB3400:IFP>0THENPOKEP+1,(ML+1536)/256:CLR:GOSUB3400:POKEP,0:CLR:GOSUB3400
 10 MV=ML+(3*5):SP$="{space*21}":GOSUB3300:GOSUB3400
 20 SU=8:SD$="0":DU=8:DD$="0":F1$="Single{space*2}":F2$="Normal{space*3}":MN=1
-30 PRINT"{clear}{down*5}{ct n}Emutil v4.0":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
+30 PRINT"{clear}{down*5}{ct n}Emutil v4.5":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
 40 PRINT"{down}...Planet Ink.":GOSUB50:GOSUB80:GOTO100
 50 TI$="000000"
 60 IFTI$<"000002"THEN60
