@@ -314,7 +314,7 @@ CompBuf12           jsr CBM2Fix
 _cmloop             lda Buffer1,y
                     cmp ($fe),y
                     bne _cmbad
-                    inx
+                    iny           ; this might fix comparing stuff
                     bne _cmloop
                     rts
 _cmbad              inc VarOne
