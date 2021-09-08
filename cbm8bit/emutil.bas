@@ -7,7 +7,7 @@
 5 GOSUB3400:IFP>0THENPOKEP+1,(ML+1536)/256:CLR:GOSUB3400:POKEP,0:CLR:GOSUB3400
 10 MV=ML+(3*5):SP$="{space*21}":GOSUB3300:GOSUB3400
 20 SU=8:SD$="0":DU=8:DD$="0":F1$="Single{space*2}":F2$="Normal{space*3}":MN=1
-30 PRINT"{clear}{down*5}{ct n}Emutil v4.5":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
+30 PRINT"{clear}{down*5}{ct n}Emutil v5.0":PRINT"Bo Zimmerman":PRINT"Andre Fachat"
 40 PRINT"{down}...Planet Ink.":GOSUB50:GOSUB80:GOTO100
 50 TI$="000000"
 60 IFTI$<"000002"THEN60
@@ -96,14 +96,15 @@
 1250 TT=TT+1:IFTT>200ANDLEFT$(F1$,1)="M"THENGOSUB1800:TT=0:EF=0
 1260 IFE<66ANDS<255THENS=S+1:GOTO1040
 1270 IFE<70ANDS>0THENT=T+1:S=0:GOTO1040
-1280 GOTO1700
+1280 IFE=73ANDT=1ANDS=0THENPRINT:PRINT"Disk/Drive Mismatch."
+1290 GOTO1700
 1600 PRINT#2,"i"+DD$+":":PRINT#15,"i"+SD$
 1700 CLOSE1:CLOSE15:CLOSE2:CLOSE3
 1710 IFT0>0THENPRINT"Validated";(T0-T1);"/";T0;" sectors"
 1730 PRINT:PRINT"Hit return: {reverse on} {reverse off}";
 1740 GETA$:IFA$<>CHR$(13)THEN1740
 1750 GOTO100
-1800 VL$="":E=0:VL=VL+1:IFLEFT$(F1$,1)="M"THENIW$=MID$(STR$(VL),2)+"-"
+1800 VL$="":E=0:VL=VL+1:IW$="":IFLEFT$(F1$,1)="M"THENIW$=MID$(STR$(VL),2)+"-"
 1810 IFLEFT$(F1$,1)="S"ORVL=1THEN1850
 1820 IFRIGHT$(F$,1)="r"THEN1850
 1825 CLOSE1:GOSUB996:IFX>200THEN1850
@@ -153,7 +154,7 @@
 3140 DATA"kfppmnbgcanaafkfpomnbfcagaknbccabigfpoifpoknbdcagfppifppgaknbkcanaab"
 3150 DATA"gaifabgakoapcacamgppkobacakaaaimbjcaoappnaamcampppjjioccminaphemmmpp"
 3160 DATA"kjaainbecacampppmjibjaafmobecacjhpinbhcacampppkmbjcajjioccmobhcanaah"
-3170 DATA"oobjcapangnanhoobjcanaalkjppinapcainbacaemmmppcmbecananjpanekobacaca"
+3170 DATA"oobjcapangnanhoobjcanaalkjppinapcainbacaemmmppkmbecananjpanekobacaca"
 3180 DATA"mjppkaaaljiocccancppminaphemmmppcapjcbcamkcbkaaaimbbcaljioccnbponaae"
 3190 DATA"oinapggaoobbcagaaa"
 3200 DATA""

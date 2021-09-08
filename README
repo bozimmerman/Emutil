@@ -165,7 +165,7 @@ OPTIONS:
 -----------------------------------------------------------------------------
 Emutil.prg (Commodore BASIC/ML)
 -------------------------------
-A disk image archiver for Commodore 64, 128, VIC-20, Plus/4 and CBM/PET
+A disk image archiver for Commodore 64, 128, VIC-20, Plus/4, CBM-II, and CBM/PET
 computers with 16k or more.  It supports all known Commodore disk drives, of all 
 capacities.  It also supports all CMD HD and RL Native partitions.
 
@@ -175,4 +175,9 @@ of a 1541 disk is equivalent to a .D64 file, so it will handle those just
 fine, though it is intended to cover disk drives unsupported by other
 programs, such as the CBM 8050/8250 and CMD Native drives.
 
-The program is a collaborative effort by Bo Zimmerman and Andre Fachat.
+The program is a collaborative effort by Bo Zimmerman and Andre Fachat.  After 
+building the source in CBM Prg Studio, you'll need to "fix" the binary by
+changing the start address to $0401 for PETs, and then loading it and
+re-saving it, to get all the line link addresses fixed.  Next, you'll need
+to fix the CBM-II BANK command in line 3450 with a hex editor.  Change the
+bytes in that line from $FE $02 to $20 $DC.
