@@ -11,6 +11,8 @@ PWriteBuf2          jmp WriteBuf2    ; Write X bytes in Buffer2 to channel
 PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
 PWriteBuf1          jmp WriteBuf1    ; Write 256 bytes in Buffer1 to channel
 PCompBuf12          jmp CompBuf12    ; Compare Buffer1 to Buffer2, Res in VarOne
+PReadBuf1           jmp ReadBuf1     ; ReadChan to Buffer1 only
+
 ; offset here is *+15
 ReadChan            byte 0
 WriteChan           byte 0
@@ -112,9 +114,7 @@ _ReadRLEdoRep       lda RLECode         ; otherwise, switch to repeat mode
                     adc #$81            ; by adding repeat flag
                     sta RLECode
                     jmp _ReadRLELoop    ; and continue reading src buf
-                    
-_ReadRLEbraStopRep  clv                 ; legacy branch hopper
-                    bvc _ReadRLEstopRep 
+
 _ReadRLEstartRep    cmp #$02            ; if rlecode is not 2
                     bne _ReadRLEmayRep           ; then go see if switch can happen
                     lda BytRepCtr       ; otherwise it IS 2, so check rep ctr
@@ -133,8 +133,7 @@ _ReadRLEmayRep      lda BytRepCtr       ; maybe switch, so check rep ctr
                     dec VarTwo
                     dec VarOne
                     dec VarOne
-                    clv 
-                    bvc _ReadRLEbraStopRep ; now go back and poss stop repeat
+                    jmp _ReadRLEstopRep    ; now go back and poss stop repeat
 _ReadRLEFinished    ldy #$00
                     lda RLECode            ; store final rle code in tgt buf
                     sta ($fe),y
@@ -144,64 +143,8 @@ _ReadRLEFinished    ldy #$00
                     sta EOBufP+1           ; store end of buffer in eobufp
                     lda $fe
                     sta EOBufP
-                    jsr _CheckRLE
                     jmp kCLRCHN            ; and exit 
                     
-_CheckRLE           jsr ResetBuffer2ToZP   ; reset buffer pointer
-                    lda #$00
-                    sta VarTwo             ; and target sub-buffer index
-_CheckNxtRLE        ldy #$00
-                    lda ($fe),y            ; get the first rle byte
-                    jsr IncZP              ; increment zero pointer
-                    sta RLECode            ; and write the rle code
-                    cmp #$81               ; is it repeating RLE?
-                    bcs _CheckRLERep       ; if it is, go ...
-_CheckRLEChkLp      ldy #$00               ; otherwise, get normy byte
-                    lda ($fe),y
-                    jsr IncZP              ; and position for next
-                    ldy VarTwo             ; now get tgt ptr
-                    inc VarTwo             ; increment tgt ptr
-                    cmp Buffer1,y          ; compare it
-                    beq _CheckRLEByteOK    ; if it checks out
-                    jmp _CheckRLEFail      ; otherwise, jump to fail
-                    
-_CheckRLEByteOK     dec RLECode            ; byte checks out, so dec rle code
-                    bne _CheckRLEChkLp     ; if more bytes to go, cont loop
-                    jsr cmpZP2EOBuf        ; otherwise, see if end of buf
-                    bcs _CheckRLEFin       ; if we went beyond it, exit
-                    clv 
-                    bvc _CheckNxtRLE       ; more buf, so get next rle byt
-
-_CheckRLERep        lda RLECode            ; first make rep ctr normal
-                    sec 
-                    sbc #$80
-                    sta RLECode            ; by subtracting $80
-                    ldy #$00
-                    lda ($fe),y            ; then get the repeating byte
-                    jsr IncZP              ; increment rle buf ptr
-_CheckRLERepDone    ldy VarTwo             ; and get src buf ptr
-                    inc VarTwo
-                    cmp Buffer1,y          ; and compare it
-                    beq _CheckRLERepAgain  ; if they match, ready for next
-                    jmp _CheckRLEFail      ; otherwise problem
-                    
-_CheckRLERepAgain   dec RLECode           ; ready for next repeat
-                    bne _CheckRLERepDone             
-                    jsr cmpZP2EOBuf       ; check if we finished tgt buf
-                    bcs _CheckRLEFin      ; if we shot passed it, done
-                    clv 
-                    bvc _CheckNxtRLE      ; otherwise, next rle code plz
-_CheckRLEFin        rts 
-                    
-_CheckRLEFail       lda #$ff              ; the failed check condition
-                    sta ReadChan
-                    lda VarTwo
-                    sta WriteChan
-                    lda VarTwo+1
-                    sta EOBufP+1
-                    lda VarTwo
-                    sta EOBufP
-                    rts 
                     
 ;------------------------------------                    
 ; Write X bytes from Buffer2 -> channel
@@ -303,6 +246,17 @@ _WB1Lp              lda Buffer1,y
                     jsr kCHROUT
                     iny 
                     bne _WB1Lp
+                    jmp kCLRCHN
+;------------------------------------                    
+; Read Channel -> Buffer1
+;------------------------------------                    
+ReadBuf1            ldx ReadChan
+                    jsr kCHKIN
+                    ldy #$00
+_RD1Lp              jsr kCHRIN
+                    sta Buffer1,y
+                    iny 
+                    bne _RD1Lp
                     jmp kCLRCHN
 ;------------------------------------                    
 ; Compare Buffer1 & Buffer2
