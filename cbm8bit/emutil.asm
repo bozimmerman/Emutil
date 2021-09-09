@@ -11,7 +11,6 @@ PWriteBuf2          jmp WriteBuf2    ; Write X bytes in Buffer2 to channel
 PReadFileBuf1       jmp ReadFileBuf1 ; ReadChan, WriteChan=RLE Flag ($ff=NOT RLE)
 PWriteBuf1          jmp WriteBuf1    ; Write 256 bytes in Buffer1 to channel
 PCompBuf12          jmp CompBuf12    ; Compare Buffer1 to Buffer2, Res in VarOne
-PReadBuf1           jmp ReadBuf1     ; ReadChan to Buffer1 only
 
 ; offset here is *+15
 ReadChan            byte 0
@@ -194,9 +193,9 @@ CBM2Fix             lda CBM2Flag
 _CBM2Fix            sta $01
                     rts
 
-;------------------------------------                    
-; Unpack from file channel -> buffer
-;------------------------------------                    
+;---------------------------------------------------
+; Unpack from file channel -> buffer1, Buf2 unused!
+;---------------------------------------------------     
 ReadFileBuf1        ldx ReadChan ; read from channel -> Buffer1
                     jsr kCHKIN   ; set input channel to read from
                     ldy #$00      
@@ -247,17 +246,7 @@ _WB1Lp              lda Buffer1,y
                     iny 
                     bne _WB1Lp
                     jmp kCLRCHN
-;------------------------------------                    
-; Read Channel -> Buffer1
-;------------------------------------                    
-ReadBuf1            ldx ReadChan
-                    jsr kCHKIN
-                    ldy #$00
-_RD1Lp              jsr kCHRIN
-                    sta Buffer1,y
-                    iny 
-                    bne _RD1Lp
-                    jmp kCLRCHN
+
 ;------------------------------------                    
 ; Compare Buffer1 & Buffer2
 ;------------------------------------                    
