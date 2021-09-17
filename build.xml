@@ -3,7 +3,7 @@
 		<echo>compile, clean, or docs</echo>
 	</target>
 	<target name="compile">
-		<javac srcdir="." classpath=".;commons-compress-1.12.jar" nowarn="yes" deprecation="on" target="1.6" source="1.6" debug="on" memoryMaximumSize="1024m" fork="on">
+		<javac srcdir="." classpath=".;commons-compress-1.12.jar" nowarn="yes" deprecation="on" target="1.8" source="1.8" debug="on" memoryMaximumSize="1024m" fork="on">
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 		<mkdir dir="bin"/>
