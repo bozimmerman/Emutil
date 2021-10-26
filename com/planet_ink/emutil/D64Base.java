@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
@@ -33,6 +34,8 @@ limitations under the License.
 */
 public class D64Base
 {
+
+	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
 	public D64Base() {}
 
@@ -1004,6 +1007,12 @@ public class D64Base
 			lastLen += readBytes;
 		}
 		final FileInfo file = new FileInfo();
+		if(typ == null)
+		{
+			file.fileName = fileName;
+			file.fileType = D64Base.FileType.SEQ;
+		}
+		else
 		switch(typ)
 		{
 		case CVT:
@@ -1019,8 +1028,16 @@ public class D64Base
 			file.fileType = D64Base.FileType.SEQ;
 			break;
 		}
-		file.size = fileLen;
-		file.data = filedata;
+		if(lastLen < fileLen && (fileLen >= MAGIC_MAX))
+		{
+			file.size=lastLen;
+			file.data = Arrays.copyOf(filedata, lastLen);
+		}
+		else
+		{
+			file.size = fileLen;
+			file.data = filedata;
+		}
 		return file;
 	}
 

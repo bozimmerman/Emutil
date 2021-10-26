@@ -40,10 +40,10 @@ public class D64FileMatcher extends D64Mod
 
 	public static List<FileInfo> getLNXDeepContents(final File F) throws IOException
 	{
-		FileInputStream fin=new FileInputStream(F);
+		final FileInputStream fin=new FileInputStream(F);
 		try
 		{
-			long fileLen = F.length();
+			//final long fileLen = F.length();
 			return getLNXDeepContents(fin);
 		}
 		finally
@@ -51,10 +51,10 @@ public class D64FileMatcher extends D64Mod
 			fin.close();
 		}
 	}
-	
-	public static String getNextLYNXLineFromInputStream(final InputStream in, int[] bytesRead) throws IOException
+
+	public static String getNextLYNXLineFromInputStream(final InputStream in, final int[] bytesRead) throws IOException
 	{
-		StringBuilder line=new StringBuilder("");
+		final StringBuilder line=new StringBuilder("");
 		while(in.available()>0)
 		{
 			int b=in.read();
@@ -75,15 +75,29 @@ public class D64FileMatcher extends D64Mod
 		}
 		return line.toString();
 	}
-	
+
+	public static boolean isInteger(final String s)
+	{
+		try
+		{
+			final int x=Integer.parseInt(s);
+			return x>0;
+		}
+		catch(final Exception e)
+		{
+			return false;
+		}
+
+	}
+
 	public static List<FileInfo> getLNXDeepContents(final InputStream in) throws IOException
 	{
 		final List<FileInfo> list = new ArrayList<FileInfo>();
-		int[] bytesSoFar=new int[1];
+		final int[] bytesSoFar=new int[1];
 		int zeroes=0;
 		while(in.available()>0)
 		{
-			int b = in.read();
+			final int b = in.read();
 			if(b<0)
 				break;
 			bytesSoFar[0]++;
@@ -110,16 +124,25 @@ public class D64FileMatcher extends D64Mod
 		||(headerSize <= 0)
 		||(sigLine.indexOf("LYNX")<0))
 			throw new IOException("Illegal signature: "+sigLine);
-		final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
-		if((numEntryLine.length()==0)
-		||(!Character.isDigit(numEntryLine.charAt(0))))
-			throw new IOException("Illegal numEntries: "+numEntryLine);
-		final int numEntries = Integer.parseInt(numEntryLine);
+		final int numEntries;
+		if(isInteger(splitSig[splitSig.length-1])
+		&&(Integer.parseInt(splitSig[splitSig.length-1])<1000))
+		{
+			numEntries = Integer.parseInt(splitSig[splitSig.length-1]);
+		}
+		else
+		{
+			final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
+			if((numEntryLine.length()==0)
+			||(!Character.isDigit(numEntryLine.charAt(0))))
+				throw new IOException("Illegal numEntries: "+numEntryLine);
+			numEntries = Integer.parseInt(numEntryLine);
+		}
 		final byte[] rawDirBlock = new byte[(254 - bytesSoFar[0]) + ((headerSize-1) * 254)];
 		int bytesRead = 0;
 		while((in.available()>0) && (bytesRead < rawDirBlock.length))
 		{
-			int justRead = in.read(rawDirBlock, bytesRead, rawDirBlock.length-bytesRead);
+			final int justRead = in.read(rawDirBlock, bytesRead, rawDirBlock.length-bytesRead);
 			if(justRead < 0)
 				break;
 			if(justRead > 0)
@@ -139,23 +162,23 @@ public class D64FileMatcher extends D64Mod
 			||(typChar.length()==0)||(typChar.length()>3)
 			||(lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
 				throw new IOException("Bad directory entry "+(i+1)+": "+fileName+"."+typChar+": "+numBlockSz+"("+lastBlockSz+")");
-			FileInfo file = new FileInfo();
+			final FileInfo file = new FileInfo();
 			file.fileName = fileName;
 			file.fileType = FileType.fileType(typChar);
 			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue();
 			list.add(file);
 		}
-		for(FileInfo f : list)
+		for(final FileInfo f : list)
 		{
 			int fbytesRead = 0;
-			int numBlocks = (int)Math.round(Math.floor((double)f.size / 254.0));
+			int numBlocks = (int)Math.round(Math.floor(f.size / 254.0));
 			if((f.size % 254) > 0)
 				numBlocks++;
-			int allBlocksSize = numBlocks * 254;
-			byte[] fileSubBytes = new byte[allBlocksSize];
+			final int allBlocksSize = numBlocks * 254;
+			final byte[] fileSubBytes = new byte[allBlocksSize];
 			while((in.available()>0) && (fbytesRead < allBlocksSize))
 			{
-				int justRead = in.read(fileSubBytes, fbytesRead, allBlocksSize-fbytesRead);
+				final int justRead = in.read(fileSubBytes, fbytesRead, allBlocksSize-fbytesRead);
 				if(justRead < 0)
 					break;
 				if(justRead > 0)
@@ -165,27 +188,50 @@ public class D64FileMatcher extends D64Mod
 			{
 				if((list.get(list.size()-1)!=f)
 				||(fbytesRead < f.size-1024))
-					throw new IOException("Incomplete data for "+f.fileName);
+				{
+					System.err.println("Incomplete data for "+f.fileName+" in LYNX file.");
+					if(f == list.get(0))
+						throw new IOException("Incomplete data for "+f.fileName);
+					return list;
+				}
 			}
 			f.data = Arrays.copyOf(fileSubBytes, f.size);
 		}
 		return list;
 	}
-	
+
 	public static List<FileInfo> getZipDeepContents(final File F) throws IOException
 	{
 		final ZipArchiveInputStream zin = new ZipArchiveInputStream(new FileInputStream(F));
 		java.util.zip.ZipEntry entry = null;
 		final List<FileInfo> list = new ArrayList<FileInfo>();
-		while ((entry = zin.getNextZipEntry()) != null) 
+		while ((entry = zin.getNextZipEntry()) != null)
 		{
-			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(entry.getName());
 			final List<FileInfo> fileData1;
+			if(entry.getName().toUpperCase().endsWith(".LNX")) // loose file conditions
+			{
+				int size = (int)entry.getSize();
+				if(size < 0)
+					size=MAGIC_MAX;
+				fileData1 = new ArrayList<FileInfo>();
+				try
+				{
+					fileData1.add(D64FileMatcher.getLooseFile(zin, entry.getName(), size));
+				}
+				catch(final IOException e)
+				{
+					System.err.println(entry.getName()+": "+e.getMessage());
+					continue;
+				}
+				list.addAll(fileData1);
+				continue;
+			}
 			if(entry.getSize()<0)
 			{
 				errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
 				continue;
 			}
+			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(entry.getName());
 			if(typeF1 != null)
 			{
 				final int[] f1Len=new int[1];
@@ -202,10 +248,13 @@ public class D64FileMatcher extends D64Mod
 			else
 			if(getLooseImageTypeAndZipped(entry.getName()) != null)
 			{
+				int size = (int)entry.getSize();
+				if(size < 0)
+					size=MAGIC_MAX;
 				fileData1 = new ArrayList<FileInfo>();
 				try
 				{
-					fileData1.add(D64FileMatcher.getLooseFile(zin, entry.getName(), (int)entry.getSize()));
+					fileData1.add(D64FileMatcher.getLooseFile(zin, entry.getName(), size));
 				}
 				catch(final IOException e)
 				{
@@ -301,7 +350,7 @@ public class D64FileMatcher extends D64Mod
 
 	public static List<FileInfo> getFileList(final File F)
 	{
-		int[] fLen=new int[1];
+		final int[] fLen=new int[1];
 		byte[][][] diskF;
 		List<FileInfo> fileData = null;
 		final IMAGE_TYPE typeF = getImageTypeAndZipped(F);
@@ -316,7 +365,23 @@ public class D64FileMatcher extends D64Mod
 			fileData = new ArrayList<FileInfo>();
 			try
 			{
-				fileData.add(D64FileMatcher.getLooseFile(F));
+				final FileInfo iF=D64FileMatcher.getLooseFile(F);
+				if((iF.fileName!=null)
+				&& iF.fileName.toUpperCase().endsWith(".LNX")
+				&& (iF.data!=null))
+				{
+					final ByteArrayInputStream fin=new ByteArrayInputStream(iF.data);
+					try
+					{
+						fileData.addAll(getLNXDeepContents(fin));
+					}
+					finally
+					{
+						fin.close();
+					}
+				}
+				else
+					fileData.add(iF);
 			}
 			catch(final IOException e)
 			{
@@ -330,6 +395,25 @@ public class D64FileMatcher extends D64Mod
 			try
 			{
 				fileData = D64FileMatcher.getZipDeepContents(F);
+				final List<FileInfo> readSet = new ArrayList<FileInfo>(fileData);
+				for(final FileInfo iF : readSet)
+				{
+					if((iF.fileName!=null)
+					&& iF.fileName.toUpperCase().endsWith(".LNX")
+					&& (iF.data!=null))
+					{
+						fileData.remove(iF);
+						final ByteArrayInputStream fin=new ByteArrayInputStream(iF.data);
+						try
+						{
+							fileData.addAll(getLNXDeepContents(fin));
+						}
+						finally
+						{
+							fin.close();
+						}
+					}
+				}
 			}
 			catch(final IOException e)
 			{
@@ -357,8 +441,8 @@ public class D64FileMatcher extends D64Mod
 		}
 		return fileData;
 	}
-	
-	
+
+
 	public static void main(final String[] args)
 	{
 		if(args.length<2)
@@ -537,7 +621,7 @@ public class D64FileMatcher extends D64Mod
 			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(final FileInfo key : report.keySet())
 				sortedKeys.add(key);
-			Collections.sort(sortedKeys,new Comparator<FileInfo>() 
+			Collections.sort(sortedKeys,new Comparator<FileInfo>()
 			{
 				@Override
 				public int compare(final FileInfo o1, final FileInfo o2) {
