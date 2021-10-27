@@ -1072,12 +1072,19 @@ public class D64Base
 	{
 		for(final LOOSE_IMAGE_TYPE img : LOOSE_IMAGE_TYPE.values())
 		{
-			if(fileName.toUpperCase().endsWith(img.toString())
-			||fileName.toUpperCase().endsWith(img.toString()+".GZ"))
+			final String uf = fileName.toUpperCase();
+			if(uf.endsWith(img.toString())
+			||uf.endsWith(img.toString()+".GZ"))
 			{
 				final LOOSE_IMAGE_TYPE type=img;
 				return type;
 			}
+			else
+			if(uf.endsWith(",S"))
+				return LOOSE_IMAGE_TYPE.SEQ;
+			else
+			if(uf.endsWith(",P"))
+				return LOOSE_IMAGE_TYPE.PRG;
 		}
 		return null;
 	}

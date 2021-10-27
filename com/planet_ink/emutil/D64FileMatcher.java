@@ -226,14 +226,14 @@ public class D64FileMatcher extends D64Mod
 				list.addAll(fileData1);
 				continue;
 			}
-			if(entry.getSize()<0)
-			{
-				errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
-				continue;
-			}
 			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(entry.getName());
 			if(typeF1 != null)
 			{
+				if(entry.getSize()<0)
+				{
+					errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
+					continue;
+				}
 				final int[] f1Len=new int[1];
 				byte[][][] diskF1=getDisk(typeF1,zin,entry.getName(),(int)entry.getSize(), f1Len);
 				fileData1=getDiskFiles(entry.getName(),typeF1,diskF1,f1Len[0]);
