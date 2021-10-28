@@ -573,17 +573,31 @@ public class D64Base
 						{
 						case (byte) 0:
 							if(readInside)
+							{
 								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+								if((fileData != null)&&(fileData.length>0))
+									f.size=fileData.length;
+							}
 							f.fileType = FileType.DEL;
+							if((fileData != null)&&(fileData.length>0))
+								f.size=fileData.length;
 							break;
 						case (byte) 1:
 							if(readInside)
+							{
 								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+								if((fileData != null)&&(fileData.length>0))
+									f.size=fileData.length;
+							}
 							f.fileType = FileType.SEQ;
 							break;
 						case (byte) 2:
 							if(readInside)
+							{
 								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+								if((fileData != null)&&(fileData.length>0))
+									f.size=fileData.length;
+							}
 							f.fileType = FileType.PRG;
 							break;
 						case (byte) 3:
@@ -703,7 +717,11 @@ public class D64Base
 										}
 									}
 									if(readInside)
+									{
 										fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+										if((fileData != null)&&(fileData.length>0))
+											f.size=fileData.length;
+									}
 								}
 							}
 							break;
@@ -718,13 +736,21 @@ public class D64Base
 							//if(flags.contains(COMP_FLAG.RECURSE))
 							fillFileListFromHeader(imgName,srcFLen,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, readInside);
 							if(readInside)
+							{
 								fileData=getFileContent(f.fileName,tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
+								if((fileData != null)&&(fileData.length>0))
+									f.size=fileData.length;
+							}
 							//finalData.remove(f);
 							break;
 						default:
 							f.fileType = FileType.PRG;
 							if(readInside)
+							{
 								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+								if((fileData != null)&&(fileData.length>0))
+									f.size=fileData.length;
+							}
 							break;
 						}
 						if(fileData==null)
