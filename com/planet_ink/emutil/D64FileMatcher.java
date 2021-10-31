@@ -610,14 +610,6 @@ public class D64FileMatcher extends D64Mod
 					for(final FileInfo f1 : fileData1)
 					{
 						final List<D64Report> rep = report.get(f1);
-						if(f2.fileName.equals(f1.fileName))
-						{
-							if(!Arrays.equals(f1.data, f2.data))
-								rep.add(new D64Report(F2,false,f2));
-							else
-								rep.add(new D64Report(F2,true,f2));
-						}
-						else
 						if((f2.hash() == f1.hash())
 						&&(Arrays.equals(f1.data, f2.data)))
 							rep.add(new D64Report(F2,true,f2));
@@ -630,13 +622,22 @@ public class D64FileMatcher extends D64Mod
 							if(!matched)
 							{
 								int hp=FileInfo.hashCompare(f1, f2);
+								if(f2.fileName.equals(f1.fileName))
+									rep.add(new D64Report(F2,false,f2,hp));
+								else
 								if(!approxs.containsKey(f1))
 									approxs.put(f1, new D64Report(F2,false,f2,hp));
 								else
 								if(hp>approxs.get(f1).approx)
 									approxs.put(f1, new D64Report(F2,false,f2,hp));
 							}
+							else
+							if(f2.fileName.equals(f1.fileName))
+								rep.add(new D64Report(F2,false,f2));
 						}
+						else
+						if(f2.fileName.equals(f1.fileName))
+							rep.add(new D64Report(F2,false,f2));
 					}
 				}
 			}
