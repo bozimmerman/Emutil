@@ -453,6 +453,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("  D64FileMatcher <file/path1> <file/path2>");
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search inside DNP");
+			System.out.println("  -A approx matching (slower)");
 			System.out.println("  -V verbose");
 			System.out.println("  -P X verbose on disks with X percent matches");
 			System.out.println("  -C use memory cache of all comparison files");
@@ -464,6 +465,7 @@ public class D64FileMatcher extends D64Mod
 		String path=null;
 		String expr="";
 		int depth=Integer.MAX_VALUE;
+		boolean deeper = false;
 		double pct=100.0;
 		for(int i=0;i<args.length;i++)
 		{
@@ -476,6 +478,10 @@ public class D64FileMatcher extends D64Mod
 					case 'r':
 					case 'R':
 						flags.add(COMP_FLAG.RECURSE);
+						break;
+					case 'a':
+					case 'A':
+						deeper=true;
 						break;
 					case 'v':
 					case 'V':
@@ -533,11 +539,17 @@ public class D64FileMatcher extends D64Mod
 			File diskF=null;
 			boolean equal = false;
 			FileInfo compareFD=null;
+			int approx;
 			public D64Report(final File diskF, final boolean equal, final FileInfo compareFD)
 			{
 				this.diskF=diskF;
 				this.equal=equal;
 				this.compareFD=compareFD;
+			}
+			public D64Report(final File diskF, final boolean equal, final FileInfo compareFD, int approx)
+			{
+				this(diskF, equal, compareFD);
+				this.approx=approx;
 			}
 		}
 
@@ -547,6 +559,7 @@ public class D64FileMatcher extends D64Mod
 		for(final File F1 : F1s)
 		{
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
+			final Map<FileInfo,D64Report> approxs=new HashMap<FileInfo,D64Report>();
 			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1);
 			if(fileData1 == null)
 			{
@@ -596,9 +609,9 @@ public class D64FileMatcher extends D64Mod
 				{
 					for(final FileInfo f1 : fileData1)
 					{
+						final List<D64Report> rep = report.get(f1);
 						if(f2.fileName.equals(f1.fileName))
 						{
-							final List<D64Report> rep = report.get(f1);
 							if(!Arrays.equals(f1.data, f2.data))
 								rep.add(new D64Report(F2,false,f2));
 							else
@@ -607,11 +620,36 @@ public class D64FileMatcher extends D64Mod
 						else
 						if((f2.hash() == f1.hash())
 						&&(Arrays.equals(f1.data, f2.data)))
-						{
-							final List<D64Report> rep = report.get(f1);
 							rep.add(new D64Report(F2,true,f2));
+						else
+						if(deeper)
+						{
+							boolean matched=false;
+							for(final D64Report r : rep)
+								matched = matched | r.equal;
+							if(!matched)
+							{
+								int hp=FileInfo.hashCompare(f1, f2);
+								if(!approxs.containsKey(f1))
+									approxs.put(f1, new D64Report(F2,false,f2,hp));
+								else
+								if(hp>approxs.get(f1).approx)
+									approxs.put(f1, new D64Report(F2,false,f2,hp));
+							}
 						}
 					}
+				}
+			}
+			for(FileInfo f1 : approxs.keySet())
+			{
+				if(approxs.containsKey(f1))
+				{
+					final List<D64Report> rep = report.get(f1);
+					boolean matched=false;
+					for(final D64Report r : rep)
+						matched = matched | r.equal;
+					if(!matched)
+						rep.add(approxs.get(f1));
 				}
 			}
 			final StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
@@ -693,7 +731,15 @@ public class D64FileMatcher extends D64Mod
 							int dlen=20;
 							if(r.diskF.getName().length()>dlen)
 								dlen=r.diskF.getName().length();
-							subStr.append("    "+(r.equal?"MATCH:":"DIFF :")).append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+							final String matchStr;
+							if(r.equal)
+								matchStr="MATCH";
+							else
+							if(r.approx>0)
+								matchStr=(""+r.approx+"%     ").substring(0,5);
+							else
+								matchStr="DIFF";
+							subStr.append("    "+matchStr+":").append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
 						}
 					}
 				}
