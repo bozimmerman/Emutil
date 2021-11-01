@@ -1,7 +1,7 @@
 package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
-/* 
+/*
 Copyright 2016-2017 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-public class CMDHDParser 
+public class CMDHDParser
 {
-	public CMDHDParser() 
+	public CMDHDParser()
 	{
 	}
 
@@ -35,7 +35,7 @@ public class CMDHDParser
 	}
 	private static void instructOut()
 	{
-		System.out.println("CMDHDParser v1.1 (c)2016-2017 Bo Zimmerman");
+		System.out.println("CMDHDParser v"+D64Base.EMUTIL_VERSION+" (c)2016-"+D64Base.EMUTIL_AUTHOR);
 		System.out.println("");
 		System.out.println("USAGE: ");
 		System.out.println("  CMDHDParser LIST <CMDHD_RAWIMAGE>");
@@ -46,40 +46,40 @@ public class CMDHDParser
 		System.out.println("");
 		System.exit(-1);
 	}
-	
-	private static boolean isInteger(String s)
+
+	private static boolean isInteger(final String s)
 	{
 		try
 		{
 			Integer.parseInt(s);
 			return true;
 		}
-		catch(Exception e)
+		catch(final Exception e)
 		{
 			return false;
 		}
 	}
-	
-	private static int toInteger(String s)
+
+	private static int toInteger(final String s)
 	{
 		try
 		{
 			return Integer.parseInt(s);
 		}
-		catch(Exception e)
+		catch(final Exception e)
 		{
 			return 0;
 		}
 	}
-	
-	private static String padRight(String s, int pad)
+
+	private static String padRight(String s, final int pad)
 	{
 		while(s.length()<pad)
 			s+=" ";
 		return s;
 	}
-	
-	private static char convertToPetscii(byte b)
+
+	private static char convertToPetscii(final byte b)
 	{
 		if(b<65) return (char)b;
 		if(b<91) return Character.toLowerCase((char)b);
@@ -87,18 +87,18 @@ public class CMDHDParser
 		if(b<219) return Character.toUpperCase((char)(b-128));
 		return (char)(b-128);
 	}
-	
-	public static short unsigned(byte b)
+
+	public static short unsigned(final byte b)
 	{
 		return (short)(0xFF & b);
 	}
-	
-	public static String toHex(byte b) 
+
+	public static String toHex(final byte b)
 	{
 		return HEX[unsigned(b)];
 	}
 
-	public static String toHex(long l) 
+	public static String toHex(long l)
 	{
 		String hex="";
 		while(l>0)
@@ -109,9 +109,9 @@ public class CMDHDParser
 		return hex;
 	}
 
-	public static String toHex(byte[] buf)
+	public static String toHex(final byte[] buf)
 	{
-		StringBuffer ret=new StringBuffer("");
+		final StringBuffer ret=new StringBuffer("");
 		for(int b=0;b<buf.length;b++)
 			ret.append(toHex(buf[b]));
 		return ret.toString();
@@ -127,19 +127,19 @@ public class CMDHDParser
 		long startAddr=-1;
 		long len=-1;
 	}
-	
+
 	@SuppressWarnings("serial")
 	private static class CMDHDParseException extends Exception
 	{
-		public CMDHDParseException(String msg)
+		public CMDHDParseException(final String msg)
 		{
 			super(msg);
 		}
 	}
-	
-	public static List<PartInfo> getPartInfo(RandomAccessFile hdR) throws IOException,CMDHDParseException
+
+	public static List<PartInfo> getPartInfo(final RandomAccessFile hdR) throws IOException,CMDHDParseException
 	{
-		List<PartInfo> list=new LinkedList<PartInfo>();
+		final List<PartInfo> list=new LinkedList<PartInfo>();
 		long pos = 262144;
 		hdR.seek(pos);
 		if((hdR.read()!=1)||(hdR.read()!=1))
@@ -150,12 +150,12 @@ public class CMDHDParser
 		for(int part=0;part<256;part++)
 		{
 			hdR.seek(pos + (part * 32));
-			byte[] partEntry = new byte[32];
+			final byte[] partEntry = new byte[32];
 			hdR.readFully(partEntry);
-			int partType = unsigned(partEntry[0]);
+			final int partType = unsigned(partEntry[0]);
 			if(partType ==0)
 				continue;
-			PartInfo info = new PartInfo();
+			final PartInfo info = new PartInfo();
 			info.number=part;
 			info.type=partType;
 			if((partType > 5)&&(partType < 255))
@@ -187,7 +187,7 @@ public class CMDHDParser
 			{
 				throw new CMDHDParseException("CMD HD Raw Image Invalid (0 check)!");
 			}
-			byte[] rawPartName = Arrays.copyOfRange(partEntry, 3, 19);
+			final byte[] rawPartName = Arrays.copyOfRange(partEntry, 3, 19);
 			int partNameLen = 15;
 			while((partNameLen>=0) && (unsigned(rawPartName[partNameLen])== 160))
 				partNameLen--;
@@ -200,19 +200,19 @@ public class CMDHDParser
 		}
 		return list;
 	}
-	
-	public static void main(String[] args)
+
+	public static void main(final String[] args)
 	{
 		if(args.length<2)
 		{
 			instructOut();
 			return;
 		}
-		String command = args[0];
+		final String command = args[0];
 		if(command.equalsIgnoreCase("LIST"))
 		{
-			String hdFilename = args[1];
-			File hdF=new File(hdFilename);
+			final String hdFilename = args[1];
+			final File hdF=new File(hdFilename);
 			if((!hdF.exists())||hdF.isDirectory())
 			{
 				System.err.println("CMD HD Raw Image file not found!");
@@ -220,10 +220,10 @@ public class CMDHDParser
 			}
 			try
 			{
-				RandomAccessFile hdR=new RandomAccessFile(hdF,"r");
-				List<PartInfo> list = getPartInfo(hdR);
+				final RandomAccessFile hdR=new RandomAccessFile(hdF,"r");
+				final List<PartInfo> list = getPartInfo(hdR);
 				hdR.close();
-				for(PartInfo info : list)
+				for(final PartInfo info : list)
 				{
 					System.out.print(padRight(""+info.number,3)+": ");
 					System.out.print(info.typeName+" ");
@@ -233,12 +233,12 @@ public class CMDHDParser
 					System.out.println();
 				}
 			}
-			catch(CMDHDParseException e)
+			catch(final CMDHDParseException e)
 			{
 				System.err.println(e.getMessage());
 				System.exit(-1);
 			}
-			catch(Exception e)
+			catch(final Exception e)
 			{
 				e.printStackTrace();
 				System.exit(-1);
@@ -266,10 +266,10 @@ public class CMDHDParser
 					partNum=toInteger(args[3]);
 				}
 			}
-			String hdFilename = args[1];
-			String targetPath = args[2];
-			File hdF=new File(hdFilename);
-			File targP=new File(targetPath);
+			final String hdFilename = args[1];
+			final String targetPath = args[2];
+			final File hdF=new File(hdFilename);
+			final File targP=new File(targetPath);
 			if((!hdF.exists())||hdF.isDirectory())
 			{
 				System.err.println("CMD HD Raw Image file not found!");
@@ -280,12 +280,12 @@ public class CMDHDParser
 				System.err.println("Target path not found or not directory!");
 				System.exit(-1);
 			}
-			
+
 			try
 			{
-				RandomAccessFile hdR=new RandomAccessFile(hdF,"r");
-				List<PartInfo> list = getPartInfo(hdR);
-				for(PartInfo info : list)
+				final RandomAccessFile hdR=new RandomAccessFile(hdF,"r");
+				final List<PartInfo> list = getPartInfo(hdR);
+				for(final PartInfo info : list)
 				{
 					if((partNum < 0)||(partNum == info.number))
 					{
@@ -295,7 +295,7 @@ public class CMDHDParser
 						File F=targP;
 						if((partNum<0)||(targP.isDirectory()))
 							F = new File(targP,info.number+"_"+info.name+"."+info.typeName.toLowerCase());
-						FileOutputStream fout = new FileOutputStream(F);
+						final FileOutputStream fout = new FileOutputStream(F);
 						fout.write(buf);
 						fout.close();
 						System.out.println("Wrote "+F.getAbsolutePath());
@@ -304,12 +304,12 @@ public class CMDHDParser
 				System.out.println("Done.");
 				hdR.close();
 			}
-			catch(CMDHDParseException e)
+			catch(final CMDHDParseException e)
 			{
 				System.err.println(e.getMessage());
 				System.exit(-1);
 			}
-			catch(Exception e)
+			catch(final Exception e)
 			{
 				e.printStackTrace();
 				System.exit(-1);
@@ -337,10 +337,10 @@ public class CMDHDParser
 					partNum=toInteger(args[3]);
 				}
 			}
-			String hdFilename = args[1];
-			String targetPath = args[2];
-			File hdF=new File(hdFilename);
-			File inP=new File(targetPath);
+			final String hdFilename = args[1];
+			final String targetPath = args[2];
+			final File hdF=new File(hdFilename);
+			final File inP=new File(targetPath);
 			if((!hdF.exists())||hdF.isDirectory())
 			{
 				System.err.println("CMD HD Raw Image file not found!");
@@ -351,12 +351,12 @@ public class CMDHDParser
 				System.err.println("Input path not found or not directory!");
 				System.exit(-1);
 			}
-			
+
 			try
 			{
-				RandomAccessFile hdR=new RandomAccessFile(hdF,"rws");
-				List<PartInfo> list = getPartInfo(hdR);
-				for(PartInfo info : list)
+				final RandomAccessFile hdR=new RandomAccessFile(hdF,"rws");
+				final List<PartInfo> list = getPartInfo(hdR);
+				for(final PartInfo info : list)
 				{
 					if((partNum < 0)||(partNum == info.number))
 					{
@@ -374,7 +374,7 @@ public class CMDHDParser
 							System.err.println("Partition Input Image '"+F.getAbsolutePath()+"' not value, because it must be "+info.len+" bytes!");
 							System.exit(-1);
 						}
-						RandomAccessFile fin = new RandomAccessFile(F,"r");
+						final RandomAccessFile fin = new RandomAccessFile(F,"r");
 						fin.readFully(buf);
 						fin.close();
 						hdR.seek(info.startAddr);
@@ -385,12 +385,12 @@ public class CMDHDParser
 				System.out.println("Done.");
 				hdR.close();
 			}
-			catch(CMDHDParseException e)
+			catch(final CMDHDParseException e)
 			{
 				System.err.println(e.getMessage());
 				System.exit(-1);
 			}
-			catch(Exception e)
+			catch(final Exception e)
 			{
 				e.printStackTrace();
 				System.exit(-1);

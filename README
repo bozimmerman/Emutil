@@ -31,6 +31,8 @@ java -jar bin/D64Search.jar
 or
 java com.planet_ink.emutil.D64Search
 
+D64Search v2.1 (c)2006-2021 Bo Zimmerman
+
 USAGE:
   D64Search <options> <path> <expression>
 OPTIONS:
@@ -46,11 +48,11 @@ OPTIONS:
      (Columns: string imagepath,
                string filename, int filenum,
                long size, string md5,
-               BLOB filedata,string filetype)
+               string filetype)
+
 
 * Expressions include % and ? characters.
 * Hex expressions include hex digits, *, and ?.
-
 -----------------------------------------------------------------------------
 D64Compare
 -----------
@@ -66,7 +68,7 @@ java -jar bin/D64Compare.jar
 or
 java com.planet_ink.emutil.D64Compare
 
-D64Compare v1.0 (c)2016-2017 Bo Zimmerman
+D64Compare v2.1 (c)2016-2021 Bo Zimmerman
 
 USAGE:
   D64Compare <file1> <file2>
@@ -74,13 +76,16 @@ USAGE:
 -----------------------------------------------------------------------------
 D64FileMatcher
 --------------
-D64FileMatcher v1.0 (c)2017-2017 Bo Zimmerman
+D64FileMatcher v2.1 (c)2017-2021 Bo Zimmerman
 
-USAGE: 
+USAGE:
   D64FileMatcher <file/path1> <file/path2>
-OPTIONS:");
+OPTIONS:
   -R recursive search inside DNP
+  -A X approx matching min X% (slower)
   -V verbose
+  -P X verbose on disks with X percent matches
+  -C use memory cache of all comparison files
   -D X Recursive depth X
 
 -----------------------------------------------------------------------------
@@ -96,9 +101,9 @@ java -jar bin/D64Mod.jar
 or
 java com.planet_ink.emutil.D64Mod
 
-D64Mod v1.0 (c)2017-2017 Bo Zimmerman
+D64Mod v2.1 (c)2017-2021 Bo Zimmerman
 
-USAGE: 
+USAGE:
   D64Mod <image file> <action> <action arguments>
 ACTIONS:
   SCRATCH <file>
@@ -107,8 +112,8 @@ ACTIONS:
   BAM CHECK
   BAM ALLOC (Checks for sectors that need bam alloc)
   BAM FREE (Checks for sectors that need bam free)
-  LIST <PATH>
-  LIST ALL
+  LIST/DIR <PATH>
+  LIST/DIR ALL
 
 -----------------------------------------------------------------------------
 CMDHDParser
@@ -126,7 +131,7 @@ java -jar bin/CMDHDParser.jar
 or
 java com.planet_ink.emutil.CMDHDParser
 
-CMDHDParser v1.0 (c)2016-2016 Bo Zimmerman
+CMDHDParser v2.1 (c)2016-2021 Bo Zimmerman
 
 USAGE:
   CMDHDParser LIST <CMDHD_RAWIMAGE>
@@ -152,13 +157,14 @@ java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
 or
 java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
 
-D64Duplifind v1.6 (c)2016-2016 Bo Zimmerman
+D64Duplifind v2.1 (c)2016-2021 Bo Zimmerman
 
 USAGE:
   D64Duplifind <options>
 OPTIONS:
   -R recursive search
   -V verbose
+  -S matches1 matches2 mismatches1 mismatches2
   -1 add to path1
   -2 add to path2
 
