@@ -402,7 +402,7 @@ public class D64Mod extends D64Base
 	{
 		if(args.length<3)
 		{
-			System.out.println("D64Mod v1.1 (c)2017-2017 Bo Zimmerman");
+			System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Mod <image file> <action> <action arguments>");

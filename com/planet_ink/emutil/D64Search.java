@@ -313,7 +313,7 @@ public class D64Search extends D64Mod
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64Search v1.9 (c)2006-2017 Bo Zimmerman");
+			System.out.println("D64Search v"+EMUTIL_VERSION+" (c)2006-"+EMUTIL_AUTHOR);
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64Search <options> <path> <expression>");

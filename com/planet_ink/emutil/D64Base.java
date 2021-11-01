@@ -38,6 +38,9 @@ public class D64Base
 
 	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
+	final static String EMUTIL_VERSION = "2.1";
+	final static String EMUTIL_AUTHOR = "2021 Bo Zimmerman";
+
 	public D64Base() {}
 
 	final static String spaces="                                                                                                               ";
@@ -146,11 +149,11 @@ public class D64Base
 					rollingHashes = new TreeSet<Long>();
 				else
 				{
-					TreeSet<Long> rh = new TreeSet<Long>();
+					final TreeSet<Long> rh = new TreeSet<Long>();
 					long roller=0;
 					for(int i=0;i<data.length;i++)
 					{
-						roller = (roller << 8) | (long)data[i]; 
+						roller = (roller << 8) | data[i];
 						rh.add(Long.valueOf(roller));
 					}
 					rollingHashes = rh;
@@ -164,20 +167,20 @@ public class D64Base
 					fixedHashes = new TreeSet<Long>();
 				else
 				{
-					TreeSet<Long> rh = new TreeSet<Long>();
+					final TreeSet<Long> rh = new TreeSet<Long>();
 					for(int i=0;i<data.length-7;i+=8)
 					{
 						long roller=0;
 						for(int ii=0;ii<8;ii++)
-							roller = (roller << 8) | (long)data[i+ii];
+							roller = (roller << 8) | data[i+ii];
 						rh.add(Long.valueOf(roller));
 					}
 					if((data.length>8)&&(data.length%8!=0))
 					{
 						long roller=0;
-						
+
 						for(int ii=(data.length>8?data.length-8:0);ii<data.length;ii++)
-							roller = (roller << 8) | (long)data[ii];
+							roller = (roller << 8) | data[ii];
 						rh.add(Long.valueOf(roller));
 					}
 					fixedHashes = rh;
@@ -185,28 +188,35 @@ public class D64Base
 			}
 			return fixedHashes;
 		}
-		public static int hashCompare(FileInfo F1, FileInfo F2)
+		public static int hashCompare(final FileInfo F1, final FileInfo F2)
 		{
-			final Set<Long> f1ch = F1.getFixedHashes();
-			final Set<Long> f2ch = F2.getFixedHashes();
-			final Set<Long> f1ro = F1.getRollingHashes();
-			final Set<Long> f2ro = F2.getRollingHashes();
-			final double lenPct = (F1.size > F2.size) ? ((double)F2.size/(double)F1.size): ((double)F1.size/(double)F2.size);
-			int ct1 = 0;
-			int ct2 = 0;
-			for(final Long I : f1ch)
-				if(f2ro.contains(I))
-					ct1++;
-			for(final Long I : f2ch)
-				if(f1ro.contains(I))
-					ct2++;
-			double pct1=0;
-			if(f1ch.size()>0)
-				pct1=(double)ct1/(double)f1ch.size();
-			double pct2=0;
-			if(f2ch.size()>0)
-				pct2=(double)ct2/(double)f2ch.size();
-			return (int)Math.round((lenPct*pct1*pct2*30)+(pct1*35)+(pct2*35));
+			try
+			{
+				final Set<Long> f1ch = F1.getFixedHashes();
+				final Set<Long> f2ch = F2.getFixedHashes();
+				final Set<Long> f1ro = F1.getRollingHashes();
+				final Set<Long> f2ro = F2.getRollingHashes();
+				final double lenPct = (F1.size > F2.size) ? ((double)F2.size/(double)F1.size): ((double)F1.size/(double)F2.size);
+				int ct1 = 0;
+				int ct2 = 0;
+				for(final Long I : f1ch)
+					if(f2ro.contains(I))
+						ct1++;
+				for(final Long I : f2ch)
+					if(f1ro.contains(I))
+						ct2++;
+				double pct1=0;
+				if(f1ch.size()>0)
+					pct1=(double)ct1/(double)f1ch.size();
+				double pct2=0;
+				if(f2ch.size()>0)
+					pct2=(double)ct2/(double)f2ch.size();
+				return (int)Math.round((lenPct*pct1*pct2*30)+(pct1*35)+(pct2*35));
+			}
+			catch(final NullPointerException ne)
+			{
+				return 0;
+			}
 		}
 	}
 

@@ -447,13 +447,13 @@ public class D64FileMatcher extends D64Mod
 	{
 		if(args.length<2)
 		{
-			System.out.println("D64FileMatcher v1.1 (c)2017-2017 Bo Zimmerman");
+			System.out.println("D64FileMatcher v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
 			System.out.println("");
 			System.out.println("USAGE: ");
 			System.out.println("  D64FileMatcher <file/path1> <file/path2>");
 			System.out.println("OPTIONS:");
 			System.out.println("  -R recursive search inside DNP");
-			System.out.println("  -A approx matching (slower)");
+			System.out.println("  -A X approx matching min X% (slower)");
 			System.out.println("  -V verbose");
 			System.out.println("  -P X verbose on disks with X percent matches");
 			System.out.println("  -C use memory cache of all comparison files");
@@ -465,7 +465,7 @@ public class D64FileMatcher extends D64Mod
 		String path=null;
 		String expr="";
 		int depth=Integer.MAX_VALUE;
-		boolean deeper = false;
+		int deeper = -1;
 		double pct=100.0;
 		for(int i=0;i<args.length;i++)
 		{
@@ -481,7 +481,11 @@ public class D64FileMatcher extends D64Mod
 						break;
 					case 'a':
 					case 'A':
-						deeper=true;
+						if(i<args.length-1)
+						{
+							deeper=Integer.parseInt(args[i+1]);
+							i++;
+						}
 						break;
 					case 'v':
 					case 'V':
@@ -546,7 +550,7 @@ public class D64FileMatcher extends D64Mod
 				this.equal=equal;
 				this.compareFD=compareFD;
 			}
-			public D64Report(final File diskF, final boolean equal, final FileInfo compareFD, int approx)
+			public D64Report(final File diskF, final boolean equal, final FileInfo compareFD, final int approx)
 			{
 				this(diskF, equal, compareFD);
 				this.approx=approx;
@@ -614,22 +618,25 @@ public class D64FileMatcher extends D64Mod
 						&&(Arrays.equals(f1.data, f2.data)))
 							rep.add(new D64Report(F2,true,f2));
 						else
-						if(deeper)
+						if(deeper > -1)
 						{
 							boolean matched=false;
 							for(final D64Report r : rep)
 								matched = matched | r.equal;
 							if(!matched)
 							{
-								int hp=FileInfo.hashCompare(f1, f2);
+								final int hp=FileInfo.hashCompare(f1, f2);
 								if(f2.fileName.equals(f1.fileName))
 									rep.add(new D64Report(F2,false,f2,hp));
 								else
-								if(!approxs.containsKey(f1))
-									approxs.put(f1, new D64Report(F2,false,f2,hp));
-								else
-								if(hp>approxs.get(f1).approx)
-									approxs.put(f1, new D64Report(F2,false,f2,hp));
+								if(hp >= deeper)
+								{
+									if(!approxs.containsKey(f1))
+										approxs.put(f1, new D64Report(F2,false,f2,hp));
+									else
+									if(hp>approxs.get(f1).approx)
+										approxs.put(f1, new D64Report(F2,false,f2,hp));
+								}
 							}
 							else
 							if(f2.fileName.equals(f1.fileName))
@@ -641,7 +648,7 @@ public class D64FileMatcher extends D64Mod
 					}
 				}
 			}
-			for(FileInfo f1 : approxs.keySet())
+			for(final FileInfo f1 : approxs.keySet())
 			{
 				if(approxs.containsKey(f1))
 				{
