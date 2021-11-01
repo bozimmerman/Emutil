@@ -96,6 +96,21 @@ public class D64Base
 			public String toString() {
 				return ".CVT";
 			}
+		},
+		SDA {
+			public String toString() {
+				return ".SDA";
+			}
+		},
+		SFX {
+			public String toString() {
+				return ".SFX";
+			}
+		},
+		ARC {
+			public String toString() {
+				return ".ARC";
+			}
 		}
 	}
 
@@ -558,9 +573,9 @@ public class D64Base
 		byte[] sector=null;
 		final ByteArrayOutputStream out=new ByteArrayOutputStream();
 		if(t>=tsmap.length)
-			throw new IOException("Illegal Track "+t+" for "+fileName);
+			throw new IOException("Illegal File First Track "+t+" for "+fileName);
 		if(s>=tsmap[t].length)
-			throw new IOException("Illegal Sector ("+t+","+s+")"+" for "+fileName);
+			throw new IOException("Illegal File First Sector ("+t+","+s+")"+" for "+fileName);
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
 		{
 			if(secsUsed != null)
@@ -577,9 +592,9 @@ public class D64Base
 			if(t==0)
 				break;
 			if(t>=tsmap.length)
-				throw new IOException("Illegal Track "+t);
+				throw new IOException("Illegal File Link Track "+t);
 			if(s>=tsmap[t].length)
-				throw new IOException("Illegal Sector ("+t+","+s+")");
+				throw new IOException("Illegal File Link Sector ("+t+","+s+")");
 		}
 		return out.toByteArray();
 	}
@@ -844,7 +859,7 @@ public class D64Base
 					catch(final IOException e)
 					{
 						errMsg(imgName+": Error: "+f.filePath+": "+e.getMessage());
-						return;
+						//return; // omg, this doesn't mean EVERY file is bad!
 					}
 				}
 			}
@@ -1124,6 +1139,12 @@ public class D64Base
 		case CVT:
 			file.fileName = fileName;
 			file.fileType = D64Base.FileType.USR;
+			break;
+		case SDA:
+		case SFX:
+		case ARC:
+			file.fileName = fileName;
+			file.fileType = D64Base.FileType.PRG;
 			break;
 		case PRG:
 			file.fileName = fileName.substring(0,fileName.length()-4);
