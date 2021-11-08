@@ -1114,10 +1114,10 @@ public class D64Base
 		}
 	}
 
-	public static FileInfo getLooseFile(final InputStream fin, final String fileName, final int fileLen) throws IOException
+	public static FileInfo getLooseFile(final InputStream fin, final String fileName, int fileLen) throws IOException
 	{
 		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(fileName);
-		final byte[] filedata;
+		byte[] filedata;
 		filedata = new byte[fileLen];
 		int lastLen = 0;
 		while(lastLen < fileLen)
@@ -1126,6 +1126,25 @@ public class D64Base
 			if(readBytes < 0)
 				break;
 			lastLen += readBytes;
+		}
+		if(fileName.toLowerCase().endsWith(".gz"))
+		{
+
+			final ByteArrayInputStream bfin = new ByteArrayInputStream(Arrays.copyOf(filedata, lastLen));
+			@SuppressWarnings("resource")
+			final GzipCompressorInputStream in = new GzipCompressorInputStream(bfin);
+			final byte[] lbuf = new byte[4096];
+			int read=in.read(lbuf);
+			final ByteArrayOutputStream bout=new ByteArrayOutputStream(lastLen*2);
+			while(read >= 0)
+			{
+				bout.write(lbuf,0,read);
+				read=in.read(lbuf);
+			}
+			//in.close(); dont do it -- this might be from a zip
+			fileLen=bout.toByteArray().length;
+			lastLen=fileLen;
+			filedata=bout.toByteArray();
 		}
 		final FileInfo file = new FileInfo();
 		if(typ == null)

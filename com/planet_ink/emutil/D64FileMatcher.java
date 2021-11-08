@@ -577,6 +577,8 @@ public class D64FileMatcher extends D64Mod
 			for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
 				final File F2=f.next();
+				if(F2.getAbsolutePath().equals(F1.getAbsolutePath()))
+					continue;
 				//int[] f2Len;
 				//byte[][][] diskF2;
 				List<FileInfo> fileData2;
