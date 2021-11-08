@@ -689,12 +689,12 @@ public class D64FileMatcher extends D64Mod
 				final String fs1 = "  " + key.filePath+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
 				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
 				{
-					subStr.append(fs1).append("\n");
 					if(rep.size()==0)
 					{
-						subStr.append("    N/A (No matches found on any target disks)").append("\n");
+						//subStr.append("    N/A (No matches found on any target disks)").append("\n");
 						continue;
 					}
+					subStr.append(fs1).append("\n");
 				}
 				boolean hasMatch=false;
 				double highestPercent=0.0;
