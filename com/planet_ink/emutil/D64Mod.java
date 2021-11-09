@@ -398,17 +398,65 @@ public class D64Mod extends D64Base
 		return null;
 	}
 
+	public static void imageError(final String msg, final boolean cont)
+	{
+		System.err.println(msg);
+		if(!cont)
+			System.exit(-1);
+	}
+
+	public enum D64ImageFlag
+	{
+		RECURSE
+	}
+
+	public enum D64FormatFlag
+	{
+		PRGSEQ
+	}
+
 	public static void main(final String[] args)
 	{
-		if(args.length<3)
+		final Set<D64ImageFlag> imgFlags = new HashSet<D64ImageFlag>();
+		final Set<D64FormatFlag> fmtFlags = new HashSet<D64FormatFlag>();
+		final List<String> largs=new ArrayList<String>(args.length);
+		largs.addAll(Arrays.asList(args));
+		for(int i=0;i<largs.size();i++)
+		{
+			final String s=largs.get(i);
+			if((!s.startsWith("-"))||(s.length()<2))
+				break;
+			if(Character.toLowerCase(s.charAt(1))=='r')
+			{
+				imgFlags.add(D64ImageFlag.RECURSE);
+				largs.remove(i);
+				i--;
+			}
+		}
+		if(largs.size()>3)
+		{
+			for(int i=2;i<largs.size();i++)
+			{
+				final String s=largs.get(i);
+				if((!s.startsWith("-"))||(s.length()<2))
+					break;
+				if(Character.toLowerCase(s.charAt(1))=='p')
+				{
+					fmtFlags.add(D64FormatFlag.PRGSEQ);
+					largs.remove(i);
+					i--;
+				}
+			}
+		}
+		if(largs.size()<3)
 		{
 			System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
 			System.out.println("");
 			System.out.println("USAGE: ");
-			System.out.println("  D64Mod <image file> <action> <action arguments>");
+			System.out.println("  D64Mod (-r) <image file> <action> <action arguments>");
 			System.out.println("ACTIONS:");
 			System.out.println("  SCRATCH <file>");
-			System.out.println("  EXTRACT <file> <target path>");
+			System.out.println("  EXTRACT (-p) <file> <target path>");
 			System.out.println("  INSERT <source path> <file>");
 			System.out.println("  BAM CHECK");
 			System.out.println("  BAM ALLOC (Checks for sectors that need bam alloc)");
@@ -418,22 +466,53 @@ public class D64Mod extends D64Base
 			System.out.println("");
 			return;
 		}
-		final String imagePath=args[0];
-		final String actionStr=args[1];
-		String imageFileStr = args[2];
+		final String imagePath=largs.get(0);
+		final String actionStr=largs.get(1);
+		String imageFileStr = largs.get(2);
 		String expr="";
 		expr=expr.trim();
-		final File imageF=new File(imagePath);
-		if((!imageF.isFile())||(!imageF.exists())||(!imageF.canRead()))
+		final List<File> imageFiles = new ArrayList<File>();
+		final File chkF=new File(imagePath);
+		if(chkF.isDirectory())
 		{
-			System.err.println("image not found: "+imagePath);
-			System.exit(-1);
+			final LinkedList<File> dirs = new LinkedList<File>();
+			dirs.add(chkF);
+			while(dirs.size()>0)
+			{
+				final File dirF = dirs.removeFirst();
+				for(final File F : dirF.listFiles())
+				{
+					if(F.isDirectory() && imgFlags.contains(D64ImageFlag.RECURSE))
+					{
+						dirs.add(F);
+						continue;
+					}
+
+					if(F.isFile()&&F.exists()&&F.canRead()
+					&&(getImageTypeAndZipped(F)!=null))
+						imageFiles.add(F);
+				}
+			}
+			if(imageFiles.size()==0)
+			{
+				System.err.println("no disk images found in : "+imagePath);
+				System.exit(-1);
+			}
 		}
-		final IMAGE_TYPE imagetype = getImageTypeAndZipped(imageF);
-		if(imagetype == null)
+		else
 		{
-			System.err.println("File is not an image: "+imagePath);
-			System.exit(-1);
+			if((!chkF.isFile())||(!chkF.exists())||(!chkF.canRead()))
+			{
+				System.err.println("image not found: "+imagePath);
+				System.exit(-1);
+			}
+			final IMAGE_TYPE imagetype = getImageTypeAndZipped(chkF);
+			if(imagetype == null)
+			{
+				System.err.println("File is not an image: "+imagePath);
+				System.exit(-1);
+			}
+			imageFiles.add(chkF);
 		}
 		Action action = Action.EXTRACT;
 		BamAction bamAction = BamAction.CHECK;
@@ -448,15 +527,15 @@ public class D64Mod extends D64Base
 				System.exit(-1);
 				break;
 			case INSERT:
-				if(args.length<4)
+				if(largs.size()<4)
 				{
 					System.err.println("Missing target file");
 					System.exit(-1);
 				}
 				System.err.println("Not implemented");
 				System.exit(-1);
-				localFileStr = args[2];
-				imageFileStr = args[3];
+				localFileStr = largs.get(2);
+				imageFileStr = largs.get(3);
 				break;
 			case EXTRACT:
 				if(args.length<4)
@@ -464,12 +543,12 @@ public class D64Mod extends D64Base
 					System.err.println("Missing target file");
 					System.exit(-1);
 				}
-				localFileStr = args[3];
+				localFileStr = largs.get(3);
 				break;
 			case BAM:
 				try
 				{
-					bamAction=BamAction.valueOf(args[2].toUpperCase().trim());
+					bamAction=BamAction.valueOf(largs.get(2).toUpperCase().trim());
 				}
 				catch(final Exception e)
 				{
@@ -486,7 +565,7 @@ public class D64Mod extends D64Base
 					System.exit(-1);
 				}
 				*/
-				imageFileStr = args[2];
+				imageFileStr = largs.get(2);
 				break;
 			}
 		}
@@ -495,544 +574,558 @@ public class D64Mod extends D64Base
 			System.err.println("Invalid action: "+actionStr);
 			System.exit(-1);
 		}
-		final int[] imageFLen=new int[1];
-		final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
-		final List<FileInfo> files = getDiskFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
-		FileInfo file = findFile(imageFileStr,files,false);
-		if(file == null)
-			file = findFile(imageFileStr,files,true);
-		if((action == Action.LIST)||(action == Action.DIR))
+		for(final File imageF : imageFiles)
 		{
-			if((!imageFileStr.equalsIgnoreCase("ALL")) && (file == null))
+			final IMAGE_TYPE imagetype = getImageTypeAndZipped(imageF);
+			final int[] imageFLen=new int[1];
+			final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
+			final List<FileInfo> files = getDiskFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
+			FileInfo file = findFile(imageFileStr,files,false);
+			if(file == null)
+				file = findFile(imageFileStr,files,true);
+			if((action == Action.LIST)||(action == Action.DIR))
 			{
-				System.err.println("No such path exists in image: "+imageFileStr);
-				System.exit(-1);
-			}
-		}
-		else
-		if((action == Action.INSERT) && (file != null))
-		{
-			// that's ok.. anything is OK for insert, really.
-		}
-		else
-		if((action != Action.BAM) && (file == null))
-		{
-			System.err.println("File not found in image: "+imageFileStr);
-			System.exit(-1);
-		}
-		final LinkedList<FileInfo> fileList=new LinkedList<FileInfo>();
-		if((file != null)&&(action != Action.INSERT))
-		{
-			fileList.add(file);
-			if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
-			{
-				final LinkedList<FileInfo> notdone=new LinkedList<FileInfo>();
-				notdone.add(file);
-				while(notdone.size()>0)
+				if((!imageFileStr.equalsIgnoreCase("ALL")) && (file == null))
 				{
-					final FileInfo dir = notdone.removeFirst();
-					for(final FileInfo i : files)
+					imageError("No such path exists in image: "+imageFileStr,imageFiles.size()>0);
+					continue;
+				}
+			}
+			else
+			if((action == Action.INSERT) && (file != null))
+			{
+				// that's ok.. anything is OK for insert, really.
+			}
+			else
+			if((action != Action.BAM) && (file == null))
+			{
+				imageError("File not found in image: "+imageFileStr,imageFiles.size()>0);
+				continue;
+			}
+			final LinkedList<FileInfo> fileList=new LinkedList<FileInfo>();
+			if((file != null)&&(action != Action.INSERT))
+			{
+				fileList.add(file);
+				if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
+				{
+					final LinkedList<FileInfo> notdone=new LinkedList<FileInfo>();
+					notdone.add(file);
+					while(notdone.size()>0)
 					{
-						if(i.parentF == dir)
+						final FileInfo dir = notdone.removeFirst();
+						for(final FileInfo i : files)
 						{
-							if((i.fileType == FileType.DIR)||(i.fileType == FileType.CBM))
-								notdone.add(i);
-							fileList.add(i);
+							if(i.parentF == dir)
+							{
+								if((i.fileType == FileType.DIR)||(i.fileType == FileType.CBM))
+									notdone.add(i);
+								fileList.add(i);
+							}
+						}
+					}
+
+				}
+			}
+
+			final boolean[] rewriteD64 = {false};
+			switch(action)
+			{
+			case SCRATCH:
+			{
+				while(fileList.size()>0)
+				{
+					final FileInfo f = fileList.removeLast();
+					try
+					{
+						if(D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], f))
+							System.out.println("Scratched "+f.filePath);
+					}
+					catch(final Exception e)
+					{
+						imageError(e.getMessage(),imageFiles.size()>0);
+						continue;
+					}
+				}
+				break;
+			}
+			case EXTRACT:
+			{
+				final String finalDirName = localFileStr.replaceAll("\\*", imageF.getName());
+				final int x=localFileStr.lastIndexOf(File.separator);
+				File localFileF;
+				if(x>0)
+					localFileF=new File(new File(finalDirName.substring(0,x)),finalDirName.substring(x+1).replaceAll("/", "_"));
+				else
+					localFileF=new File(imageF.getParent(),finalDirName.replaceAll("/", "_"));
+				if(!finalDirName.equals(localFileStr) && (!localFileF.exists()))
+					localFileF.mkdirs();
+				if((fileList.size()>1)&&(!localFileF.isDirectory()))
+				{
+					imageError(localFileStr+" needs to be a directory to extract "+fileList.size()+" files.",imageFiles.size()>0);
+					continue;
+				}
+				while(fileList.size()>0)
+				{
+					final FileInfo f = fileList.removeLast();
+					final byte[] fileData = f.data;
+					if(fileData == null)
+					{
+						if(!localFileF.isDirectory())
+							System.out.println("No data found in "+f.fileName);
+					}
+					else
+					{
+						try
+						{
+							FileOutputStream fout;
+							File outF;
+							String ffilename = f.fileName.replaceAll("/", "_");
+							if(fmtFlags.contains(D64Mod.D64FormatFlag.PRGSEQ)
+							&&(f.fileType!=null))
+								ffilename += "."+f.fileType.name().toLowerCase();
+							if(localFileF.isDirectory())
+								outF = new File(localFileF,ffilename);
+							else
+								outF = localFileF;
+							fout=new FileOutputStream(outF);
+							fout.write(fileData);
+							fout.close();
+							System.out.println(fileData.length+" bytes written to "+outF.getAbsolutePath());
+						} catch (final Exception e) {
+							imageError(e.getMessage(),imageFiles.size()>0);
+							continue;
 						}
 					}
 				}
-
+				break;
 			}
-		}
-
-		final boolean[] rewriteD64 = {false};
-		switch(action)
-		{
-		case SCRATCH:
-		{
-			while(fileList.size()>0)
+			case BAM:
 			{
-				final FileInfo f = fileList.removeLast();
+				final HashSet<Integer> used = new HashSet<Integer>();
+				final HashMap<String,HashSet<Integer>> qmap = new HashMap<String,HashSet<Integer>>();
+				for(final FileInfo f : files)
+				{
+					final HashSet<Integer> qset=new HashSet<Integer>();
+					qmap.put(f.filePath, qset);
+					for(final short[] s : f.tracksNSecs)
+					{
+						final Integer x=Integer.valueOf((s[0] << 8) + s[1]);
+						if(!used.contains(x))
+							used.add(x);
+						if(!qset.contains(x))
+							qset.add(x);
+					}
+				}
 				try
 				{
-					if(D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], f))
-						System.out.println("Scratched "+f.filePath);
+					final HashSet<Integer> unbammed=new HashSet<Integer>();
+					final HashSet<Integer> overbammed=new HashSet<Integer>();
+					switch(bamAction)
+					{
+					case CHECK:
+					{
+						final int[] lastT={1};
+						System.out.print("1  : ");
+						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
+							@Override
+							public boolean call(final int t, final int s, final boolean set,
+									final short[] curBAM, final short bamByteOffset,
+									final short sumBamByteOffset, final short bamMask)
+							{
+
+								if(t != lastT[0])
+								{
+									lastT[0]=t;
+									System.out.println("");
+									final String ts=Integer.toString(t);
+									System.out.print(ts+spaces.substring(0,3-ts.length())+": ");
+								}
+								final Integer tsInt=Integer.valueOf((t << 8) + s);
+								if(set)
+								{
+									if(used.contains(tsInt))
+									{
+										System.out.print("0");
+										unbammed.add(tsInt);
+									}
+									else
+										System.out.print("o");
+								}
+								else
+								{
+									if(used.contains(tsInt))
+										System.out.print("x");
+									else
+									{
+										overbammed.add(tsInt);
+										System.out.print("#");
+									}
+								}
+								return false;
+							}
+
+						});
+						System.out.println("");
+						if((unbammed.size()>0)||(overbammed.size()>0))
+						{
+							System.err.println("Not all sectors matched BAM allocation. "
+											+ "0=used, but not marked in bam.  "
+											+ "#=UNUSED, but marked used in BAM.");
+							if(unbammed.size()>0)
+							{
+								System.err.println("Un-Bammed files:");
+								final Set<String> unbammedS=new HashSet<String>();
+								for(final Integer I : unbammed)
+									for(final String fs : qmap.keySet())
+										if(qmap.get(fs).contains(I))
+											unbammedS.add(fs);
+								for(final String path : unbammedS)
+								{
+									System.err.print(path);
+									final HashSet<Integer> allF=qmap.get(path);
+									int numMissing=0;
+									for(final Integer I : allF)
+										if(!unbammed.contains(I))
+											numMissing++;
+									if(numMissing==0)
+										System.err.println(" (total)");
+									else
+										System.err.println(" (partial "+(int)Math.round((double)numMissing/(double)allF.size()*100.0)+"%)");
+								}
+							}
+							imageError("",imageFiles.size()>0);
+							continue;
+						}
+						break;
+					}
+					case ALLOC:
+					{
+						System.out.print("Allocation need check...");
+						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
+							@Override
+							public boolean call(final int t, final int s, final boolean set,
+									final short[] curBAM, final short bamByteOffset,
+									final short sumBamByteOffset, final short bamMask)
+							{
+
+								final Integer tsInt=Integer.valueOf((t << 8) + s);
+								if(set)
+								{
+									if(used.contains(tsInt))
+									{
+										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
+										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
+										rewriteD64[0]=true;
+										unbammed.add(tsInt);
+									}
+								}
+								else
+								{
+									if(!used.contains(tsInt))
+										overbammed.add(tsInt);
+								}
+								return false;
+							}
+						});
+						System.out.println(unbammed.size()+" sectors allocated.");
+						break;
+					}
+					case FREE:
+					{
+						System.out.print("De-Allocation need check...");
+						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
+							@Override
+							public boolean call(final int t, final int s, final boolean set,
+									final short[] curBAM, final short bamByteOffset,
+									final short sumBamByteOffset, final short bamMask)
+							{
+
+								final Integer tsInt=Integer.valueOf((t << 8) + s);
+								if(set)
+								{
+									if(used.contains(tsInt))
+									{
+										unbammed.add(tsInt);
+									}
+								}
+								else
+								{
+									if(!used.contains(tsInt))
+									{
+										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
+										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] | bamMask);
+										rewriteD64[0]=true;
+										overbammed.add(tsInt);
+									}
+								}
+								return false;
+							}
+						});
+						System.out.println(overbammed.size()+" sectors freed.");
+						break;
+					}
+					}
+				} catch (final IOException e) {
+					imageError(e.getMessage(),imageFiles.size()>0);
+					continue;
 				}
-				catch(final Exception e)
+				break;
+			}
+			case INSERT:
+			{
+				int x=localFileStr.lastIndexOf('.');
+				File localFileF;
+				FileType cbmtype = FileType.PRG;
+				if(x>=0)
 				{
-					System.err.println(e.getMessage());
-					System.exit(-1);
+					final String ext=localFileStr.substring(x+1);
+					try
+					{
+						cbmtype = FileType.valueOf(ext.toUpperCase().trim());
+						localFileF=new File(localFileStr);
+						if(!localFileF.exists())
+							localFileF=new File(localFileStr.substring(0,x));
+					}
+					catch(final Exception e)
+					{
+						localFileF=new File(localFileStr);
+					}
 				}
-			}
-			break;
-		}
-		case EXTRACT:
-		{
-			final int x=localFileStr.lastIndexOf(File.separator);
-			File localFileF;
-			if(x>0)
-				localFileF=new File(new File(localFileStr.substring(0,x)),localFileStr.substring(x+1).replaceAll("/", "_"));
-			else
-				localFileF=new File(localFileStr.replaceAll("/", "_"));
-			if((fileList.size()>1)&&(!localFileF.isDirectory()))
-			{
-				System.err.println(localFileStr+" needs to be a directory to extract "+fileList.size()+" files.");
-				System.exit(-1);
-			}
-			while(fileList.size()>0)
-			{
-				final FileInfo f = fileList.removeLast();
-				final byte[] fileData = f.data;
-				if(fileData == null)
+				else
+					localFileF= new File(localFileStr);
+				if(!localFileF.exists())
 				{
-					if(!localFileF.isDirectory())
-						System.out.println("No data found in "+f.fileName);
+					imageError("File not found: "+localFileStr,imageFiles.size()>0);
+					continue;
+				}
+				final byte[] fileData = new byte[(int)localFileF.length()];
+				try
+				{
+					final FileInputStream fin = new FileInputStream(localFileF);
+					int totalBytesRead = 0;
+					while(totalBytesRead < localFileF.length())
+					{
+						final int bytesRead = fin.read(fileData,totalBytesRead,(int)(localFileF.length()-totalBytesRead));
+						if(bytesRead >=0)
+							totalBytesRead+=bytesRead;
+					}
+					fin.close();
+				} catch (final Exception e) {
+					imageError(e.getMessage(),imageFiles.size()>0);
+					continue;
+				}
+				FileInfo targetDir = findFile("/",files,false);
+				String targetFileName = null;
+				if((file != null)
+				&&((file.fileType==FileType.DIR)||(file.fileType==FileType.CBM)))
+				{
+					targetDir = file;
+					int len=16;
+					if(localFileF.getName().length()<16)
+						len=localFileF.getName().length();
+					targetFileName = localFileF.getName().substring(0,len);
+				}
+				else
+				if(file !=null)
+				{
+					targetFileName = file.fileName;
+					if(file.parentF != null)
+						targetDir = file.parentF;
+					try
+					{
+						System.out.println("Removing old "+file.filePath);
+						D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], file);
+					}
+					catch(final IOException e)
+					{
+						imageError(e.getMessage(),imageFiles.size()>0);
+						continue;
+					}
 				}
 				else
 				{
-					try
+					x=imageFileStr.lastIndexOf('/');
+					while(x>=0)
 					{
-						FileOutputStream fout;
-						File outF;
-						if(localFileF.isDirectory())
-							outF = new File(localFileF,f.fileName.replaceAll("/", "_"));
+						FileInfo f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+						if(f==null)
+							f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+						if((f!=null)
+						&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
+						{
+							targetDir=f;
+							targetFileName=imageFileStr.substring(x+1).substring(0, 16).trim();
+							break;
+						}
 						else
-							outF = localFileF;
-						fout=new FileOutputStream(outF);
-						fout.write(fileData);
-						fout.close();
-						System.out.println(fileData.length+" bytes written to "+outF.getAbsolutePath());
-					} catch (final Exception e) {
-						System.err.println(e.getMessage());
-						System.exit(-1);
-					}
-				}
-			}
-			break;
-		}
-		case BAM:
-		{
-			final HashSet<Integer> used = new HashSet<Integer>();
-			final HashMap<String,HashSet<Integer>> qmap = new HashMap<String,HashSet<Integer>>();
-			for(final FileInfo f : files)
-			{
-				final HashSet<Integer> qset=new HashSet<Integer>();
-				qmap.put(f.filePath, qset);
-				for(final short[] s : f.tracksNSecs)
-				{
-					final Integer x=Integer.valueOf((s[0] << 8) + s[1]);
-					if(!used.contains(x))
-						used.add(x);
-					if(!qset.contains(x))
-						qset.add(x);
-				}
-			}
-			try
-			{
-				final HashSet<Integer> unbammed=new HashSet<Integer>();
-				final HashSet<Integer> overbammed=new HashSet<Integer>();
-				switch(bamAction)
-				{
-				case CHECK:
-				{
-					final int[] lastT={1};
-					System.out.print("1  : ");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
-						@Override
-						public boolean call(final int t, final int s, final boolean set,
-								final short[] curBAM, final short bamByteOffset,
-								final short sumBamByteOffset, final short bamMask)
+						if(f!=null)
 						{
-
-							if(t != lastT[0])
-							{
-								lastT[0]=t;
-								System.out.println("");
-								final String ts=Integer.toString(t);
-								System.out.print(ts+spaces.substring(0,3-ts.length())+": ");
-							}
-							final Integer tsInt=Integer.valueOf((t << 8) + s);
-							if(set)
-							{
-								if(used.contains(tsInt))
-								{
-									System.out.print("0");
-									unbammed.add(tsInt);
-								}
-								else
-									System.out.print("o");
-							}
-							else
-							{
-								if(used.contains(tsInt))
-									System.out.print("x");
-								else
-								{
-									overbammed.add(tsInt);
-									System.out.print("#");
-								}
-							}
-							return false;
+							targetFileName=imageFileStr.substring(0,16).trim();
+							break;
 						}
-
-					});
-					System.out.println("");
-					if((unbammed.size()>0)||(overbammed.size()>0))
+						if(x<1)
+							break;
+						x=imageFileStr.lastIndexOf('/',x-1);
+					}
+					if(targetFileName == null)
+						targetFileName=imageFileStr.substring(0,16).trim();
+					if(targetFileName.length()==0)
+						targetFileName = localFileF.getName().substring(0,16);
+				}
+				final int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
+				try
+				{
+					final List<short[]> sectorsToUse = D64Mod.getFreeSectors(diskBytes, imagetype, imageFLen[0], sectorsNeeded);
+					if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
+						throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
+					final short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageFLen[0], targetDir);
+					int bufDex = 0;
+					int secDex = 0;
+					while(bufDex < fileData.length)
 					{
-						System.err.println("Not all sectors matched BAM allocation. 0=used, but not marked in bam.  #=UNUSED, but marked used in BAM.");
-						if(unbammed.size()>0)
+						if(secDex >= sectorsToUse.size())
+							throw new IOException("Not enough sectors found for "+localFileF.getAbsolutePath());
+						final short[] sec = sectorsToUse.get(secDex++);
+						final byte[] secBlock = diskBytes[sec[0]][sec[1]];
+						int bytesToWrite=254;
+						if(fileData.length-bufDex<254)
+							bytesToWrite=fileData.length-bufDex;
+						Arrays.fill(secBlock, (byte)0);
+						for(int i=2;i<2+bytesToWrite;i++)
+							secBlock[i]=fileData[bufDex+i-2];
+						if(secDex < sectorsToUse.size())
 						{
-							System.err.println("Un-Bammed files:");
-							final Set<String> unbammedS=new HashSet<String>();
-							for(final Integer I : unbammed)
-								for(final String fs : qmap.keySet())
-									if(qmap.get(fs).contains(I))
-										unbammedS.add(fs);
-							for(final String path : unbammedS)
-							{
-								System.err.print(path);
-								final HashSet<Integer> allF=qmap.get(path);
-								int numMissing=0;
-								for(final Integer I : allF)
-									if(!unbammed.contains(I))
-										numMissing++;
-								if(numMissing==0)
-									System.err.println(" (total)");
-								else
-									System.err.println(" (partial "+(int)Math.round((double)numMissing/(double)allF.size()*100.0)+"%)");
-							}
+							final short[] nextSec = sectorsToUse.get(secDex);
+							secBlock[0]=(byte)(nextSec[0] & 0xff);
+							secBlock[1]=(byte)(nextSec[1] & 0xff);
 						}
-						System.exit(-1);
+						else
+						if(fileData.length-bufDex<=254)
+						{
+							secBlock[0]=0;
+							secBlock[1]=(byte)(1+bytesToWrite);
+						}
+						else
+							throw new IOException("Not enough sectors available for "+localFileF.getAbsolutePath());
+						bufDex += bytesToWrite;
 					}
-					break;
-				}
-				case ALLOC:
-				{
-					System.out.print("Allocation need check...");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
-						@Override
-						public boolean call(final int t, final int s, final boolean set,
-								final short[] curBAM, final short bamByteOffset,
-								final short sumBamByteOffset, final short bamMask)
-						{
-
-							final Integer tsInt=Integer.valueOf((t << 8) + s);
-							if(set)
-							{
-								if(used.contains(tsInt))
-								{
-									final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
-									bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
-									rewriteD64[0]=true;
-									unbammed.add(tsInt);
-								}
-							}
-							else
-							{
-								if(!used.contains(tsInt))
-									overbammed.add(tsInt);
-							}
-							return false;
-						}
-					});
-					System.out.println(unbammed.size()+" sectors allocated.");
-					break;
-				}
-				case FREE:
-				{
-					System.out.print("De-Allocation need check...");
-					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
-						@Override
-						public boolean call(final int t, final int s, final boolean set,
-								final short[] curBAM, final short bamByteOffset,
-								final short sumBamByteOffset, final short bamMask)
-						{
-
-							final Integer tsInt=Integer.valueOf((t << 8) + s);
-							if(set)
-							{
-								if(used.contains(tsInt))
-								{
-									unbammed.add(tsInt);
-								}
-							}
-							else
-							{
-								if(!used.contains(tsInt))
-								{
-									final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
-									bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] | bamMask);
-									rewriteD64[0]=true;
-									overbammed.add(tsInt);
-								}
-							}
-							return false;
-						}
-					});
-					System.out.println(overbammed.size()+" sectors freed.");
-					break;
-				}
-				}
-			} catch (final IOException e) {
-				System.err.println(e.getMessage());
-				System.exit(-1);
-			}
-			break;
-		}
-		case INSERT:
-		{
-			int x=localFileStr.lastIndexOf('.');
-			File localFileF;
-			FileType cbmtype = FileType.PRG;
-			if(x>=0)
-			{
-				final String ext=localFileStr.substring(x+1);
-				try
-				{
-					cbmtype = FileType.valueOf(ext.toUpperCase().trim());
-					localFileF=new File(localFileStr);
-					if(!localFileF.exists())
-						localFileF=new File(localFileStr.substring(0,x));
-				}
-				catch(final Exception e)
-				{
-					localFileF=new File(localFileStr);
-				}
-			}
-			else
-				localFileF= new File(localFileStr);
-			if(!localFileF.exists())
-			{
-				System.err.println("File not found: "+localFileStr);
-				System.exit(-1);
-			}
-			final byte[] fileData = new byte[(int)localFileF.length()];
-			try
-			{
-				final FileInputStream fin = new FileInputStream(localFileF);
-				int totalBytesRead = 0;
-				while(totalBytesRead < localFileF.length())
-				{
-					final int bytesRead = fin.read(fileData,totalBytesRead,(int)(localFileF.length()-totalBytesRead));
-					if(bytesRead >=0)
-						totalBytesRead+=bytesRead;
-				}
-				fin.close();
-			} catch (final Exception e) {
-				System.err.println(e.getMessage());
-				System.exit(-1);
-			}
-			FileInfo targetDir = findFile("/",files,false);
-			String targetFileName = null;
-			if((file != null)
-			&&((file.fileType==FileType.DIR)||(file.fileType==FileType.CBM)))
-			{
-				targetDir = file;
-				int len=16;
-				if(localFileF.getName().length()<16)
-					len=localFileF.getName().length();
-				targetFileName = localFileF.getName().substring(0,len);
-			}
-			else
-			if(file !=null)
-			{
-				targetFileName = file.fileName;
-				if(file.parentF != null)
-					targetDir = file.parentF;
-				try
-				{
-					System.out.println("Removing old "+file.filePath);
-					D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], file);
+					if(secDex<sectorsToUse.size())
+						throw new IOException("Too many sectors found for "+localFileF.getAbsolutePath());
+					final byte[] dirSec=diskBytes[dirSlot[0]][dirSlot[1]];
+					final short dirByte=dirSlot[2];
+					switch(cbmtype)
+					{
+					case CBM:
+						dirSec[dirByte]=tobyte(5+128);
+						break;
+					case DEL:
+						dirSec[dirByte]=tobyte(0+128);
+						break;
+					case DIR:
+						dirSec[dirByte]=tobyte(6+128);
+						break;
+					case PRG:
+						dirSec[dirByte]=tobyte(2+128);
+						break;
+					case REL:
+						dirSec[dirByte]=tobyte(4+128);
+						break;
+					case SEQ:
+						dirSec[dirByte]=tobyte(1+128);
+						break;
+					case USR:
+						dirSec[dirByte]=tobyte(3+128);
+						break;
+					}
+					dirSec[dirByte+1]=tobyte(sectorsToUse.get(0)[0]);
+					dirSec[dirByte+2]=tobyte(sectorsToUse.get(0)[1]);
+					for(int i=3;i<=18;i++)
+					{
+						final int fnoffset=i-3;
+						if(fnoffset<targetFileName.length())
+							dirSec[dirByte+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(fnoffset))));
+						else
+							dirSec[dirByte+i]=tobyte(160);
+					}
+					for(int i=19;i<=27;i++)
+						dirSec[dirByte+i]=0;
+					if(imagetype==IMAGE_TYPE.DNP)
+					{
+						final Calendar C=Calendar.getInstance();
+						int year=C.get(Calendar.YEAR);
+						year-=(int)Math.round(Math.floor(year/100.0))*100;
+						dirSec[dirByte+23]=tobyte(year);
+						dirSec[dirByte+24]=tobyte(C.get(Calendar.MONTH)+1);
+						dirSec[dirByte+25]=tobyte(C.get(Calendar.DAY_OF_MONTH));
+						dirSec[dirByte+26]=tobyte(C.get(Calendar.HOUR_OF_DAY));
+						dirSec[dirByte+27]=tobyte(C.get(Calendar.MINUTE));
+					}
+					final int szHB = (int)Math.round(Math.floor(sectorsToUse.size() / 256.0));
+					final int szLB = sectorsToUse.size() - (szHB * 256);
+					dirSec[dirByte+28]=tobyte(szLB);
+					dirSec[dirByte+29]=tobyte(szHB);
+					D64Mod.allocateSectors(diskBytes, imagetype, imageFLen[0], sectorsToUse);
+					rewriteD64[0]=true;
 				}
 				catch(final IOException e)
 				{
-					System.err.println(e.getMessage());
-					System.exit(-1);
-				}
-			}
-			else
-			{
-				x=imageFileStr.lastIndexOf('/');
-				while(x>=0)
-				{
-					FileInfo f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
-					if(f==null)
-						f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
-					if((f!=null)
-					&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
-					{
-						targetDir=f;
-						targetFileName=imageFileStr.substring(x+1).substring(0, 16).trim();
-						break;
-					}
-					else
-					if(f!=null)
-					{
-						targetFileName=imageFileStr.substring(0,16).trim();
-						break;
-					}
-					if(x<1)
-						break;
-					x=imageFileStr.lastIndexOf('/',x-1);
-				}
-				if(targetFileName == null)
-					targetFileName=imageFileStr.substring(0,16).trim();
-				if(targetFileName.length()==0)
-					targetFileName = localFileF.getName().substring(0,16);
-			}
-			final int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
-			try
-			{
-				final List<short[]> sectorsToUse = D64Mod.getFreeSectors(diskBytes, imagetype, imageFLen[0], sectorsNeeded);
-				if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
-					throw new IOException("Not enough space on disk for "+localFileF.getAbsolutePath());
-				final short[] dirSlot = findDirectorySlot(diskBytes, imagetype, imageFLen[0], targetDir);
-				int bufDex = 0;
-				int secDex = 0;
-				while(bufDex < fileData.length)
-				{
-					if(secDex >= sectorsToUse.size())
-						throw new IOException("Not enough sectors found for "+localFileF.getAbsolutePath());
-					final short[] sec = sectorsToUse.get(secDex++);
-					final byte[] secBlock = diskBytes[sec[0]][sec[1]];
-					int bytesToWrite=254;
-					if(fileData.length-bufDex<254)
-						bytesToWrite=fileData.length-bufDex;
-					Arrays.fill(secBlock, (byte)0);
-					for(int i=2;i<2+bytesToWrite;i++)
-						secBlock[i]=fileData[bufDex+i-2];
-					if(secDex < sectorsToUse.size())
-					{
-						final short[] nextSec = sectorsToUse.get(secDex);
-						secBlock[0]=(byte)(nextSec[0] & 0xff);
-						secBlock[1]=(byte)(nextSec[1] & 0xff);
-					}
-					else
-					if(fileData.length-bufDex<=254)
-					{
-						secBlock[0]=0;
-						secBlock[1]=(byte)(1+bytesToWrite);
-					}
-					else
-						throw new IOException("Not enough sectors available for "+localFileF.getAbsolutePath());
-					bufDex += bytesToWrite;
-				}
-				if(secDex<sectorsToUse.size())
-					throw new IOException("Too many sectors found for "+localFileF.getAbsolutePath());
-				final byte[] dirSec=diskBytes[dirSlot[0]][dirSlot[1]];
-				final short dirByte=dirSlot[2];
-				switch(cbmtype)
-				{
-				case CBM:
-					dirSec[dirByte]=tobyte(5+128);
-					break;
-				case DEL:
-					dirSec[dirByte]=tobyte(0+128);
-					break;
-				case DIR:
-					dirSec[dirByte]=tobyte(6+128);
-					break;
-				case PRG:
-					dirSec[dirByte]=tobyte(2+128);
-					break;
-				case REL:
-					dirSec[dirByte]=tobyte(4+128);
-					break;
-				case SEQ:
-					dirSec[dirByte]=tobyte(1+128);
-					break;
-				case USR:
-					dirSec[dirByte]=tobyte(3+128);
-					break;
-				}
-				dirSec[dirByte+1]=tobyte(sectorsToUse.get(0)[0]);
-				dirSec[dirByte+2]=tobyte(sectorsToUse.get(0)[1]);
-				for(int i=3;i<=18;i++)
-				{
-					final int fnoffset=i-3;
-					if(fnoffset<targetFileName.length())
-						dirSec[dirByte+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(fnoffset))));
-					else
-						dirSec[dirByte+i]=tobyte(160);
-				}
-				for(int i=19;i<=27;i++)
-					dirSec[dirByte+i]=0;
-				if(imagetype==IMAGE_TYPE.DNP)
-				{
-					final Calendar C=Calendar.getInstance();
-					int year=C.get(Calendar.YEAR);
-					year-=(int)Math.round(Math.floor(year/100.0))*100;
-					dirSec[dirByte+23]=tobyte(year);
-					dirSec[dirByte+24]=tobyte(C.get(Calendar.MONTH)+1);
-					dirSec[dirByte+25]=tobyte(C.get(Calendar.DAY_OF_MONTH));
-					dirSec[dirByte+26]=tobyte(C.get(Calendar.HOUR_OF_DAY));
-					dirSec[dirByte+27]=tobyte(C.get(Calendar.MINUTE));
-				}
-				final int szHB = (int)Math.round(Math.floor(sectorsToUse.size() / 256.0));
-				final int szLB = sectorsToUse.size() - (szHB * 256);
-				dirSec[dirByte+28]=tobyte(szLB);
-				dirSec[dirByte+29]=tobyte(szHB);
-				D64Mod.allocateSectors(diskBytes, imagetype, imageFLen[0], sectorsToUse);
-				rewriteD64[0]=true;
-			}
-			catch(final IOException e)
-			{
-				System.err.println(e.getMessage());
-				System.exit(-1);
-			}
-			break;
-		}
-		case LIST:
-			if(imageFileStr.equalsIgnoreCase("all"))
-			{
-				for(final FileInfo f : files)
-					System.out.println(f.filePath+","+f.fileType.toString().toLowerCase().charAt(0));
-			}
-			else
-			{
-				for(final FileInfo f : fileList)
-					System.out.println(f.filePath+","+f.fileType.toString().toLowerCase().charAt(0));
-			}
-			break;
-		case DIR:
-		{
-			Collection<FileInfo> fs = files;
-			if(!imageFileStr.equalsIgnoreCase("all"))
-				fs = fileList;
-			for(final FileInfo f : fs)
-			{
-				if(f.fileName.equals("*BAM*") || f.fileName.equals("/"))
+					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
-				final int blkLen = (int)Math.round(Math.floor(f.size / 254.0));
-				final StringBuilder ln=new StringBuilder("");
-				ln.append(blkLen);
-				while(ln.length()<5)
-					ln.append(" ");
-				ln.append("\"").append(f.fileName).append("\"");
-				while(ln.length()<24)
-					ln.append(" ");
-				ln.append(f.fileType.toString().toLowerCase());
-				System.out.println(ln.toString());
-			}
-			break;
-		}
-		}
-		if(rewriteD64[0])
-		{
-			try
-			{
-				final FileOutputStream fout = new FileOutputStream(imageF);
-				for(int b1=1;b1<diskBytes.length;b1++)
-				{
-					for(int b2=0;b2<diskBytes[b1].length;b2++)
-					{
-						fout.write(diskBytes[b1][b2]);
-					}
 				}
-				fout.close();
-			} catch (final Exception e) {
-				System.err.println(e.getMessage());
-				System.exit(-1);
+				break;
+			}
+			case LIST:
+				if(imageFileStr.equalsIgnoreCase("all"))
+				{
+					for(final FileInfo f : files)
+						System.out.println(f.filePath+","+f.fileType.toString().toLowerCase().charAt(0));
+				}
+				else
+				{
+					for(final FileInfo f : fileList)
+						System.out.println(f.filePath+","+f.fileType.toString().toLowerCase().charAt(0));
+				}
+				break;
+			case DIR:
+			{
+				Collection<FileInfo> fs = files;
+				if(!imageFileStr.equalsIgnoreCase("all"))
+					fs = fileList;
+				for(final FileInfo f : fs)
+				{
+					if(f.fileName.equals("*BAM*") || f.fileName.equals("/"))
+						continue;
+					final int blkLen = (int)Math.round(Math.floor(f.size / 254.0));
+					final StringBuilder ln=new StringBuilder("");
+					ln.append(blkLen);
+					while(ln.length()<5)
+						ln.append(" ");
+					ln.append("\"").append(f.fileName).append("\"");
+					while(ln.length()<24)
+						ln.append(" ");
+					ln.append(f.fileType.toString().toLowerCase());
+					System.out.println(ln.toString());
+				}
+				break;
+			}
+			}
+			if(rewriteD64[0])
+			{
+				try
+				{
+					final FileOutputStream fout = new FileOutputStream(imageF);
+					for(int b1=1;b1<diskBytes.length;b1++)
+					{
+						for(int b2=0;b2<diskBytes[b1].length;b2++)
+						{
+							fout.write(diskBytes[b1][b2]);
+						}
+					}
+					fout.close();
+				} catch (final Exception e) {
+					imageError(e.getMessage(),imageFiles.size()>0);
+					continue;
+				}
 			}
 		}
 		System.exit(0);
