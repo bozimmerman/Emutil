@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -131,19 +130,25 @@ public class D64Base
 
 	public static class FileInfo
 	{
-		FileInfo parentF = null;
-		String fileName = "";
-		String filePath = "";
-		FileType fileType = null;
-		int size = 0;
-		byte[] data = null;
-		Set<Long> rollingHashes = null;
-		Set<Long> fixedHashes = null;
-		byte[] header = null;
-		short[] dirLoc = new short[3];
-		List<short[]> tracksNSecs = new ArrayList<short[]>();
-		public String toString() { return filePath;}
-		private long hash = -1;
+		FileInfo		parentF			= null;
+		String			fileName		= "";
+		byte[]			rawFileName		= new byte[0];
+		String			filePath		= "";
+		FileType		fileType		= null;
+		int				size			= 0;
+		byte[]			data			= null;
+		Set<Long>		rollingHashes	= null;
+		Set<Long>		fixedHashes		= null;
+		byte[]			header			= null;
+		short[]			dirLoc			= new short[3];
+		List<short[]>	tracksNSecs		= new ArrayList<short[]>();
+		private long	hash			= -1;
+
+		public String toString()
+		{
+			return filePath;
+		}
+
 		public long hash()
 		{
 			if(hash ==-1)
@@ -621,6 +626,9 @@ public class D64Base
 				final StringBuffer file=new StringBuffer("");
 				for(int x=i+3;x<=fn;x++)
 					file.append((char)sector[x]);
+				final byte[] rawFileName = new byte[fn-i-3+1];
+				for(int x=i+3;x<=fn;x++)
+					rawFileName[x-i-3] = sector[x];
 
 				if(file.length()>0)
 				{
@@ -651,6 +659,7 @@ public class D64Base
 					}
 					f.filePath=prefix + file.toString();
 					f.fileName=file.toString();
+					f.rawFileName = rawFileName;
 					f.dirLoc=new short[]{(short)t,(short)s,(short)i};
 					final short lb=unsigned(sector[i+28]);
 					final short hb=unsigned(sector[i+29]);
@@ -1174,6 +1183,14 @@ public class D64Base
 			file.fileType = D64Base.FileType.SEQ;
 			break;
 		}
+		final ByteArrayOutputStream fout = new ByteArrayOutputStream();
+		for(int i=0;i<file.fileName.length();i++)
+		{
+			final byte b = (byte)(ascToPetTable[(file.fileName.charAt(i) & 0xff)] & 0xff);
+			if(b != 0)
+				fout.write(b);
+		}
+		file.rawFileName = fout.toByteArray();
 		if(lastLen < fileLen && (fileLen >= MAGIC_MAX))
 		{
 			file.size=lastLen;

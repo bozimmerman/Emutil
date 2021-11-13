@@ -52,7 +52,7 @@ public class D64FileMatcher extends D64Mod
 		}
 	}
 
-	public static String getNextLYNXLineFromInputStream(final InputStream in, final int[] bytesRead) throws IOException
+	public static String getNextLYNXLineFromInputStream(final InputStream in, final int[] bytesRead, final OutputStream bout) throws IOException
 	{
 		final StringBuilder line=new StringBuilder("");
 		while(in.available()>0)
@@ -67,6 +67,8 @@ public class D64FileMatcher extends D64Mod
 				if(line.length()>0)
 					break;
 			}
+			if(bout != null)
+				bout.write(b);
 			if(b == 160)
 				continue;
 			b = D64Base.convertToAscii(b);
@@ -112,7 +114,7 @@ public class D64FileMatcher extends D64Mod
 		}
 		if(zeroes != 3)
 			throw new IOException("Illegal LNX format: missing 0 0 0");
-		final String sigLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
+		final String sigLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
 		int headerSize = 0;
 		final String[] splitSig = sigLine.split(" ");
 		final String sz = splitSig[0].trim();
@@ -132,7 +134,7 @@ public class D64FileMatcher extends D64Mod
 		}
 		else
 		{
-			final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar).toUpperCase().trim();
+			final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
 			if((numEntryLine.length()==0)
 			||(!Character.isDigit(numEntryLine.charAt(0))))
 				throw new IOException("Illegal numEntries: "+numEntryLine);
@@ -153,10 +155,11 @@ public class D64FileMatcher extends D64Mod
 		final ByteArrayInputStream bin=new ByteArrayInputStream(rawDirBlock);
 		for(int i=0;i<numEntries;i++)
 		{
-			final String fileName =  getNextLYNXLineFromInputStream(bin, null); // don't trim, cuz spaces are valid.
-			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
-			final String typChar =   getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
-			final String lastBlockSz=getNextLYNXLineFromInputStream(bin, null).toUpperCase().trim();
+			final ByteArrayOutputStream fout = new ByteArrayOutputStream();
+			final String fileName =  getNextLYNXLineFromInputStream(bin, null, fout); // don't trim, cuz spaces are valid.
+			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
+			final String typChar =   getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
+			final String lastBlockSz=getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
 			if((fileName.length()==0)
 			||(numBlockSz.length()==0)||(!Character.isDigit(numBlockSz.charAt(0)))
 			||(typChar.length()==0)||(typChar.length()>3)
@@ -164,6 +167,7 @@ public class D64FileMatcher extends D64Mod
 				throw new IOException("Bad directory entry "+(i+1)+": "+fileName+"."+typChar+": "+numBlockSz+"("+lastBlockSz+")");
 			final FileInfo file = new FileInfo();
 			file.fileName = fileName;
+			file.rawFileName = fout.toByteArray();
 			file.fileType = FileType.fileType(typChar);
 			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue();
 			list.add(file);
