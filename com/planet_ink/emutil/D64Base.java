@@ -707,8 +707,7 @@ public class D64Base
 						case (byte) 3:
 							f.fileType = FileType.USR;
 							//fileData =getFileContent(tsmap,fileT,maxT,fileS);
-							if((unsigned(sector[i+21])==1)
-							&&(f.header!=null)
+							if((f.header!=null)
 							&&(fileT!=0)
 							&&(!doneBefore.contains(tsmap[fileT][fileS]))&&(fileT<=maxT))
 							{
@@ -731,52 +730,65 @@ public class D64Base
 										block[l]=f.header[l+2];
 									data.write(block);
 								}
-								final byte[] vlirSec = tsmap[fileT][fileS];
-								doneBefore.add(vlirSec);
-								f.tracksNSecs.add(new short[]{(short)fileT,(short)fileS});
-								final byte[] vlirblock = new byte[254];
-								final List<byte[]> contents = new ArrayList<byte[]>();
-								for(int vt=0;vt<=254;vt+=2)
+								if(unsigned(sector[i+21])==1)
 								{
-									final int vfileT=unsigned(vlirSec[vt]);
-									final int vfileS=unsigned(vlirSec[vt+1]);
-									if((vfileT==0)&&(vfileS==255))
+									final byte[] vlirSec = tsmap[fileT][fileS];
+									doneBefore.add(vlirSec);
+									f.tracksNSecs.add(new short[]{(short)fileT,(short)fileS});
+									final byte[] vlirblock = new byte[254];
+									final List<byte[]> contents = new ArrayList<byte[]>();
+									for(int vt=0;vt<=254;vt+=2)
 									{
-										if(vt>1)
+										final int vfileT=unsigned(vlirSec[vt]);
+										final int vfileS=unsigned(vlirSec[vt+1]);
+										if((vfileT==0)&&(vfileS==255))
 										{
-											vlirblock[vt-2]=0;
-											vlirblock[vt-1]=(byte)(255 & 0xff);
+											if(vt>1)
+											{
+												vlirblock[vt-2]=0;
+												vlirblock[vt-1]=(byte)(255 & 0xff);
+											}
+											continue;
 										}
-										continue;
-									}
-									else
-									if(vt==0) // this is a corrupt file.. and this is NOT a record
-										continue;
-									if(readInside)
-									{
-										final byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
-										final int numBlocks = (int)Math.round(Math.ceil(content.length/254.0));
-										final int lowBlocks = (int)Math.round(Math.floor(content.length/254.0));
-										final int extra = content.length - (lowBlocks * 254) +1;
-										vlirblock[vt-2]=(byte)(numBlocks & 0xff);
-										vlirblock[vt-1]=(byte)(extra & 0xff);
-										for(int x=0;x<numBlocks*254;x+=254)
+										else
+										if(vt==0) // this is a corrupt file.. and this is NOT a record
+											continue;
+										if(readInside)
 										{
-											final byte[] newConBlock = new byte[254];
-											for(int y=x;y<x+254;y++)
-												if(y<content.length)
-													newConBlock[y-x]=content[y];
-												//else
-												//	newConBlock[y-x]=(byte)((y-x+2) & 0xff);
-											contents.add(newConBlock);
+											final byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
+											final int numBlocks = (int)Math.round(Math.ceil(content.length/254.0));
+											final int lowBlocks = (int)Math.round(Math.floor(content.length/254.0));
+											final int extra = content.length - (lowBlocks * 254) +1;
+											vlirblock[vt-2]=(byte)(numBlocks & 0xff);
+											vlirblock[vt-1]=(byte)(extra & 0xff);
+											for(int x=0;x<numBlocks*254;x+=254)
+											{
+												final byte[] newConBlock = new byte[254];
+												for(int y=x;y<x+254;y++)
+													if(y<content.length)
+														newConBlock[y-x]=content[y];
+													//else
+													//	newConBlock[y-x]=(byte)((y-x+2) & 0xff);
+												contents.add(newConBlock);
+											}
 										}
 									}
+									data.write(vlirblock); //TODO: do different for seq
+									for(final byte[] content : contents)
+										data.write(content);
 								}
-								data.write(vlirblock); //TODO: do different for seq
-								for(final byte[] content : contents)
-									data.write(content);
+								else
 								if(readInside)
+								{
+									fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
+									if((fileData != null)&&(fileData.length>0))
+										data.write(fileData);
+								}
+								if(readInside)
+								{
 									fileData = data.toByteArray();
+									f.size=fileData.length;
+								}
 							}
 							else
 							if(readInside)
