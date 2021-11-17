@@ -169,7 +169,7 @@ public class D64FileMatcher extends D64Mod
 			file.fileName = fileName;
 			file.rawFileName = fout.toByteArray();
 			file.fileType = FileType.fileType(typChar);
-			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue();
+			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue()-1;
 			list.add(file);
 		}
 		for(final FileInfo f : list)
@@ -200,6 +200,14 @@ public class D64FileMatcher extends D64Mod
 				}
 			}
 			f.data = Arrays.copyOf(fileSubBytes, f.size);
+			/*TODO:BZ:DELME
+			if(f.fileName.equals("IGDocs.cvt"))
+			{
+				final java.io.FileOutputStream fout = new java.io.FileOutputStream("c:\\tmp\\b\\b.bin");
+				fout.write(f.data);
+				fout.close();
+			}
+			*/
 		}
 		return list;
 	}
@@ -626,27 +634,18 @@ public class D64FileMatcher extends D64Mod
 						else
 						if(deeper > -1)
 						{
-							boolean matched=false;
-							for(final D64Report r : rep)
-								matched = matched | r.equal;
-							if(!matched)
+							final int hp=FileInfo.hashCompare(f1, f2);
+							if(hp >= deeper)
 							{
-								final int hp=FileInfo.hashCompare(f1, f2);
-								if(hp >= deeper)
-								{
-									if(!approxs.containsKey(f1))
-										approxs.put(f1, new D64Report(F2,true,f2,hp));
-									else
-									if(hp>approxs.get(f1).approx)
-										approxs.put(f1, new D64Report(F2,true,f2,hp));
-								}
+								if(!approxs.containsKey(f1))
+									approxs.put(f1, new D64Report(F2,true,f2,hp));
 								else
-								if(f2.fileName.equals(f1.fileName))
-									rep.add(new D64Report(F2,false,f2,hp));
+								if(hp>approxs.get(f1).approx)
+									approxs.put(f1, new D64Report(F2,true,f2,hp));
 							}
 							else
 							if(f2.fileName.equals(f1.fileName))
-								rep.add(new D64Report(F2,false,f2));
+								rep.add(new D64Report(F2,false,f2,hp));
 						}
 						else
 						if(f2.fileName.equals(f1.fileName))
