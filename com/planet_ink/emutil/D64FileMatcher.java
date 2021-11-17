@@ -621,10 +621,14 @@ public class D64FileMatcher extends D64Mod
 					{
 						final List<D64Report> rep = report.get(f1);
 						if((f2.hash() == f1.hash())
+						&&(f1.data!=null)&&(f2.data!=null)
+						&&(f1.data.length>0)&&(f2.data.length>0)
 						&&(Arrays.equals(f1.data, f2.data)))
 							rep.add(new D64Report(F2,true,f2));
 						else
-						if(deeper > -1)
+						if((deeper > -1)
+						&&(f1.data!=null)&&(f2.data!=null)
+						&&(f1.data.length>0)&&(f2.data.length>0))
 						{
 							final int hp=FileInfo.hashCompare(f1, f2);
 							if(hp >= deeper)
