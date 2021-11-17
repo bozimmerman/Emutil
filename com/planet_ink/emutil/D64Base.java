@@ -794,14 +794,6 @@ public class D64Base
 								if(readInside)
 								{
 									fileData = data.toByteArray();
-									/*TODO:BZ:DELME
-									if(f.fileName.equals("IGDocs"))
-									{
-										final java.io.FileOutputStream fout = new java.io.FileOutputStream("c:\\tmp\\a\\a.bin");
-										fout.write(fileData);
-										fout.close();
-									}
-									*/
 									f.size=fileData.length;
 								}
 							}

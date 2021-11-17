@@ -200,14 +200,6 @@ public class D64FileMatcher extends D64Mod
 				}
 			}
 			f.data = Arrays.copyOf(fileSubBytes, f.size);
-			/*TODO:BZ:DELME
-			if(f.fileName.equals("IGDocs.cvt"))
-			{
-				final java.io.FileOutputStream fout = new java.io.FileOutputStream("c:\\tmp\\b\\b.bin");
-				fout.write(f.data);
-				fout.close();
-			}
-			*/
 		}
 		return list;
 	}
