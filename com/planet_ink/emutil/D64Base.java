@@ -1142,6 +1142,24 @@ public class D64Base
 		}
 	}
 
+	public static void normalizeCvt(final FileInfo file)
+	{
+		if((file.data != null)
+		&&(file.data.length>256)
+		&&(new String(file.data,34,24).equals("formatted GEOS file V1.0")))
+		{
+			file.data[1]=0;
+			file.data[2]=0;
+			file.data[19]=0;
+			file.data[20]=0;
+			file.data[30]='P';
+			file.data[31]='R';
+			file.data[32]='G';
+			for(int i=60;i<254;i++)
+				file.data[i]=0;
+		}
+	}
+
 	public static FileInfo getLooseFile(final InputStream fin, final String fileName, int fileLen) throws IOException
 	{
 		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(fileName);

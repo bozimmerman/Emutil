@@ -352,7 +352,8 @@ public class D64FileMatcher extends D64Mod
 		return filesToDo;
 	}
 
-	public static List<FileInfo> getFileList(final File F)
+
+	public static List<FileInfo> getFileList(final File F, final boolean normalizeForCompare)
 	{
 		final int[] fLen=new int[1];
 		byte[][][] diskF;
@@ -442,6 +443,11 @@ public class D64FileMatcher extends D64Mod
 		{
 			System.err.println("**** Error reading :"+F.getName());
 			return null;
+		}
+		if(normalizeForCompare)
+		{
+			for(final FileInfo f : fileData)
+				normalizeCvt(f);
 		}
 		return fileData;
 	}
@@ -568,7 +574,7 @@ public class D64FileMatcher extends D64Mod
 		{
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
 			final Map<FileInfo,D64Report> approxs=new HashMap<FileInfo,D64Report>();
-			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1);
+			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true);
 			if(fileData1 == null)
 			{
 				System.err.println("Unable to process "+F1.getName());
@@ -594,7 +600,7 @@ public class D64FileMatcher extends D64Mod
 				}
 				else
 				{
-					fileData2=D64FileMatcher.getFileList(F2);
+					fileData2=D64FileMatcher.getFileList(F2,true);
 					if(fileData2 == null)
 					{
 						f.remove();
