@@ -37,7 +37,7 @@ public class D64Base
 
 	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
-	final static String EMUTIL_VERSION = "2.1";
+	final static String EMUTIL_VERSION = "2.2";
 	final static String EMUTIL_AUTHOR = "2021 Bo Zimmerman";
 
 	public D64Base() {}
