@@ -730,6 +730,7 @@ public class D64Base
 										block[l]=f.header[l+2];
 									data.write(block);
 								}
+								int extra=0;
 								if(unsigned(sector[i+21])==1)
 								{
 									final byte[] vlirSec = tsmap[fileT][fileS];
@@ -758,7 +759,7 @@ public class D64Base
 											final byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
 											final int numBlocks = (int)Math.round(Math.ceil(content.length/254.0));
 											final int lowBlocks = (int)Math.round(Math.floor(content.length/254.0));
-											final int extra = content.length - (lowBlocks * 254) +1;
+											extra = content.length - (lowBlocks * 254) +1;
 											vlirblock[vt-2]=(byte)(numBlocks & 0xff);
 											vlirblock[vt-1]=(byte)(extra & 0xff);
 											for(int x=0;x<numBlocks*254;x+=254)
@@ -773,7 +774,13 @@ public class D64Base
 											}
 										}
 									}
-									data.write(vlirblock); //TODO: do different for seq
+									if((contents.size()>0)&&(extra>1)) // only on last file in the whole file
+									{
+										final byte[] lblk = contents.get(contents.size()-1);
+										if(lblk.length>extra)
+											contents.set(contents.size()-1, Arrays.copyOf(lblk, extra-1));
+									}
+									data.write(vlirblock);
 									for(final byte[] content : contents)
 										data.write(content);
 								}
@@ -787,6 +794,11 @@ public class D64Base
 								if(readInside)
 								{
 									fileData = data.toByteArray();
+									/*
+										final java.io.FileOutputStream fout = new java.io.FileOutputStream("c:\\tmp\\a\\a.bin");
+										fout.write(fileData);
+										fout.close();
+									 */
 									f.size=fileData.length;
 								}
 							}

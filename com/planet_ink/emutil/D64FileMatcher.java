@@ -632,17 +632,17 @@ public class D64FileMatcher extends D64Mod
 							if(!matched)
 							{
 								final int hp=FileInfo.hashCompare(f1, f2);
-								if(f2.fileName.equals(f1.fileName))
-									rep.add(new D64Report(F2,false,f2,hp));
-								else
 								if(hp >= deeper)
 								{
 									if(!approxs.containsKey(f1))
-										approxs.put(f1, new D64Report(F2,false,f2,hp));
+										approxs.put(f1, new D64Report(F2,true,f2,hp));
 									else
 									if(hp>approxs.get(f1).approx)
-										approxs.put(f1, new D64Report(F2,false,f2,hp));
+										approxs.put(f1, new D64Report(F2,true,f2,hp));
 								}
+								else
+								if(f2.fileName.equals(f1.fileName))
+									rep.add(new D64Report(F2,false,f2,hp));
 							}
 							else
 							if(f2.fileName.equals(f1.fileName))
@@ -667,8 +667,6 @@ public class D64FileMatcher extends D64Mod
 				}
 			}
 			final StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
-			if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
-				str.append("---------- Files Not Found for Diffing: \n");
 			final StringBuilder subStr=new StringBuilder("");
 			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(final FileInfo key : report.keySet())
@@ -747,7 +745,7 @@ public class D64FileMatcher extends D64Mod
 								dlen=r.diskF.getName().length();
 							final String matchStr;
 							if(r.equal)
-								matchStr="MATCH";
+								matchStr=(r.approx > 0)?"M-"+r.approx+"%":"MATCH";
 							else
 							if(r.approx>0)
 								matchStr=(""+r.approx+"%     ").substring(0,5);
