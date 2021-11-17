@@ -659,11 +659,17 @@ public class D64FileMatcher extends D64Mod
 				if(approxs.containsKey(f1))
 				{
 					final List<D64Report> rep = report.get(f1);
-					boolean matched=false;
-					for(final D64Report r : rep)
-						matched = matched | r.equal;
-					if(!matched)
-						rep.add(approxs.get(f1));
+					final D64Report fr = approxs.get(f1);
+					if(fr.equal)
+						rep.add(fr);
+					else
+					{
+						boolean matched=false;
+						for(final D64Report r : rep)
+							matched = matched | r.equal;
+						if(!matched)
+							rep.add(fr);
+					}
 				}
 			}
 			final StringBuilder str=new StringBuilder("Report on "+F1.getAbsolutePath()+":\n");
