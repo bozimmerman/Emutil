@@ -844,13 +844,6 @@ public class D64Mod extends D64Base
 					localFileF=new File(new File(finalDirName.substring(0,x)),finalDirName.substring(x+1).replaceAll("/", "_"));
 				else
 					localFileF=new File(imageF.getParent(),finalDirName.replaceAll("/", "_"));
-				if(!finalDirName.equals(localFileStr) && (!localFileF.exists()))
-					localFileF.mkdirs();
-				if(localFileF.exists() && localFileF.isDirectory())
-				{
-					imageError(localFileStr+" is already a directory",imageFiles.size()>0);
-					continue;
-				}
 				try(FileOutputStream fout=new FileOutputStream(localFileF))
 				{
 					if(imageFileStr.equalsIgnoreCase("all"))
