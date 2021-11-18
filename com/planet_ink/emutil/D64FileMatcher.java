@@ -569,6 +569,13 @@ public class D64FileMatcher extends D64Mod
 
 		if(!flags.contains(COMP_FLAG.VERBOSE))
 			System.setErr(new PrintStream(new OutputStream() {public void write(final int b) {}}));
+		F1s.sort(new Comparator<File>() {
+			@Override
+			public int compare(final File o1, final File o2)
+			{
+				return o1.getName().compareToIgnoreCase(o2.getName());
+			}
+		});
 		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
 		for(final File F1 : F1s)
 		{

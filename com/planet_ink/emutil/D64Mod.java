@@ -1,5 +1,6 @@
 package com.planet_ink.emutil;
 import java.io.*;
+import java.nio.file.Paths;
 import java.util.*;
 /*
 Copyright 2017-2017 Bo Zimmerman
@@ -838,9 +839,13 @@ public class D64Mod extends D64Base
 			case LYNX:
 			{
 				final String finalDirName = localFileStr.replaceAll("\\*", imageF.getName());
-				File localFileF=new File(imageF.getParent(),finalDirName);
+				File localFileF;
+				if(new File(finalDirName).isAbsolute())
+					localFileF=new File(finalDirName);
+				else
+					localFileF=new File(imageF.getParent(),finalDirName);
 				if(localFileF.isDirectory())
-					localFileF = new File(localFileF, imageF.getName()+".lnx");
+					localFileF = new File(localFileF, imageF.getName().split("\\.(?=[^\\.]+$)")[0]+".lnx");
 				try(FileOutputStream fout=new FileOutputStream(localFileF))
 				{
 					if(imageFileStr.equalsIgnoreCase("all"))
