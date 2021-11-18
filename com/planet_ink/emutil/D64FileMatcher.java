@@ -573,7 +573,9 @@ public class D64FileMatcher extends D64Mod
 			@Override
 			public int compare(final File o1, final File o2)
 			{
-				return o1.getName().compareToIgnoreCase(o2.getName());
+				if(o1.getParent().equalsIgnoreCase(o2.getParent()))
+					return o1.getName().compareToIgnoreCase(o2.getName());
+				return o1.getParent().compareToIgnoreCase(o2.getParent());
 			}
 		});
 		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
