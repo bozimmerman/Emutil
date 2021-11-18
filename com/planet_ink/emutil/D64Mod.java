@@ -838,12 +838,9 @@ public class D64Mod extends D64Base
 			case LYNX:
 			{
 				final String finalDirName = localFileStr.replaceAll("\\*", imageF.getName());
-				final int x=localFileStr.lastIndexOf(File.separator);
-				File localFileF;
-				if(x>0)
-					localFileF=new File(new File(finalDirName.substring(0,x)),finalDirName.substring(x+1).replaceAll("/", "_"));
-				else
-					localFileF=new File(imageF.getParent(),finalDirName.replaceAll("/", "_"));
+				File localFileF=new File(imageF.getParent(),finalDirName);
+				if(localFileF.isDirectory())
+					localFileF = new File(localFileF, imageF.getName()+".lnx");
 				try(FileOutputStream fout=new FileOutputStream(localFileF))
 				{
 					if(imageFileStr.equalsIgnoreCase("all"))
