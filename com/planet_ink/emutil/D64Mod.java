@@ -1,6 +1,5 @@
 package com.planet_ink.emutil;
 import java.io.*;
-import java.nio.file.Paths;
 import java.util.*;
 /*
 Copyright 2017-2017 Bo Zimmerman
