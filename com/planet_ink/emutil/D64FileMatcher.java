@@ -582,7 +582,7 @@ public class D64FileMatcher extends D64Mod
 		for(final File F1 : F1s)
 		{
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
-			final Map<FileInfo,D64Report> approxs=new HashMap<FileInfo,D64Report>();
+			final Map<FileInfo,List<D64Report>> approxs=new HashMap<FileInfo,List<D64Report>>();
 			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true);
 			if(fileData1 == null)
 			{
@@ -648,11 +648,17 @@ public class D64FileMatcher extends D64Mod
 							final int hp=FileInfo.hashCompare(f1, f2);
 							if(hp >= deeper)
 							{
-								if(!approxs.containsKey(f1))
-									approxs.put(f1, new D64Report(F2,true,f2,hp));
+								
+								if((!approxs.containsKey(f1))
+								||(hp > approxs.get(f1).get(0).approx))
+								{
+									ArrayList<D64Report> n = new ArrayList<D64Report>();
+									n.add(new D64Report(F2,true,f2,hp));
+									approxs.put(f1, n);
+								}
 								else
-								if(hp>approxs.get(f1).approx)
-									approxs.put(f1, new D64Report(F2,true,f2,hp));
+								if((hp == approxs.get(f1).get(0).approx)&&(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE)))
+									approxs.get(f1).add(new D64Report(F2,true,f2,hp));
 							}
 							else
 							if(f2.fileName.equals(f1.fileName))
@@ -669,16 +675,18 @@ public class D64FileMatcher extends D64Mod
 				if(approxs.containsKey(f1))
 				{
 					final List<D64Report> rep = report.get(f1);
-					final D64Report fr = approxs.get(f1);
-					if(fr.equal)
-						rep.add(fr);
-					else
+					for(final D64Report fr : approxs.get(f1))
 					{
-						boolean matched=false;
-						for(final D64Report r : rep)
-							matched = matched | r.equal;
-						if(!matched)
+						if(fr.equal)
 							rep.add(fr);
+						else
+						{
+							boolean matched=false;
+							for(final D64Report r : rep)
+								matched = matched | r.equal;
+							if(!matched)
+								rep.add(fr);
+						}
 					}
 				}
 			}
