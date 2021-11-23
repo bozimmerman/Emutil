@@ -581,6 +581,8 @@ public class D64FileMatcher extends D64Mod
 		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
 		for(final File F1 : F1s)
 		{
+			if(F1.getName().equals("iconedit21.lnx"))
+				System.out.println("hi");
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
 			final Map<FileInfo,List<D64Report>> approxs=new HashMap<FileInfo,List<D64Report>>();
 			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true);
@@ -596,6 +598,8 @@ public class D64FileMatcher extends D64Mod
 			for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
 				final File F2=f.next();
+				if(F2.getName().equals("iconEdit-2.1.cvt"))
+					System.out.println("hi");
 				if(F2.getAbsolutePath().equals(F1.getAbsolutePath()))
 					continue;
 				//int[] f2Len;
@@ -648,16 +652,13 @@ public class D64FileMatcher extends D64Mod
 							final int hp=FileInfo.hashCompare(f1, f2);
 							if(hp >= deeper)
 							{
-								
-								if((!approxs.containsKey(f1))
-								||(hp > approxs.get(f1).get(0).approx))
+								if(!approxs.containsKey(f1))
 								{
 									ArrayList<D64Report> n = new ArrayList<D64Report>();
 									n.add(new D64Report(F2,true,f2,hp));
 									approxs.put(f1, n);
 								}
 								else
-								if((hp == approxs.get(f1).get(0).approx)&&(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE)))
 									approxs.get(f1).add(new D64Report(F2,true,f2,hp));
 							}
 							else
