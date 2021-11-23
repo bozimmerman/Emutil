@@ -472,6 +472,7 @@ public class D64FileMatcher extends D64Mod
 			return;
 		}
 		final HashSet<COMP_FLAG> flags=new HashSet<COMP_FLAG>();
+		int verboseLevel = 0;
 		String path=null;
 		String expr="";
 		int depth=Integer.MAX_VALUE;
@@ -500,6 +501,7 @@ public class D64FileMatcher extends D64Mod
 					case 'v':
 					case 'V':
 						flags.add(COMP_FLAG.VERBOSE);
+						verboseLevel++;
 						break;
 					case 'c':
 					case 'C':
@@ -635,6 +637,17 @@ public class D64FileMatcher extends D64Mod
 					for(final FileInfo f1 : fileData1)
 					{
 						final List<D64Report> rep = report.get(f1);
+						/*
+						if(f2.fileName.toLowerCase().startsWith("combin")&&(f1.fileName.toLowerCase().startsWith("combin")))
+						{
+							try {
+								FileOutputStream fo=new FileOutputStream("c:\\tmp\\a.bin");
+								fo.write(f1.data); fo.close();
+								fo=new FileOutputStream("c:\\tmp\\b.bin");
+								fo.write(f2.data); fo.close();
+							} catch(Exception e) {}
+						}
+						*/
 						if((f2.hash() == f1.hash())
 						&&(f1.data!=null)&&(f2.data!=null)
 						&&(f1.data.length>0)&&(f2.data.length>0)
@@ -714,7 +727,8 @@ public class D64FileMatcher extends D64Mod
 				{
 					if(rep.size()==0)
 					{
-						//subStr.append("    N/A (No matches found on any target disks)").append("\n");
+						if(verboseLevel > 1)
+							subStr.append("    N/A (No matches found on any target disks)").append("\n");
 						continue;
 					}
 					subStr.append(fs1).append("\n");
