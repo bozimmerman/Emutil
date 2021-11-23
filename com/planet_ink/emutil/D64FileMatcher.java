@@ -712,7 +712,7 @@ public class D64FileMatcher extends D64Mod
 					continue;
 				numFiles++;
 				final List<D64Report> rep = report.get(key);
-				final String fs1 = "  " + key.filePath+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
+				final String fs1 = "  " + key.fileName+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
 				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
 				{
 					if(rep.size()==0)
