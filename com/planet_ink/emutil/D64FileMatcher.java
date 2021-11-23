@@ -581,8 +581,6 @@ public class D64FileMatcher extends D64Mod
 		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
 		for(final File F1 : F1s)
 		{
-			if(F1.getName().equals("iconedit21.lnx"))
-				System.out.println("hi");
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
 			final Map<FileInfo,List<D64Report>> approxs=new HashMap<FileInfo,List<D64Report>>();
 			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true);
@@ -598,8 +596,6 @@ public class D64FileMatcher extends D64Mod
 			for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 			{
 				final File F2=f.next();
-				if(F2.getName().equals("iconEdit-2.1.cvt"))
-					System.out.println("hi");
 				if(F2.getAbsolutePath().equals(F1.getAbsolutePath()))
 					continue;
 				//int[] f2Len;
