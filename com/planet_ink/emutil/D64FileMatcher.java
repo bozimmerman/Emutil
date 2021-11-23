@@ -728,7 +728,10 @@ public class D64FileMatcher extends D64Mod
 					if(rep.size()==0)
 					{
 						if(verboseLevel > 1)
+						{
+							subStr.append(fs1).append("\n");
 							subStr.append("    N/A (No matches found on any target disks)").append("\n");
+						}
 						continue;
 					}
 					subStr.append(fs1).append("\n");
