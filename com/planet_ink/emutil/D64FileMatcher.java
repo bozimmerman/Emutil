@@ -507,7 +507,6 @@ public class D64FileMatcher extends D64Mod
 	{
 		if(isCvt(f1) 
 		&& isCvt(f2)
-		&&(f1.data.length != f2.data.length)
 		&&(Math.abs(f1.data.length - f2.data.length) < 257)
 		&&(equalRange(f1.data,f2.data,254,254)))
 		{
