@@ -514,6 +514,7 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							deeper=Integer.parseInt(args[i+1]);
+							c=args[i].length();
 							i++;
 						}
 						break;
@@ -523,6 +524,7 @@ public class D64FileMatcher extends D64Mod
 						{
 							final Pattern P=Pattern.compile(args[i+1]);
 							excludeMasks.add(P);
+							c=args[i].length();
 							i++;
 						}
 						break;
@@ -540,6 +542,7 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							depth=Integer.parseInt(args[i+1]);
+							c=args[i].length();
 							i++;
 						}
 						break;
@@ -550,6 +553,7 @@ public class D64FileMatcher extends D64Mod
 							pct=Double.parseDouble(args[i+1]);
 							if(pct > 1)
 								pct=pct/100.0;
+							c=args[i].length();
 							i++;
 						}
 						break;
