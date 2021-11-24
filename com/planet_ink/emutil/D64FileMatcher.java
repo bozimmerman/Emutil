@@ -277,7 +277,7 @@ public class D64FileMatcher extends D64Mod
 		return list;
 	}
 
-	public static List<File> getAllFiles(final String filename, final int depth) throws IOException
+	public static List<File> getAllFiles(final String filename, final int depth, List<Pattern> excl) throws IOException
 	{
 		java.util.regex.Pattern P=null;
 		File baseF = new File(filename);
@@ -296,10 +296,10 @@ public class D64FileMatcher extends D64Mod
 		}
 		if(!baseF.exists())
 			throw new IOException("No such file/directory: "+filename);
-		return getAllFiles(baseF,P,depth);
+		return getAllFiles(baseF,P,depth,excl);
 	}
 
-	public static List<File> getAllFiles(final File baseF, final Pattern P, final int depth)
+	public static List<File> getAllFiles(final File baseF, final Pattern P, final int depth, List<Pattern> excl)
 	{
 		final List<File> filesToDo=new LinkedList<File>();
 		if(baseF.isDirectory())
@@ -308,11 +308,28 @@ public class D64FileMatcher extends D64Mod
 			{
 				final LinkedList<File> dirsLeft=new LinkedList<File>();
 				dirsLeft.add(baseF);
+				boolean doExcl = excl != null && excl.size()>0;
 				while(dirsLeft.size()>0)
 				{
 					final File dir=dirsLeft.removeFirst();
 					for(final File F : dir.listFiles())
 					{
+						if(doExcl && (excl != null))
+						{
+							final String path = F.getAbsolutePath();
+							boolean excluded=false;
+							for(final Pattern P1 : excl)
+							{
+								if(P1.matcher(path).find())
+								{
+									excluded=true;
+									break;
+								}
+							}
+							if(excluded)
+								continue;
+						}
+						
 						if(F.isDirectory())
 						{
 							int dep=0;
@@ -468,6 +485,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("  -P X verbose on disks with X percent matches");
 			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
+			System.out.println("  -E X exclude files matching mask 'X'");
 			System.out.println("");
 			return;
 		}
@@ -478,6 +496,7 @@ public class D64FileMatcher extends D64Mod
 		int depth=Integer.MAX_VALUE;
 		int deeper = -1;
 		double pct=100.0;
+		List<Pattern> excludeMasks = new LinkedList<Pattern>();
 		for(int i=0;i<args.length;i++)
 		{
 			if((args[i].startsWith("-")&&(path==null)))
@@ -495,6 +514,15 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							deeper=Integer.parseInt(args[i+1]);
+							i++;
+						}
+						break;
+					case 'e':
+					case 'E':
+						if(i<args.length-1)
+						{
+							final Pattern P=Pattern.compile(args[i+1]);
+							excludeMasks.add(P);
 							i++;
 						}
 						break;
@@ -543,8 +571,8 @@ public class D64FileMatcher extends D64Mod
 		List<File> F1s=new ArrayList<File>(1);
 		List<File> F2s=new ArrayList<File>(1);
 		try {
-			F1s = getAllFiles(path,depth);
-			F2s = getAllFiles(expr,depth);
+			F1s = getAllFiles(path,depth,excludeMasks);
+			F2s = getAllFiles(expr,depth,excludeMasks);
 		} catch (final IOException e) {
 			System.err.println(e.getMessage());
 			System.exit(-1);
