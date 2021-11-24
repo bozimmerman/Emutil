@@ -499,9 +499,10 @@ public class D64FileMatcher extends D64Mod
 		List<Pattern> excludeMasks = new LinkedList<Pattern>();
 		for(int i=0;i<args.length;i++)
 		{
+			final int argLen = args[i].length();
 			if((args[i].startsWith("-")&&(path==null)))
 			{
-				for(int c=1;c<args[i].length();c++)
+				for(int c=1;c<argLen;c++)
 				{
 					switch(args[i].charAt(c))
 					{
@@ -514,8 +515,8 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							deeper=Integer.parseInt(args[i+1]);
-							c=args[i].length();
 							i++;
+							c=argLen;
 						}
 						break;
 					case 'e':
@@ -524,8 +525,8 @@ public class D64FileMatcher extends D64Mod
 						{
 							final Pattern P=Pattern.compile(args[i+1]);
 							excludeMasks.add(P);
-							c=args[i].length();
 							i++;
+							c=argLen;
 						}
 						break;
 					case 'v':
@@ -542,8 +543,8 @@ public class D64FileMatcher extends D64Mod
 						if(i<args.length-1)
 						{
 							depth=Integer.parseInt(args[i+1]);
-							c=args[i].length();
 							i++;
+							c=argLen;
 						}
 						break;
 					case 'p':
@@ -553,7 +554,7 @@ public class D64FileMatcher extends D64Mod
 							pct=Double.parseDouble(args[i+1]);
 							if(pct > 1)
 								pct=pct/100.0;
-							c=args[i].length();
+							c=argLen;
 							i++;
 						}
 						break;
