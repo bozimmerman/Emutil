@@ -148,6 +148,13 @@ public class D64Base
 		{
 			return filePath;
 		}
+		
+		public void reset()
+		{
+			hash=-1;
+			rollingHashes = null;
+			fixedHashes = null;
+		}
 
 		public long hash()
 		{

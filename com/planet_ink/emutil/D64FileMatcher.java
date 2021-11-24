@@ -469,6 +469,85 @@ public class D64FileMatcher extends D64Mod
 		return fileData;
 	}
 
+	final static byte[] cvtSignature = " formatted GEOS file V1.0".getBytes();
+	
+	public static boolean isCvt(FileInfo f)
+	{
+		if((f.data!=null)&&(f.data.length>512))
+		{
+			if(f.fileName.toLowerCase().endsWith(".cvt"))
+				return true;
+			if((f.data[33]==' ')
+			&&(f.data[34]=='f')
+			&&(Arrays.equals(Arrays.copyOfRange(f.data,33,33+cvtSignature.length),cvtSignature)))
+				return true;
+		}
+		return false;
+	}
+	
+	public static boolean filledBytes(final byte[] buf)
+	{
+		byte b=buf[0];
+		for(int i=1;i<buf.length;i++)
+			if(buf[i]!=b)
+				return false;
+		return true;
+	}
+	
+	public static boolean equalRange(final byte[] buf1, final byte[] buf2, final int start, final int length)
+	{
+		final int end=start+length;
+		for(int i=start;i<end;i++)
+			if(buf1[i] != buf2[i])
+				return false;
+		return true;
+	}
+	
+	public static boolean areEqual(final FileInfo f1, final FileInfo f2)
+	{
+		if(isCvt(f1) 
+		&& isCvt(f2)
+		&&(f1.data.length != f2.data.length)
+		&&(Math.abs(f1.data.length - f2.data.length) < 257)
+		&&(equalRange(f1.data,f2.data,254,254)))
+		{
+			final byte[] oldData1 = f1.data;
+			final byte[] oldData2 = f2.data;
+			if((oldData1.length>oldData2.length)
+			&&(filledBytes(Arrays.copyOfRange(oldData1, oldData2.length, oldData1.length))))
+			{
+				f1.data=Arrays.copyOfRange(oldData1,0, oldData2.length);
+				f2.data=Arrays.copyOfRange(oldData2,0, oldData2.length);
+			}
+			else
+			if((oldData1.length<oldData2.length)
+			&&(filledBytes(Arrays.copyOfRange(oldData2, oldData1.length, oldData2.length))))
+			{
+				f1.data=Arrays.copyOfRange(oldData1,0, oldData2.length);
+				f2.data=Arrays.copyOfRange(oldData2,0, oldData2.length);
+			}
+			for(int i=0;i<254;i++)
+				f2.data[i]=f1.data[i];
+			if(Arrays.equals(f1.data, f2.data))
+			{
+				f1.reset();
+				f1.hash();
+				f2.reset();
+				f2.hash();
+				FileInfo.hashCompare(f1, f2);
+				return true;
+			}
+			f1.data=oldData1;
+			f2.data=oldData2;
+		}
+		if((f2.hash() == f1.hash())
+		&&(f1.data!=null)&&(f2.data!=null)
+		&&(f1.data.length>0)&&(f2.data.length>0)
+		&&(Arrays.equals(f1.data, f2.data)))
+			return true;
+		return false;
+	}
+
 
 	public static void main(final String[] args)
 	{
@@ -681,10 +760,7 @@ public class D64FileMatcher extends D64Mod
 							} catch(Exception e) {}
 						}
 						*/
-						if((f2.hash() == f1.hash())
-						&&(f1.data!=null)&&(f2.data!=null)
-						&&(f1.data.length>0)&&(f2.data.length>0)
-						&&(Arrays.equals(f1.data, f2.data)))
+						if(areEqual(f1,f2))
 							rep.add(new D64Report(F2,true,f2));
 						else
 						if((deeper > -1)
