@@ -505,6 +505,11 @@ public class D64FileMatcher extends D64Mod
 	
 	public static boolean areEqual(final FileInfo f1, final FileInfo f2)
 	{
+		if((f2.hash() == f1.hash())
+		&&(f1.data!=null)&&(f2.data!=null)
+		&&(f1.data.length>0)&&(f2.data.length>0)
+		&&(Arrays.equals(f1.data, f2.data)))
+			return true;
 		if(isCvt(f1) 
 		&& isCvt(f2)
 		&&(Math.abs(f1.data.length - f2.data.length) < 257)
@@ -539,11 +544,6 @@ public class D64FileMatcher extends D64Mod
 			f1.data=oldData1;
 			f2.data=oldData2;
 		}
-		if((f2.hash() == f1.hash())
-		&&(f1.data!=null)&&(f2.data!=null)
-		&&(f1.data.length>0)&&(f2.data.length>0)
-		&&(Arrays.equals(f1.data, f2.data)))
-			return true;
 		return false;
 	}
 
