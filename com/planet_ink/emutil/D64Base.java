@@ -749,7 +749,7 @@ public class D64Base
 									{
 										final int vfileT=unsigned(vlirSec[vt]);
 										final int vfileS=unsigned(vlirSec[vt+1]);
-										if((vfileT==0)&&(vfileS==255))
+										if(vfileT==0)
 										{
 											if(vt>1)
 											{
