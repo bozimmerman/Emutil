@@ -159,7 +159,10 @@ public class D64FileMatcher extends D64Mod
 			final String fileName =  getNextLYNXLineFromInputStream(bin, null, fout); // don't trim, cuz spaces are valid.
 			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
 			final String typChar =   getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			final String lastBlockSz=getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
+			String lastBlockSz=getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
+			if((lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
+				lastBlockSz="0";
+
 			if((fileName.length()==0)
 			||(numBlockSz.length()==0)||(!Character.isDigit(numBlockSz.charAt(0)))
 			||(typChar.length()==0)||(typChar.length()>3)
@@ -277,7 +280,7 @@ public class D64FileMatcher extends D64Mod
 		return list;
 	}
 
-	public static List<File> getAllFiles(final String filename, final int depth, List<Pattern> excl) throws IOException
+	public static List<File> getAllFiles(final String filename, final int depth, final List<Pattern> excl) throws IOException
 	{
 		java.util.regex.Pattern P=null;
 		File baseF = new File(filename);
@@ -299,7 +302,7 @@ public class D64FileMatcher extends D64Mod
 		return getAllFiles(baseF,P,depth,excl);
 	}
 
-	public static List<File> getAllFiles(final File baseF, final Pattern P, final int depth, List<Pattern> excl)
+	public static List<File> getAllFiles(final File baseF, final Pattern P, final int depth, final List<Pattern> excl)
 	{
 		final List<File> filesToDo=new LinkedList<File>();
 		if(baseF.isDirectory())
@@ -308,7 +311,7 @@ public class D64FileMatcher extends D64Mod
 			{
 				final LinkedList<File> dirsLeft=new LinkedList<File>();
 				dirsLeft.add(baseF);
-				boolean doExcl = excl != null && excl.size()>0;
+				final boolean doExcl = excl != null && excl.size()>0;
 				while(dirsLeft.size()>0)
 				{
 					final File dir=dirsLeft.removeFirst();
@@ -329,7 +332,7 @@ public class D64FileMatcher extends D64Mod
 							if(excluded)
 								continue;
 						}
-						
+
 						if(F.isDirectory())
 						{
 							int dep=0;
@@ -470,8 +473,8 @@ public class D64FileMatcher extends D64Mod
 	}
 
 	final static byte[] cvtSignature = " formatted GEOS file V1.0".getBytes();
-	
-	public static boolean isCvt(FileInfo f)
+
+	public static boolean isCvt(final FileInfo f)
 	{
 		if((f.data!=null)&&(f.data.length>512))
 		{
@@ -484,16 +487,16 @@ public class D64FileMatcher extends D64Mod
 		}
 		return false;
 	}
-	
+
 	public static boolean filledBytes(final byte[] buf)
 	{
-		byte b=buf[0];
+		final byte b=buf[0];
 		for(int i=1;i<buf.length;i++)
 			if(buf[i]!=b)
 				return false;
 		return true;
 	}
-	
+
 	public static boolean equalRange(final byte[] buf1, final byte[] buf2, final int start, final int length)
 	{
 		final int end=start+length;
@@ -502,7 +505,7 @@ public class D64FileMatcher extends D64Mod
 				return false;
 		return true;
 	}
-	
+
 	public static boolean areEqual(final FileInfo f1, final FileInfo f2)
 	{
 		if((f2.hash() == f1.hash())
@@ -510,7 +513,7 @@ public class D64FileMatcher extends D64Mod
 		&&(f1.data.length>0)&&(f2.data.length>0)
 		&&(Arrays.equals(f1.data, f2.data)))
 			return true;
-		if(isCvt(f1) 
+		if(isCvt(f1)
 		&& isCvt(f2)
 		&&(Math.abs(f1.data.length - f2.data.length) < 257)
 		&&(equalRange(f1.data,f2.data,254,254)))
@@ -574,7 +577,7 @@ public class D64FileMatcher extends D64Mod
 		int depth=Integer.MAX_VALUE;
 		int deeper = -1;
 		double pct=100.0;
-		List<Pattern> excludeMasks = new LinkedList<Pattern>();
+		final List<Pattern> excludeMasks = new LinkedList<Pattern>();
 		for(int i=0;i<args.length;i++)
 		{
 			final int argLen = args[i].length();
@@ -771,7 +774,7 @@ public class D64FileMatcher extends D64Mod
 							{
 								if(!approxs.containsKey(f1))
 								{
-									ArrayList<D64Report> n = new ArrayList<D64Report>();
+									final ArrayList<D64Report> n = new ArrayList<D64Report>();
 									n.add(new D64Report(F2,true,f2,hp));
 									approxs.put(f1, n);
 								}
