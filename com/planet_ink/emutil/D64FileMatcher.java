@@ -25,6 +25,7 @@ public class D64FileMatcher extends D64Mod
 	public enum COMP_FLAG {
 		VERBOSE,
 		RECURSE,
+		NOSORT,
 		CACHE
 	};
 	public enum FILE_FORMAT {
@@ -567,6 +568,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
 			System.out.println("  -E X exclude files matching mask 'X'");
+			System.out.println("  -N No sorting of source filenames");
 			System.out.println("");
 			return;
 		}
@@ -590,6 +592,10 @@ public class D64FileMatcher extends D64Mod
 					case 'r':
 					case 'R':
 						flags.add(COMP_FLAG.RECURSE);
+						break;
+					case 'n':
+					case 'N':
+						flags.add(COMP_FLAG.NOSORT);
 						break;
 					case 'a':
 					case 'A':
@@ -685,15 +691,18 @@ public class D64FileMatcher extends D64Mod
 
 		if(!flags.contains(COMP_FLAG.VERBOSE))
 			System.setErr(new PrintStream(new OutputStream() {public void write(final int b) {}}));
-		F1s.sort(new Comparator<File>() {
-			@Override
-			public int compare(final File o1, final File o2)
-			{
-				if(o1.getParent().equalsIgnoreCase(o2.getParent()))
-					return o1.getName().compareToIgnoreCase(o2.getName());
-				return o1.getParent().compareToIgnoreCase(o2.getParent());
-			}
-		});
+		if(!flags.contains(D64FileMatcher.COMP_FLAG.NOSORT))
+		{
+			F1s.sort(new Comparator<File>() {
+				@Override
+				public int compare(final File o1, final File o2)
+				{
+					if(o1.getParent().equalsIgnoreCase(o2.getParent()))
+						return o1.getName().compareToIgnoreCase(o2.getName());
+					return o1.getParent().compareToIgnoreCase(o2.getParent());
+				}
+			});
+		}
 		final Map<File,FMCache> cache=new TreeMap<File,FMCache>();
 		for(final File F1 : F1s)
 		{
@@ -816,13 +825,25 @@ public class D64FileMatcher extends D64Mod
 			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(final FileInfo key : report.keySet())
 				sortedKeys.add(key);
-			Collections.sort(sortedKeys,new Comparator<FileInfo>()
+			if(!flags.contains(D64FileMatcher.COMP_FLAG.NOSORT))
 			{
-				@Override
-				public int compare(final FileInfo o1, final FileInfo o2) {
-					return o1.filePath.compareTo(o2.filePath);
+				Collections.sort(sortedKeys,new Comparator<FileInfo>()
+				{
+					@Override
+					public int compare(final FileInfo o1, final FileInfo o2) {
+						return o1.filePath.compareToIgnoreCase(o2.filePath);
+					}
+				});
+			}
+			else
+			{
+				sortedKeys.clear();
+				for(final FileInfo f1 : fileData1)
+				{
+					if(report.containsKey(f1))
+						sortedKeys.add(f1);
 				}
-			});
+			}
 			subStr.setLength(0);
 			int numFiles=0;
 			int numMatchedAnywhere=0;
