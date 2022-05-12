@@ -23,3 +23,13 @@ jobs:
         distribution: 'temurin'
     - name: Build with Ant
       run: ant clean compile
+    - name: Deploy elsewhere
+      uses: snxd/deploy-github-deploy-action@v1
+      with:
+        working_directory: 'bin/'
+        console_version: '6.1.1.12'
+        target_product: 'Emutil'
+        target_environment: 'Java'
+        target_repository: 'Bin'
+  
+        
