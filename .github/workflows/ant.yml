@@ -35,5 +35,17 @@ jobs:
         target_repository: 'Bin'
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
+    - name: Promote yourself
+      uses: snxd/deploy-github-promote-action@main
+      with:
+        console_version: '6.1.1.12'
+        source_product: 'Emutil'
+        source_environment: 'Java'
+        source_repository: 'Bin'
+        target_product: 'Emutil'
+        target_environment: 'Java'
+        target_repository: 'Bin'
+        solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
+        solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
   
         
