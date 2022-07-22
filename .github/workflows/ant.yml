@@ -26,19 +26,21 @@ jobs:
     - name: Build with Ant
       run: ant clean compile
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@main
+      uses: snxd/deploy-github-deploy-action@D4T485
       with:
         working_directory: 'bin/'
         console_version: '6.1.1.12'
+        scripts_version: '3.7.16'
         target_product: 'Emutil'
         target_environment: 'Java'
         target_repository: 'Bin'
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
     - name: Promote yourself
-      uses: snxd/deploy-github-promote-action@main
+      uses: snxd/deploy-github-promote-action@D4T485
       with:
         console_version: '6.1.1.12'
+        scripts_version: '3.7.16'
         source_product: 'Emutil'
         source_environment: 'Java'
         source_repository: 'Bin'
