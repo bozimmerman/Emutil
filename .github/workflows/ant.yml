@@ -15,7 +15,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: archon
 
     steps:
     - uses: actions/checkout@v3
@@ -30,8 +30,8 @@ jobs:
       uses: snxd/deploy-github-deploy-action@main
       with:
         working_directory: 'bin/'
-        console_version: '6.1.1.12'
-        scripts_version: '3.7.16'
+        console_version: '6.1.2.51'
+        scripts_version: '3.7.18'
         target_product: 'Emutil'
         target_environment: 'Java'
         target_repository: 'Bin'
@@ -40,8 +40,8 @@ jobs:
     - name: Promote yourself
       uses: snxd/deploy-github-promote-action@main
       with:
-        console_version: '6.1.1.12'
-        scripts_version: '3.7.16'
+        console_version: '6.1.2.51'
+        scripts_version: '3.7.18'
         source_product: 'Emutil'
         source_environment: 'Java'
         source_repository: 'Bin'
