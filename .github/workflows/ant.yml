@@ -27,7 +27,7 @@ jobs:
     - name: Build with Ant
       run: ant clean compile
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@Use-Setup-Action
+      uses: snxd/deploy-github-deploy-action@main
       with:
         working_directory: 'bin/'
         console_version: '6.1.1.12'
