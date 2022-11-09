@@ -15,15 +15,9 @@ on:
 jobs:
   build:
 
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: check env vars
-      shell: bash
-      run: | 
-        echo 1-$PATH
-        echo 2-$PYTHONPATH
-        echo 3-$PYTHONHOME      
     - name: Set up JDK 11
       uses: actions/setup-java@v3
       with:
@@ -31,6 +25,12 @@ jobs:
         distribution: 'temurin'
     - name: Build with Ant
       run: ant clean compile
+    - name: check env vars
+      shell: bash
+      run: | 
+        echo 1-$PATH
+        echo 2-$PYTHONPATH
+        echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
       uses: snxd/deploy-github-deploy-action@main
       with:
