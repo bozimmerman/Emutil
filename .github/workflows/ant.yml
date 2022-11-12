@@ -32,7 +32,7 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@main
+      uses: snxd/deploy-github-deploy-action@Use_Python
       with:
         working_directory: 'bin/'
         console_version: '6.1.2.51'
