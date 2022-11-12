@@ -15,7 +15,7 @@ on:
 jobs:
   build:
 
-    runs-on: macOS
+    runs-on: Linux
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 11
