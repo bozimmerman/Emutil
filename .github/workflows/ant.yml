@@ -37,7 +37,7 @@ jobs:
         working_directory: 'bin/'
         console_version: '6.1.2.51'
         scripts_version: '3.7.18'
-        target_product: 'Emutil'
+        target_product: 'EmutilTooTwo2'
         target_environment: 'Java'
         target_repository: 'Bin'
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
