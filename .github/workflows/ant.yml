@@ -36,7 +36,7 @@ jobs:
       with:
         working_directory: 'bin/'
         console_version: '6.1.2.51'
-        scripts_version: '3.7.18'
+        scripts_version: '3.7.24'
         target_product: 'EmutilTooTwo2'
         target_environment: 'Java'
         target_repository: 'Bin'
