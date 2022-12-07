@@ -15,7 +15,7 @@ on:
 jobs:
   build:
 
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 11
@@ -32,7 +32,7 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@Use_Python
+      uses: snxd/deploy-github-deploy-action@bodev
       with:
         working_directory: 'bin/'
         console_version: '6.1.2.51'
