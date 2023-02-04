@@ -878,8 +878,10 @@ public class D64Mod extends D64Base
 					localFileF=new File(imageF.getParent(),finalDirName);
 				if(localFileF.isDirectory())
 					localFileF = new File(localFileF, imageF.getName().split("\\.(?=[^\\.]+$)")[0]+".lnx");
-				try(FileOutputStream fout=new FileOutputStream(localFileF))
+				FileOutputStream fout;
+				try
 				{
+					fout = new FileOutputStream(localFileF);
 					if(imageFileStr.equalsIgnoreCase("all"))
 					{
 						final int written = D64Mod.writeLNX(files, fout);
