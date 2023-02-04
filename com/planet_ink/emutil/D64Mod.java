@@ -1,5 +1,6 @@
 package com.planet_ink.emutil;
 import java.io.*;
+import java.security.spec.ECFieldF2m;
 import java.util.*;
 /*
 Copyright 2017-2017 Bo Zimmerman
@@ -20,7 +21,7 @@ public class D64Mod extends D64Base
 {
 	enum Action
 	{
-		SCRATCH, EXTRACT, INSERT, BAM, LIST, DIR, LYNX
+		SCRATCH, EXTRACT, INSERT, BAM, LIST, DIR, LYNX, CHECK, FIX
 	}
 
 	enum BamAction
@@ -168,7 +169,7 @@ public class D64Mod extends D64Base
 		final boolean[] leaveWhenDone=new boolean[]{false};
 		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
-			public boolean call(final int t, final int s, final boolean set,
+			public boolean call(final short t, final short s, final boolean set,
 					final short[] curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
@@ -194,7 +195,7 @@ public class D64Mod extends D64Base
 		final int noTrack = D64Mod.getImageDirTrack(imagetype);
 		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
-			public boolean call(final int t, final int s, final boolean set,
+			public boolean call(final short t, final short s, final boolean set,
 					final short[] curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
@@ -214,13 +215,13 @@ public class D64Mod extends D64Base
 		final byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
 		dirSector[file.dirLoc[2]]=(byte)(0);
 		final Set<Integer> tsSet=new HashSet<Integer>();
-		for(final short[] ts : file.tracksNSecs)
-			tsSet.add(Integer.valueOf((ts[0] << 8) + ts[1]));
+		for(final TrackSec ts : file.tracksNSecs)
+			tsSet.add(Integer.valueOf((ts.track << 8) + ts.sector));
 
 		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack()
 		{
 			@Override
-			public boolean call(final int t, final int s, final boolean set,
+			public boolean call(final short t, final short s, final boolean set,
 					final short[] curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
@@ -233,7 +234,7 @@ public class D64Mod extends D64Base
 						try
 						{
 							final int totalSectors=D64Mod.getImageSecsPerTrack(imagetype, t);
-							final int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, (short)t);
+							final int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, t);
 							if((sectorsFree<=totalSectors)
 							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
 								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)-1);
@@ -251,19 +252,19 @@ public class D64Mod extends D64Base
 		return true;
 	}
 
-	protected static short[] findDirectorySlotInSector(final byte[] sector, final short[] dirts) throws IOException
+	protected static short[] findDirectorySlotInSector(final byte[] sector, final TrackSec dirts) throws IOException
 	{
 		for(int i=2;i<256;i+=32)
 		{
 			if((sector[i]==(byte)128)||(sector[i]&(byte)128)==0)
-				return new short[]{dirts[0],dirts[1],(short)i};
+				return new short[]{dirts.track,dirts.sector,(short)i};
 		}
 		return null;
 	}
 
 	protected static short[] findDirectorySlot(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, final FileInfo parentDir) throws IOException
 	{
-		final short[] dirts = parentDir.tracksNSecs.get(0);
+		final TrackSec dirts = parentDir.tracksNSecs.get(0);
 		/*
 		if((parentDir.fileType != FileType.CBM)
 		&&(imagetype != IMAGE_TYPE.D80)
@@ -277,22 +278,22 @@ public class D64Mod extends D64Base
 			dirts[1]=unsigned(sec[1]);
 		}
 		*/
-		byte[] sec=diskBytes[dirts[0]][dirts[1]];
+		byte[] sec=diskBytes[dirts.track][dirts.sector];
 		short[] found=findDirectorySlotInSector(sec,dirts);
 		if(found != null)
 			return found;
 		while(sec[0]!=0)
 		{
-			dirts[0]=unsigned(sec[0]);
-			dirts[1]=unsigned(sec[1]);
-			sec=diskBytes[dirts[0]][dirts[1]];
+			dirts.track=unsigned(sec[0]);
+			dirts.sector=unsigned(sec[1]);
+			sec=diskBytes[dirts.track][dirts.sector];
 			found=findDirectorySlotInSector(sec,dirts);
 			if(found != null)
 				return found;
 		}
 		if(imagetype != IMAGE_TYPE.DNP)
 		{
-			final short track=dirts[0];
+			final short track=dirts.track;
 			final int numFree=sectorsFreeOnTrack(diskBytes,imagetype,imageFLen, track);
 			if(numFree < 0)
 				throw new IOException("No root dir sectors free?!");
@@ -316,7 +317,7 @@ public class D64Mod extends D64Base
 		}
 		else
 		{
-			final short track=dirts[0];
+			final short track=dirts.track;
 			short[] ts= findFreeSector(diskBytes,imagetype,imageFLen,track,(short)(D64Base.getImageNumTracks(imagetype, imageFLen)+1),(short)1,null);
 			if(ts == null)
 				ts= findFreeSector(diskBytes,imagetype,imageFLen,(short)1,(short)(D64Base.getImageNumTracks(imagetype, imageFLen)+1),(short)1,null);
@@ -343,7 +344,7 @@ public class D64Mod extends D64Base
 		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack()
 		{
 			@Override
-			public boolean call(final int t, final int s, final boolean set,
+			public boolean call(final short t, final short s, final boolean set,
 					final short[] curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
@@ -356,7 +357,7 @@ public class D64Mod extends D64Base
 						try
 						{
 							final int totalSectors=D64Mod.getImageSecsPerTrack(imagetype, t);
-							final int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, (short)t);
+							final int sectorsFree=D64Mod.sectorsFreeOnTrack(diskBytes, imagetype, imageFLen, t);
 							if((sectorsFree<=totalSectors)
 							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
 								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)+1);
@@ -542,6 +543,27 @@ public class D64Mod extends D64Base
 		return bytesWritten;
 	}
 
+	protected static final void showHelp()
+	{
+		System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
+		System.out.println("");
+		System.out.println("USAGE: ");
+		System.out.println("  D64Mod (-r) <image file> <action> <action arguments>");
+		System.out.println("ACTIONS:");
+		System.out.println("  SCRATCH <file>");
+		System.out.println("  EXTRACT (-p) <file> <target path>");
+		System.out.println("  INSERT <source path> <file>");
+		System.out.println("  CHECK");
+		System.out.println("  FIX");
+		System.out.println("  BAM CHECK");
+		System.out.println("  BAM ALLOC (Checks for sectors that need bam alloc)");
+		System.out.println("  BAM FREE (Checks for sectors that need bam free)");
+		System.out.println("  LIST/DIR <PATH>");
+		System.out.println("  LIST/DIR ALL");
+		System.out.println("  LYNX <file> <target file>");
+		System.out.println("");
+	}
+
 	public static void main(final String[] args)
 	{
 		final Set<D64ImageFlag> imgFlags = new HashSet<D64ImageFlag>();
@@ -575,28 +597,37 @@ public class D64Mod extends D64Base
 				}
 			}
 		}
-		if(largs.size()<3)
+		if(largs.size()<2)
 		{
-			System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
-			System.out.println("");
-			System.out.println("USAGE: ");
-			System.out.println("  D64Mod (-r) <image file> <action> <action arguments>");
-			System.out.println("ACTIONS:");
-			System.out.println("  SCRATCH <file>");
-			System.out.println("  EXTRACT (-p) <file> <target path>");
-			System.out.println("  INSERT <source path> <file>");
-			System.out.println("  BAM CHECK");
-			System.out.println("  BAM ALLOC (Checks for sectors that need bam alloc)");
-			System.out.println("  BAM FREE (Checks for sectors that need bam free)");
-			System.out.println("  LIST/DIR <PATH>");
-			System.out.println("  LIST/DIR ALL");
-			System.out.println("  LYNX <file> <target file>");
-			System.out.println("");
+			showHelp();
 			return;
 		}
 		final String imagePath=largs.get(0);
 		final String actionStr=largs.get(1);
-		String imageFileStr = largs.get(2);
+		Action action = Action.EXTRACT;
+		try
+		{
+			action=Action.valueOf(actionStr.toUpperCase().trim());
+		}
+		catch(final Exception e)
+		{
+			System.err.println("Invalid action: "+actionStr);
+			System.exit(-1);
+		}
+		String imageFileStr;
+		if(largs.size()<3)
+		{
+			if((action != Action.CHECK)
+			&&(action != Action.FIX))
+			{
+				showHelp();
+				return;
+			}
+			else
+				imageFileStr = "";
+		}
+		else
+			imageFileStr = largs.get(2);
 		String expr="";
 		expr=expr.trim();
 		final List<File> imageFiles = new ArrayList<File>();
@@ -642,73 +673,70 @@ public class D64Mod extends D64Base
 			}
 			imageFiles.add(chkF);
 		}
-		Action action = Action.EXTRACT;
 		BamAction bamAction = BamAction.CHECK;
 		String localFileStr="";
-		try
+		switch(action)
 		{
-			action=Action.valueOf(actionStr.toUpperCase().trim());
-			switch(action)
+		case SCRATCH:
+			if(largs.size()<2)
 			{
-			case SCRATCH:
-				System.err.println("Not implemented");
+				System.err.println("Missing target file(s)");
 				System.exit(-1);
-				break;
-			case INSERT:
-				if(largs.size()<4)
-				{
-					System.err.println("Missing target file");
-					System.exit(-1);
-				}
-				System.err.println("Not implemented");
-				System.exit(-1);
-				localFileStr = largs.get(2);
-				imageFileStr = largs.get(3);
-				break;
-			case EXTRACT:
-				if(args.length<4)
-				{
-					System.err.println("Missing target file");
-					System.exit(-1);
-				}
-				localFileStr = largs.get(3);
-				break;
-			case LYNX:
-				if(args.length<4)
-				{
-					System.err.println("Missing target file");
-					System.exit(-1);
-				}
-				localFileStr = largs.get(3);
-				break;
-			case BAM:
-				try
-				{
-					bamAction=BamAction.valueOf(largs.get(2).toUpperCase().trim());
-				}
-				catch(final Exception e)
-				{
-					System.err.println("Invalid sub-command");
-					System.exit(-1);
-				}
-				break;
-			case DIR:
-			case LIST:
-				/*
-				if(args.length<4)
-				{
-					System.err.println("Missing target file");
-					System.exit(-1);
-				}
-				*/
-				imageFileStr = largs.get(2);
-				break;
 			}
-		}
-		catch(final Exception e)
-		{
-			System.err.println("Invalid action: "+actionStr);
+			imageFileStr = largs.get(2);
+			break;
+		case INSERT:
+			if(largs.size()<4)
+			{
+				System.err.println("Missing target file");
+				System.exit(-1);
+			}
+			System.err.println("Not implemented");
 			System.exit(-1);
+			localFileStr = largs.get(2);
+			imageFileStr = largs.get(3);
+			break;
+		case EXTRACT:
+			if(args.length<4)
+			{
+				System.err.println("Missing target file");
+				System.exit(-1);
+			}
+			localFileStr = largs.get(3);
+			break;
+		case LYNX:
+			if(args.length<4)
+			{
+				System.err.println("Missing target file");
+				System.exit(-1);
+			}
+			localFileStr = largs.get(3);
+			break;
+		case BAM:
+			try
+			{
+				bamAction=BamAction.valueOf(largs.get(2).toUpperCase().trim());
+			}
+			catch(final Exception e)
+			{
+				System.err.println("Invalid sub-command");
+				System.exit(-1);
+			}
+			break;
+		case CHECK:
+		case FIX:
+			break;
+		case DIR:
+		case LIST:
+			/*
+			if(args.length<4)
+			{
+				System.err.println("Missing target file");
+				System.exit(-1);
+			}
+			*/
+			imageFileStr = largs.get(2);
+			break;
 		}
 		for(final File imageF : imageFiles)
 		{
@@ -733,7 +761,9 @@ public class D64Mod extends D64Base
 				// that's ok.. anything is OK for insert, really.
 			}
 			else
-			if((action != Action.BAM) && (file == null))
+			if((action != Action.BAM)
+			&&(action != Action.CHECK)
+			&& (file == null))
 			{
 				imageError("File not found in image: "+imageFileStr,imageFiles.size()>0);
 				continue;
@@ -774,7 +804,10 @@ public class D64Mod extends D64Base
 					try
 					{
 						if(D64Mod.scratchFile(diskBytes, imagetype, imageFLen[0], f))
+						{
 							System.out.println("Scratched "+f.filePath);
+							rewriteD64[0]=true;
+						}
 					}
 					catch(final Exception e)
 					{
@@ -866,25 +899,24 @@ public class D64Mod extends D64Base
 			}
 			case BAM:
 			{
-				final HashSet<Integer> used = new HashSet<Integer>();
-				final HashMap<String,HashSet<Integer>> qmap = new HashMap<String,HashSet<Integer>>();
+				final Set<TrackSec> used = new TreeSet<TrackSec>();
+				final Map<String,Set<TrackSec>> qmap = new HashMap<String,Set<TrackSec>>();
 				for(final FileInfo f : files)
 				{
-					final HashSet<Integer> qset=new HashSet<Integer>();
+					final TreeSet<TrackSec> qset=new TreeSet<TrackSec>();
 					qmap.put(f.filePath, qset);
-					for(final short[] s : f.tracksNSecs)
+					for(final TrackSec s : f.tracksNSecs)
 					{
-						final Integer x=Integer.valueOf((s[0] << 8) + s[1]);
-						if(!used.contains(x))
-							used.add(x);
-						if(!qset.contains(x))
-							qset.add(x);
+						if(!used.contains(s))
+							used.add(s);
+						if(!qset.contains(s))
+							qset.add(s);
 					}
 				}
 				try
 				{
-					final HashSet<Integer> unbammed=new HashSet<Integer>();
-					final HashSet<Integer> overbammed=new HashSet<Integer>();
+					final Set<TrackSec> unbammed=new TreeSet<TrackSec>();
+					final Set<TrackSec> overbammed=new TreeSet<TrackSec>();
 					switch(bamAction)
 					{
 					case CHECK:
@@ -893,36 +925,36 @@ public class D64Mod extends D64Base
 						System.out.print("1  : ");
 						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 							@Override
-							public boolean call(final int t, final int s, final boolean set,
+							public boolean call(final short t, final short s, final boolean set,
 									final short[] curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
+								final TrackSec ts = TrackSec.valueOf(t,  s);
 								if(t != lastT[0])
 								{
 									lastT[0]=t;
 									System.out.println("");
-									final String ts=Integer.toString(t);
-									System.out.print(ts+spaces.substring(0,3-ts.length())+": ");
+									final String tsstr=Integer.toString(t);
+									System.out.print(tsstr+spaces.substring(0,3-tsstr.length())+": ");
 								}
-								final Integer tsInt=Integer.valueOf((t << 8) + s);
 								if(set)
 								{
-									if(used.contains(tsInt))
+									if(used.contains(ts))
 									{
 										System.out.print("0");
-										unbammed.add(tsInt);
+										unbammed.add(ts);
 									}
 									else
 										System.out.print("o");
 								}
 								else
 								{
-									if(used.contains(tsInt))
+									if(used.contains(ts))
 										System.out.print("x");
 									else
 									{
-										overbammed.add(tsInt);
+										overbammed.add(ts);
 										System.out.print("#");
 									}
 								}
@@ -936,20 +968,22 @@ public class D64Mod extends D64Base
 							System.err.println("Not all sectors matched BAM allocation. "
 											+ "0=used, but not marked in bam.  "
 											+ "#=UNUSED, but marked used in BAM.");
+							System.out.println("Under-bammed: "+unbammed.size());
+							System.out.println("Over-bammed : "+overbammed.size());
 							if(unbammed.size()>0)
 							{
 								System.err.println("Un-Bammed files:");
 								final Set<String> unbammedS=new HashSet<String>();
-								for(final Integer I : unbammed)
+								for(final TrackSec I : unbammed)
 									for(final String fs : qmap.keySet())
 										if(qmap.get(fs).contains(I))
 											unbammedS.add(fs);
 								for(final String path : unbammedS)
 								{
 									System.err.print(path);
-									final HashSet<Integer> allF=qmap.get(path);
+									final Set<TrackSec> allF=qmap.get(path);
 									int numMissing=0;
-									for(final Integer I : allF)
+									for(final TrackSec I : allF)
 										if(!unbammed.contains(I))
 											numMissing++;
 									if(numMissing==0)
@@ -968,26 +1002,26 @@ public class D64Mod extends D64Base
 						System.out.print("Allocation need check...");
 						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 							@Override
-							public boolean call(final int t, final int s, final boolean set,
+							public boolean call(final short t, final short s, final boolean set,
 									final short[] curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
-								final Integer tsInt=Integer.valueOf((t << 8) + s);
+								final TrackSec ts = TrackSec.valueOf(t,s);
 								if(set)
 								{
-									if(used.contains(tsInt))
+									if(used.contains(ts))
 									{
 										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
 										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
 										rewriteD64[0]=true;
-										unbammed.add(tsInt);
+										unbammed.add(ts);
 									}
 								}
 								else
 								{
-									if(!used.contains(tsInt))
-										overbammed.add(tsInt);
+									if(!used.contains(ts))
+										overbammed.add(ts);
 								}
 								return false;
 							}
@@ -1000,27 +1034,27 @@ public class D64Mod extends D64Base
 						System.out.print("De-Allocation need check...");
 						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
 							@Override
-							public boolean call(final int t, final int s, final boolean set,
+							public boolean call(final short t, final short s, final boolean set,
 									final short[] curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
-								final Integer tsInt=Integer.valueOf((t << 8) + s);
+								final TrackSec ts = TrackSec.valueOf(t, s);
 								if(set)
 								{
-									if(used.contains(tsInt))
+									if(used.contains(ts))
 									{
-										unbammed.add(tsInt);
+										unbammed.add(ts);
 									}
 								}
 								else
 								{
-									if(!used.contains(tsInt))
+									if(!used.contains(ts))
 									{
 										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
 										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] | bamMask);
 										rewriteD64[0]=true;
-										overbammed.add(tsInt);
+										overbammed.add(ts);
 									}
 								}
 								return false;
@@ -1236,6 +1270,79 @@ public class D64Mod extends D64Base
 				{
 					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
+				}
+				break;
+			}
+			case FIX:
+				System.out.println("Not yet implemented.");
+				break;
+			case CHECK:
+			{
+				final Set<TrackSec> allocedts = new TreeSet<TrackSec>();
+				try
+				{
+					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
+						@Override
+						public boolean call(final short t, final short s, final boolean set,
+								final short[] curBAM, final short bamByteOffset,
+								final short sumBamByteOffset, final short bamMask)
+						{
+							if(!set)
+								allocedts.add(TrackSec.valueOf(t, s));
+							return false;
+						}
+					});
+				}
+				catch (final IOException e)
+				{
+					e.printStackTrace();
+				}
+				for(final FileInfo f : files)
+				{
+					if(f.filePath.equals("*BAM*")||f.filePath.equals("/"))
+						continue;
+					if(f.tracksNSecs.size() != f.feblocks)
+						System.out.println(f.filePath+" has incorrect block size (fixable)");
+					for(final TrackSec ts : f.tracksNSecs)
+					{
+						if(!allocedts.contains(ts))
+						{
+							System.out.println(f.filePath+" has un-allocated blocks (fixable)");
+							break;
+						}
+					}
+					for(final FileInfo f2 : files)
+					{
+						if(f != f2)
+						{
+							int numFound = 0;
+							for(final TrackSec ts : f.tracksNSecs)
+							{
+								if(f2.tracksNSecs.contains(ts))
+									numFound++;
+							}
+							if(numFound == f.tracksNSecs.size())
+								System.out.println(f.filePath+" cross links to inside "+f2.filePath);
+							else
+							{
+								int numFound2 = 0;
+								for(final TrackSec ts : f2.tracksNSecs)
+								{
+									if(f.tracksNSecs.contains(ts))
+										numFound2++;
+								}
+								if(numFound2 == f2.tracksNSecs.size())
+									System.out.println(f.filePath+" cross links to contain all of "+f2.filePath);
+								else
+								if(numFound > 0)
+									System.out.println(f.filePath+" cross links with "+f2.filePath);
+								else
+								if(numFound2 > 0)
+									System.out.println(f.filePath+" cross links with "+f2.filePath);
+							}
+
+						}
+					}
 				}
 				break;
 			}

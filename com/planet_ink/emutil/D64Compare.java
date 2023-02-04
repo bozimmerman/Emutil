@@ -72,7 +72,6 @@ public class D64Compare extends D64Base
 			System.exit(-1);
 		}
 		diskF1=null;
-
 		final IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
 		if(typeF2==null)
 		{
@@ -98,7 +97,9 @@ public class D64Compare extends D64Base
 				if(f1.filePath.equals(f2.filePath))
 				{
 					missingFromDisk2.remove(f1);
-					if(!Arrays.equals(f1.data, f2.data))
+
+					if((!Arrays.equals(f1.data, f2.data))
+					&&((f1.fileType != FileType.DIR)||(f2.fileType != FileType.DIR)))
 						foundButNotEqual.add(new FileInfo[]{f1,f2});
 				}
 			}

@@ -128,6 +128,46 @@ public class D64Base
 		}
 	}
 
+	public static class TrackSec implements Comparable<TrackSec>
+	{
+		short track;
+		short sector;
+
+		private static TrackSec[][] cache = new TrackSec[256][256];
+		private TrackSec(final short t, final short s)
+		{
+			track=t;
+			sector=s;
+		}
+
+		public static TrackSec valueOf(final short t, final short s)
+		{
+			if((t<0)||(t>255)||(s<0)||(s>255))
+				throw new IllegalArgumentException();
+			synchronized(cache)
+			{
+				if(cache[t][s] == null)
+					cache[t][s] = new TrackSec(t,s);
+				return cache[t][s];
+			}
+		}
+
+		@Override
+		public int compareTo(final TrackSec o)
+		{
+			if(track > o.track)
+				return 1;
+			if(track < o.track)
+				return -1;
+			if(sector > o.sector)
+				return 1;
+			if(sector < o.sector)
+				return -1;
+			return 0;
+		}
+
+	}
+
 	public static class FileInfo
 	{
 		FileInfo		parentF			= null;
@@ -135,20 +175,21 @@ public class D64Base
 		byte[]			rawFileName		= new byte[0];
 		String			filePath		= "";
 		FileType		fileType		= null;
+		int				feblocks		= 0;
 		int				size			= 0;
 		byte[]			data			= null;
 		Set<Long>		rollingHashes	= null;
 		Set<Long>		fixedHashes		= null;
 		byte[]			header			= null;
 		short[]			dirLoc			= new short[3];
-		List<short[]>	tracksNSecs		= new ArrayList<short[]>();
+		List<TrackSec>	tracksNSecs		= new ArrayList<TrackSec>();
 		private long	hash			= -1;
 
 		public String toString()
 		{
 			return filePath;
 		}
-		
+
 		public void reset()
 		{
 			hash=-1;
@@ -579,7 +620,7 @@ public class D64Base
 		return (byte)(0xFF & b);
 	}
 
-	public static byte[] getFileContent(final String fileName, final byte[][][] tsmap, int t, final int mt, int s, final List<short[]> secsUsed) throws IOException
+	public static byte[] getFileContent(final String fileName, final byte[][][] tsmap, int t, final int mt, int s, final List<TrackSec> secsUsed) throws IOException
 	{
 		final HashSet<byte[]> doneBefore=new HashSet<byte[]>();
 		byte[] sector=null;
@@ -591,7 +632,7 @@ public class D64Base
 		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
 		{
 			if(secsUsed != null)
-				secsUsed.add(new short[]{(short)t,(short)s});
+				secsUsed.add(TrackSec.valueOf((short)t,(short)s));
 			int maxBytes=255;
 			sector=tsmap[t][s];
 			if(sector[0]==0)
@@ -617,7 +658,7 @@ public class D64Base
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
-			dirInfo.tracksNSecs.add(new short[]{(short)t,(short)s});
+			dirInfo.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
 			doneBefore.add(sector);
 			for(int i=2;i<256;i+=32)
 			{
@@ -654,7 +695,7 @@ public class D64Base
 						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
 						{
 							f.header = ssec;
-							f.tracksNSecs.add(new short[]{(short)pht,(short)phs});
+							f.tracksNSecs.add(TrackSec.valueOf((short)pht,(short)phs));
 							doneBefore.add(ssec);
 						}
 					}
@@ -673,6 +714,7 @@ public class D64Base
 					final int size=(256*(lb+(256*hb)));
 					if(size<0)
 						System.out.println(lb+","+hb+","+size);
+					f.feblocks = (lb+(256*hb));
 					f.size = size;
 
 					try
@@ -742,7 +784,7 @@ public class D64Base
 								{
 									final byte[] vlirSec = tsmap[fileT][fileS];
 									doneBefore.add(vlirSec);
-									f.tracksNSecs.add(new short[]{(short)fileT,(short)fileS});
+									f.tracksNSecs.add(TrackSec.valueOf((short)fileT,(short)fileS));
 									final byte[] vlirblock = new byte[254];
 									final List<byte[]> contents = new ArrayList<byte[]>();
 									for(int vt=0;vt<=254;vt+=2)
@@ -821,7 +863,7 @@ public class D64Base
 								{
 									final byte[] sides=tsmap[pht][phs];
 									doneBefore.add(sides);
-									f.tracksNSecs.add(new short[]{(short)pht,(short)phs});
+									f.tracksNSecs.add(TrackSec.valueOf((short)pht,(short)phs));
 									if(unsigned(sides[2])==254)
 									{
 										if(sides[0]!=0)
@@ -908,7 +950,7 @@ public class D64Base
 		final boolean[] isAllocated = new boolean[]{false};
 		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
 			@Override
-			public boolean call(final int t, final int s, final boolean set,
+			public boolean call(final short t, final short s, final boolean set,
 					final short[] curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
@@ -1014,7 +1056,7 @@ public class D64Base
 
 	public interface BAMBack
 	{
-		public boolean call(int t, int s, boolean set, short[] curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
+		public boolean call(short t, short s, boolean set, short[] curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
 	}
 
 	protected static void bamPeruse(final byte[][][] bytes, final IMAGE_TYPE type, final long imageSize, final BAMBack call) throws IOException
@@ -1045,7 +1087,7 @@ public class D64Base
 				else
 					mask = (short)Math.round(Math.pow(2.0,s%8));
 				final boolean set = (bamByte & mask) == mask;
-				if((call != null)&&(call.call(t, s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
+				if((call != null)&&(call.call((short)t, (short)s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
 					return;
 			}
 			if(currBAM[5] != 0)
@@ -1068,13 +1110,14 @@ public class D64Base
 		f.filePath="*BAM*";
 		f.fileType=FileType.DIR;
 		f.size=0;
-		f.tracksNSecs.add(new short[]{(short)t,(short)s});
+		f.feblocks=0;
+		f.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
 		finalData.add(f);
 		if(currBAM[1]!=0)
-			f.tracksNSecs.add(new short[]{currBAM[0],(short)0});
+			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],(short)0));
 		while(currBAM != null)
 		{
-			f.tracksNSecs.add(new short[]{currBAM[0],currBAM[1]});
+			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],currBAM[1]));
 			currBAM = getBAMNext(currBAM,type);
 		}
 		switch(type)
@@ -1106,6 +1149,7 @@ public class D64Base
 			f.filePath="/";
 			f.fileType=FileType.DIR;
 			f.size=0;
+			f.feblocks=0;
 			finalData.add(f);
 			fillFileListFromHeader(imgName, fileSize, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, true);
 		}
@@ -1119,13 +1163,13 @@ public class D64Base
 			for(int sec=1;sec<getImageSecsPerTrack(type, 53);sec++)
 			{
 				boolean found=false;
-				for(final short[] chk : f.tracksNSecs)
+				for(final TrackSec chk : f.tracksNSecs)
 				{
-					if((chk[0]==53)&&(chk[1]==sec))
+					if((chk.track==53)&&(chk.sector==sec))
 						found=true;
 				}
 				if(!found)
-					f.tracksNSecs.add(new short[]{53,(short)sec});
+					f.tracksNSecs.add(TrackSec.valueOf((short)53,(short)sec));
 			}
 			break;
 		default:
@@ -1238,11 +1282,13 @@ public class D64Base
 		if(lastLen < fileLen && (fileLen >= MAGIC_MAX))
 		{
 			file.size=lastLen;
+			file.feblocks=(int)Math.round(Math.ceil(lastLen / 254.0));
 			file.data = Arrays.copyOf(filedata, lastLen);
 		}
 		else
 		{
 			file.size = fileLen;
+			file.feblocks=(int)Math.round(Math.ceil(fileLen / 254.0));
 			file.data = filedata;
 		}
 		return file;
