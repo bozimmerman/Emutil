@@ -40,7 +40,7 @@ jobs:
         scripts_version: '3.7.30'
         target_product: 'EmutilTooTwo2'
         target_environment: 'Java'
-        launch_files1: '("Entry Name 1" "/path/to/exec" "arg1 arg2 ...")'
-        launch_files2: '("Entry Name 2" "/path/to/exec" "arg1 arg2 ...")'
+        launch_file1: '("Entry Name 1" "/path/to/exec" "arg1 arg2 ...")'
+        launch_file2: '("Entry Name 2" "/path/to/exec" "arg1 arg2 ...")'
   
         
