@@ -38,7 +38,7 @@ jobs:
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
         console_version: '6.1.2.84'
         scripts_version: '3.7.30'
-        target_product: 'EmutilTooTwo2'
+        target_product: 'Emutil'
         target_environment: 'Java'
         launch_file1: '("Entry Name 1" "/path/to/exec" "arg1 arg2 ...")'
         launch_file2: '("Entry Name 2" "/path/to/exec" "arg1 arg2 ...")'
