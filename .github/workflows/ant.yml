@@ -43,6 +43,6 @@ jobs:
         target_product: 'Emutil'
         target_environment: 'Java'
         target_repository: 'Bin'
-        hidden_files: '( "bin/D64 Search.jar" "bin/D64 Mod.jar" )'
+        hidden_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
   
         
