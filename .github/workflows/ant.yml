@@ -32,15 +32,17 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-launchfiles-action@main
+      uses: snxd/deploy-github-deploy-action@main
       with:
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
         console_version: '6.1.2.84'
         scripts_version: '3.7.30'
+        release_version: '1.0'
+        working_directory: 'bin/'
         target_product: 'Emutil'
         target_environment: 'Java'
-        launch_file1: '("Entry Name 1" "/path/to/exec" "arg1 arg2 ...")'
-        launch_file2: '("Entry Name 2" "/path/to/exec" "arg1 arg2 ...")'
+        target_repository: 'Bin'
+        hidden_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
   
         
