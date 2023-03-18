@@ -32,7 +32,7 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@D4T-704
+      uses: snxd/deploy-github-deploy-action@D4T-697
       with:
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
@@ -43,6 +43,8 @@ jobs:
         target_product: 'Emutil'
         target_environment: 'Java'
         target_repository: 'Bin'
+        sync_attributes: 'True'
+        executable_files: '( "bin/D64Search2.jar" "bin/D64Mod2.jar" )'
         hidden_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
   
         
