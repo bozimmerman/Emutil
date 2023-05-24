@@ -38,7 +38,8 @@ jobs:
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
         console_version: '6.1.2.84'
         scripts_version: '3.7.31'
-        create_type: product
+        action_type: update
+        object_type: product
         description: 'Happy new Emutil Description'
         target_product: 'Emutil New Delme'
   
