@@ -32,7 +32,7 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@v3_example
+      uses: snxd/deploy-github-deploy-action@v3_setup
       with:
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
