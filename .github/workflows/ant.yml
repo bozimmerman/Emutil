@@ -32,21 +32,13 @@ jobs:
         echo 2-$PYTHONPATH
         echo 3-$PYTHONHOME      
     - name: Deploy elsewhere
-      uses: snxd/deploy-github-deploy-action@v3_setup
+      uses: snxd/deploy-github-create-action@v2
       with:
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
-        working_directory: 'bin/'
         console_version: '6.1.2.84'
-        scripts_version: '3.8.2'
-        release_version: '1.0'
-        target_product: 'Emutil'
-        target_environment: 'Java'
-        target_repository: 'Bin'
-        hidden_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
-        sync_attributes: 'False'
-        executable_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
-        included_files: 'bin/*.jar'
-        excluded_files: 'bin/*.txt'
-  
-        
+        scripts_version: '3.7.31'
+        action_type: update
+        object_type: product
+        description: 'Happy new Emutil Description'
+        target_product: 'Emutil New Delme'
