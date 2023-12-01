@@ -1,6 +1,5 @@
 package com.planet_ink.emutil;
 import java.io.*;
-import java.security.spec.ECFieldF2m;
 import java.util.*;
 /*
 Copyright 2017-2017 Bo Zimmerman
