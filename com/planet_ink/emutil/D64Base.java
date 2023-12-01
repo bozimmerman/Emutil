@@ -37,8 +37,8 @@ public class D64Base
 
 	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
-	final static String EMUTIL_VERSION = "2.2";
-	final static String EMUTIL_AUTHOR = "2021 Bo Zimmerman";
+	final static String EMUTIL_VERSION = "2.3";
+	final static String EMUTIL_AUTHOR = "2023 Bo Zimmerman";
 
 	public D64Base() {}
 
@@ -965,7 +965,11 @@ public class D64Base
 		return isAllocated[0];
 	}
 
-	public static void fillFileListFromHeader(final String imgName, final int srcFLen, final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap, final Set<byte[]> doneBefore, final List<FileInfo> finalData, int t, int s, final int maxT, final FileInfo f, final boolean readInside) throws IOException
+	public static void fillFileListFromHeader(final String imgName, final int srcFLen,
+			final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap,
+			final Set<byte[]> doneBefore, final List<FileInfo> finalData,
+			int t, int s, final int maxT, final FileInfo f,
+			final boolean readInside) throws IOException
 	{
 		byte[] sector;
 		if((type != IMAGE_TYPE.D80)
@@ -1097,7 +1101,8 @@ public class D64Base
 		}
 	}
 
-	public static List<FileInfo> getDiskFiles(final String imgName, final IMAGE_TYPE type, final byte[][][] tsmap, final int fileSize)
+	public static List<FileInfo> getDiskFiles(final String imgName, final IMAGE_TYPE type,
+			final byte[][][] tsmap, final int fileSize)
 	{
 		int t=getImageDirTrack(type);
 		final int maxT=getImageNumTracks(type, fileSize);

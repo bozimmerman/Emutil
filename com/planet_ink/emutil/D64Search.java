@@ -1,8 +1,15 @@
 package com.planet_ink.emutil;
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 /*
 Copyright 2006-2017 Bo Zimmerman
 
@@ -36,7 +43,9 @@ public class D64Search extends D64Mod
 		VERBOSE,
 		RECURSE,
 		INSIDE,
-		SHOWMD5;
+		SHOWMD5,
+		UNZIP,
+		FULLPATH;
 	};
 
 	public enum FILE_FORMAT {
@@ -77,7 +86,7 @@ public class D64Search extends D64Mod
 		return name.length()-n==expr.length-ee;
 	}
 
-	private static boolean checkInside(byte[] buf, final char[] expr, final HashSet<SEARCH_FLAG> flags, final FILE_FORMAT fmt, final boolean caseSensitive)
+	private static boolean checkInside(byte[] buf, final char[] expr, final Set<SEARCH_FLAG> flags, final FILE_FORMAT fmt, final boolean caseSensitive)
 	{
 		if(!caseSensitive)
 		{
@@ -117,193 +126,352 @@ public class D64Search extends D64Mod
 		return false;
 	}
 
-	private static void search(final File F, final char[] expr, final HashSet<SEARCH_FLAG> flags, final FILE_FORMAT  fmt, final DatabaseInfo dbInfo)
+	private static class SearchFile
 	{
-		if(F.isDirectory())
+		public String filePath = "";
+		public String fileName = "";
+		public int diskLen = 0;
+		public IMAGE_TYPE typ = null;
+		public byte[][][] diskData = null;
+	}
+
+	private static List<SearchFile> parseSearchFiles(final File F, final boolean unzip)
+	{
+		final String name = F.getName().toUpperCase();
+		List<SearchFile> files = null;
+		if(name.endsWith(".GZ"))
 		{
-			final File[] files=F.listFiles();
-			for(int f=0;f<files.length;f++)
-				search(files[f],expr,flags,fmt, dbInfo);
+			if(!unzip)
+				return null;
+			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
+			{
+				if(F.getName().toUpperCase().endsWith(img.toString()+".GZ"))
+				{
+					try
+					{
+						final FileInputStream fin = new FileInputStream(F);
+						final int[] fileLen = new int[] {(int)F.length()};
+						final byte[][][] disk = getDisk(img, fin, F.getName(), (int)F.length(), fileLen);
+						final SearchFile sF = new SearchFile();
+						sF.typ = img;
+						sF.diskData = disk;
+						sF.diskLen = fileLen[0];
+						sF.fileName = F.getName();
+						sF.filePath = F.getAbsolutePath();
+						if(files == null)
+							files = new ArrayList<SearchFile>();
+						files.add(sF);
+						fin.close();
+					}
+					catch(final IOException ioe)
+					{
+						System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+ioe.getMessage());
+					}
+					break;
+				}
+			}
+		}
+		else
+		if(name.endsWith(".ZIP"))
+		{
+			if(!unzip)
+				return null;
+			try
+			{
+				final ZipArchiveInputStream zip = new ZipArchiveInputStream(new FileInputStream(F));
+				ZipArchiveEntry entry=zip.getNextZipEntry();
+				while(entry!=null)
+				{
+					if (entry.isDirectory())
+					{
+						entry = zip.getNextZipEntry();
+						continue;
+					}
+					if(entry.getSize()>83361792)
+					{
+						zip.close();
+						break;
+					}
+					IMAGE_TYPE img = null;
+					for(final IMAGE_TYPE i : IMAGE_TYPE.values())
+					{
+						if(entry.getName().toUpperCase().endsWith(i.toString()))
+						{
+							img = i;
+							break;
+						}
+					}
+					if(img == null)
+					{
+						entry = zip.getNextZipEntry();
+						continue;
+					}
+					final SearchFile sF = new SearchFile();
+					final byte[] lbuf = new byte[4096];
+					final int size = (entry.getSize()<1)?174848:(int)entry.getSize();
+					int read=zip.read(lbuf);
+					final ByteBuffer bout = ByteBuffer.allocate(size);
+					sF.diskLen = read;
+					while((read>=0)&&(sF.diskLen < size))
+					{
+						sF.diskLen+=read;
+						bout.put(lbuf,0,read);
+						if(sF.diskLen < size)
+						{
+							long amtToRead = size-sF.diskLen;
+							if(amtToRead > lbuf.length)
+								amtToRead = lbuf.length;
+							read=zip.read(lbuf,0,(int)amtToRead);
+						}
+					}
+					final int[] fileLen =new int[] { sF.diskLen } ;
+					final InputStream is=new ByteArrayInputStream(bout.array());
+					final byte[][][] disk = getDisk(img, is, F.getName()+"@"+entry.getName(), sF.diskLen, fileLen);
+					sF.typ = img;
+					sF.diskData = disk;
+					sF.diskLen = fileLen[0];
+					sF.fileName = F.getName()+"@"+entry.getName();
+					sF.filePath = F.getAbsolutePath()+"@"+entry.getName();
+					if(files == null)
+						files = new ArrayList<SearchFile>();
+					files.add(sF);
+					entry = zip.getNextZipEntry();
+				}
+				zip.close();
+			}
+			catch(final Exception e)
+			{
+				e.printStackTrace();
+				System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+e.getMessage());
+			}
 		}
 		else
 		{
-			final boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
-			final boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
+			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
+			{
+				if(F.getName().toUpperCase().endsWith(img.toString()))
+				{
+					final SearchFile sF = new SearchFile();
+					sF.typ = img;
+					final int[] fLen=new int[1];
+					final byte[][][] disk=getDisk(sF.typ,F,fLen);
+					sF.diskData = disk;
+					sF.diskLen = fLen[0];
+					sF.fileName = F.getName();
+					sF.filePath = F.getAbsolutePath();
+					if(files == null)
+						files = new ArrayList<SearchFile>();
+					files.add(sF);
+				}
+			}
+		}
+		return files;
+	}
+
+	private static boolean searchDiskFiles(final List<SearchFile> files, final char[] expr,
+			final Set<SEARCH_FLAG> flags, final FILE_FORMAT  fmt, final DatabaseInfo dbInfo,
+			final MessageDigest MD)
+	{
+		final boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
+		final boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
+		final boolean fullPath=flags.contains(SEARCH_FLAG.FULLPATH);
+		boolean batchAdded=false;
+		for(final SearchFile F : files)
+		{
+			final String fileName = fullPath?F.filePath:F.fileName;
+			final byte[][][] disk = F.diskData;
+			if(dbInfo!=null)
+			{
+				try
+				{
+					dbInfo.stmt.clearParameters();
+					MD.reset();
+					//ByteArrayOutputStream bout = new ByteArrayOutputStream();
+					long diskLen=0;
+					for(int b1=0;b1<disk.length;b1++)
+					{
+						for(int b2=0;b2<disk[b1].length;b2++)
+						{
+							MD.update(disk[b1][b2]);
+							diskLen += disk[b1][b2].length;
+							//bout.write(disk[b1][b2]);
+						}
+					}
+					final byte[] md5 = MD.digest();
+					dbInfo.stmt.setString(1, fileName);
+					dbInfo.stmt.setString(2, "*");
+					dbInfo.stmt.setInt(3, 0);
+					dbInfo.stmt.setLong(4, diskLen);
+					dbInfo.stmt.setString(5, toHex(md5));
+					dbInfo.stmt.setString(6, "dsk");
+					dbInfo.stmt.addBatch();
+					batchAdded=true;
+				}
+				catch(final Exception e)
+				{
+					System.err.println("Stupid preparedStatement error: "+e.getMessage());
+				}
+			}
+			final List<FileInfo> fileData=getDiskFiles(fileName,F.typ,disk,F.diskLen);
+			if((fmt==FILE_FORMAT.PETSCII)||inside)
+			{
+				for(final FileInfo info : fileData)
+				{
+					final StringBuilder str=new StringBuilder("");
+					for(final byte b : info.fileName.getBytes())
+						str.append(D64Search.convertToPetscii(b));
+					info.fileName = str.toString();
+				}
+			}
+			else
+			if(fmt==FILE_FORMAT.ASCII)
+			{
+				for(final FileInfo info : fileData)
+				{
+					final StringBuilder str=new StringBuilder("");
+					for(final byte b : info.fileName.getBytes())
+						str.append((char)b);
+					info.fileName = str.toString();
+				}
+			}
+			else
+			if(fmt==FILE_FORMAT.ASCII)
+			{
+				for(final FileInfo info : fileData)
+				{
+					final StringBuilder str=new StringBuilder("");
+					for(final byte b : info.fileName.getBytes())
+						str.append(toHex(b));
+					info.fileName = str.toString();
+				}
+			}
+			if(fmt==FILE_FORMAT.PETSCII)
+			{
+				for(final FileInfo info : fileData)
+				{
+					if(info.data!=null)
+					{
+						for(int i=0;i<info.data.length;i++)
+							info.data[i]=(byte)(D64Search.convertToPetscii(info.data[i]) & 0xff);
+					}
+				}
+			}
+
+			if(fileData==null)
+			{
+				System.err.println("Error reading :"+fileName);
+				continue;
+			}
+			boolean announced=false;
+			byte[] md5 = null;
+			for(int n=0;n<fileData.size();n++)
+			{
+				md5=null;
+				final FileInfo f = fileData.get(n);
+				if(f.data==null)
+					continue;
+				if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
+				||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
+				{
+					if(!announced)
+					{
+						System.out.println(fileName);
+						announced=true;
+					}
+					String name=f.fileName;
+					final StringBuffer asciiName=new StringBuffer("");
+					for(int x=0;x<name.length();x++)
+						asciiName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
+					if(dbInfo!=null)
+					{
+						MD.reset();
+						MD.update(f.data);
+						md5 = MD.digest();
+						try
+						{
+							dbInfo.stmt.clearParameters();
+							dbInfo.stmt.setString(1, fileName);
+							dbInfo.stmt.setString(2, asciiName.toString());
+							dbInfo.stmt.setInt(3, (n+1));
+							dbInfo.stmt.setInt(4, f.size);
+							dbInfo.stmt.setString(5, toHex(md5));
+							dbInfo.stmt.setString(6, f.fileType.toString().toLowerCase());
+							dbInfo.stmt.addBatch();
+							batchAdded=true;
+						}
+						catch(final SQLException e)
+						{
+							System.err.println("Stupid preparedStatement error: "+e.getMessage());
+						}
+					}
+					if(!flags.contains(SEARCH_FLAG.INSIDE))
+					{
+						if(fmt==FILE_FORMAT.ASCII)
+							name=asciiName.toString();
+						else
+						if(fmt==FILE_FORMAT.HEX)
+						{
+							final StringBuffer newName=new StringBuffer("");
+							for(int x=0;x<name.length();x+=2)
+								newName.append((char)fromHex(name.substring(0,2)));
+							name=newName.toString();
+						}
+					}
+					System.out.print("  "+asciiName.toString());
+					if((flags.contains(SEARCH_FLAG.VERBOSE)))
+						System.out.print(","+f.fileType+", "+f.size+" bytes");
+					if((flags.contains(SEARCH_FLAG.SHOWMD5)))
+					{
+						if(md5==null)
+						{
+							MD.reset();
+							MD.update(f.data);
+							md5=MD.digest();
+						}
+						System.out.print(", MD5: "+toHex(md5));
+					}
+					System.out.println("");
+				}
+			}
+		}
+		return batchAdded;
+	}
+
+	private static void searchFilesystem(final File F, final char[] expr, final Set<SEARCH_FLAG> flags,
+			final FILE_FORMAT  fmt, final DatabaseInfo dbInfo, final TreeSet<File> pathsDone)
+	{
+		if(F.isDirectory())
+		{
+			if(flags.contains(SEARCH_FLAG.RECURSE)
+			&&(!pathsDone.contains(F)))
+			{
+				pathsDone.add(F);
+				final File[] files=F.listFiles();
+				for(int f=0;f<files.length;f++)
+					searchFilesystem(files[f],expr,flags,fmt, dbInfo,pathsDone);
+			}
+		}
+		else
+		{
 			MessageDigest MD=null;
 			if(flags.contains(SEARCH_FLAG.SHOWMD5))
 			{
 				try{MD=MessageDigest.getInstance("MD5");}catch(final Exception e){e.printStackTrace(System.err);}
 			}
-			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
+			final boolean unzip = flags.contains(SEARCH_FLAG.UNZIP);
+			final List<SearchFile> files = parseSearchFiles(F,unzip);
+			if(files != null)
 			{
-				if(F.getName().toUpperCase().endsWith(img.toString()))
+				if(searchDiskFiles(files,expr,flags,fmt,dbInfo,MD))
 				{
-					final IMAGE_TYPE type=img;
-					final int[] fLen=new int[1];
-					final byte[][][] disk=getDisk(type,F,fLen);
-					if(dbInfo!=null)
+					try
 					{
-						try
-						{
-							dbInfo.stmt.clearParameters();
-							MD.reset();
-							//ByteArrayOutputStream bout = new ByteArrayOutputStream();
-							long diskLen=0;
-							for(int b1=0;b1<disk.length;b1++)
-							{
-								for(int b2=0;b2<disk[b1].length;b2++)
-								{
-									MD.update(disk[b1][b2]);
-									diskLen += disk[b1][b2].length;
-									//bout.write(disk[b1][b2]);
-								}
-							}
-							final byte[] md5 = MD.digest();
-							dbInfo.stmt.setString(1, F.getName());
-							dbInfo.stmt.setString(2, "*");
-							dbInfo.stmt.setInt(3, 0);
-							dbInfo.stmt.setLong(4, diskLen);
-							dbInfo.stmt.setString(5, toHex(md5));
-							dbInfo.stmt.setString(6, "dsk");
-							dbInfo.stmt.addBatch();
-						}
-						catch(final Exception e)
-						{
-							System.err.println("Stupid preparedStatement error: "+e.getMessage());
-						}
+						dbInfo.stmt.executeBatch();
 					}
-					final List<FileInfo> fileData=getDiskFiles(F.getName(),type,disk,fLen[0]);
-					if((fmt==FILE_FORMAT.PETSCII)||inside)
+					catch(final SQLException e)
 					{
-						for(final FileInfo info : fileData)
-						{
-							final StringBuilder str=new StringBuilder("");
-							for(final byte b : info.fileName.getBytes())
-								str.append(D64Search.convertToPetscii(b));
-							info.fileName = str.toString();
-						}
+						System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
 					}
-					else
-					if(fmt==FILE_FORMAT.ASCII)
-					{
-						for(final FileInfo info : fileData)
-						{
-							final StringBuilder str=new StringBuilder("");
-							for(final byte b : info.fileName.getBytes())
-								str.append((char)b);
-							info.fileName = str.toString();
-						}
-					}
-					else
-					if(fmt==FILE_FORMAT.ASCII)
-					{
-						for(final FileInfo info : fileData)
-						{
-							final StringBuilder str=new StringBuilder("");
-							for(final byte b : info.fileName.getBytes())
-								str.append(toHex(b));
-							info.fileName = str.toString();
-						}
-					}
-					if(fmt==FILE_FORMAT.PETSCII)
-					{
-						for(final FileInfo info : fileData)
-						{
-							if(info.data!=null)
-							{
-								for(int i=0;i<info.data.length;i++)
-									info.data[i]=(byte)(D64Search.convertToPetscii(info.data[i]) & 0xff);
-							}
-						}
-					}
-
-					if(fileData==null)
-					{
-						System.err.println("Error reading :"+F.getName());
-						continue;
-					}
-					boolean announced=false;
-					byte[] md5 = null;
-					for(int n=0;n<fileData.size();n++)
-					{
-						md5=null;
-						final FileInfo f = fileData.get(n);
-						if(f.data==null)
-							continue;
-						if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
-						||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
-						{
-							if(!announced)
-							{
-								System.out.println(F.getName());
-								announced=true;
-							}
-							String name=f.fileName;
-							final StringBuffer asciiName=new StringBuffer("");
-							for(int x=0;x<name.length();x++)
-								asciiName.append(D64Search.convertToPetscii((byte)name.charAt(x)));
-							if(dbInfo!=null)
-							{
-								MD.reset();
-								MD.update(f.data);
-								md5 = MD.digest();
-								try
-								{
-									dbInfo.stmt.clearParameters();
-									dbInfo.stmt.setString(1, F.getName());
-									dbInfo.stmt.setString(2, asciiName.toString());
-									dbInfo.stmt.setInt(3, (n+1));
-									dbInfo.stmt.setInt(4, f.size);
-									dbInfo.stmt.setString(5, toHex(md5));
-									dbInfo.stmt.setString(6, f.fileType.toString().toLowerCase());
-									dbInfo.stmt.addBatch();
-								}
-								catch(final SQLException e)
-								{
-									System.err.println("Stupid preparedStatement error: "+e.getMessage());
-								}
-							}
-							if(!flags.contains(SEARCH_FLAG.INSIDE))
-							{
-								if(fmt==FILE_FORMAT.ASCII)
-									name=asciiName.toString();
-								else
-								if(fmt==FILE_FORMAT.HEX)
-								{
-									final StringBuffer newName=new StringBuffer("");
-									for(int x=0;x<name.length();x+=2)
-										newName.append((char)fromHex(name.substring(0,2)));
-									name=newName.toString();
-								}
-							}
-							System.out.print("  "+asciiName.toString());
-							if((flags.contains(SEARCH_FLAG.VERBOSE)))
-								System.out.print(","+f.fileType+", "+f.size+" bytes");
-							if((flags.contains(SEARCH_FLAG.SHOWMD5)))
-							{
-								if(md5==null)
-								{
-									MD.reset();
-									MD.update(f.data);
-									md5=MD.digest();
-								}
-								System.out.print(", MD5: "+toHex(md5));
-							}
-							System.out.println("");
-						}
-					}
-					break;
-				}
-			}
-			if(dbInfo!=null)
-			{
-				try
-				{
-					dbInfo.stmt.executeBatch();
-				}
-				catch(final SQLException e)
-				{
-					System.err.println("SQL preparedStatement execute batch error: "+e.getMessage());
 				}
 			}
 		}
@@ -318,10 +486,12 @@ public class D64Search extends D64Mod
 			System.out.println("USAGE: ");
 			System.out.println("  D64Search <options> <path> <expression>");
 			System.out.println("OPTIONS:");
-			System.out.println("  -R recursive search");
+			System.out.println("  -R recursive path search");
 			System.out.println("  -V verbose");
 			System.out.println("  -M show MD5 sum for each matching file");
 			System.out.println("  -C case sensitive");
+			System.out.println("  -Z unzip archives");
+			System.out.println("  -F full absolute paths");
 			System.out.println("  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
 			System.out.println("  -D db export of disk info data (-Du<user>,");
@@ -337,7 +507,7 @@ public class D64Search extends D64Mod
 			System.out.println("* Hex expressions include hex digits, *, and ?.");
 			return;
 		}
-		final HashSet<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
+		final Set<SEARCH_FLAG> flags=new HashSet<SEARCH_FLAG>();
 		FILE_FORMAT fmt=FILE_FORMAT.PETSCII;
 		String path=null;
 		String expr="";
@@ -366,9 +536,17 @@ public class D64Search extends D64Mod
 					case 'I':
 						flags.add(SEARCH_FLAG.INSIDE);
 						break;
+					case 'z':
+					case 'Z':
+						flags.add(SEARCH_FLAG.UNZIP);
+						break;
 					case 'm':
 					case 'M':
 						flags.add(SEARCH_FLAG.SHOWMD5);
+						break;
+					case 'f':
+					case 'F':
+						flags.add(SEARCH_FLAG.FULLPATH);
 						break;
 					case 'x':
 					case 'X':
@@ -466,20 +644,23 @@ public class D64Search extends D64Mod
 			for(int e=0;e<exprCom.length;e++)
 				exprCom[e]=Character.toUpperCase(exprCom[e]);
 		if(fmt==FILE_FORMAT.HEX)
+		{
 			for(int e=0;e<exprCom.length;e++)
 				if((exprCom[e]!='?')&&(exprCom[e]!='%')&&(HEX_DIG.indexOf(exprCom[e])<0))
 				{
 					System.err.println("Illegal hex '"+exprCom[e]+"' in expression.");
 					return;
 				}
+		}
 		final File F=new File(path);
+		final TreeSet<File> pathsDone = new TreeSet<File>();
 		if(F.isDirectory())
 		{
 			final File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
-				search(files[f],exprCom,flags,fmt,dbInfo);
+				searchFilesystem(files[f],exprCom,flags,fmt,dbInfo, pathsDone);
 		}
 		else
-			search(F,exprCom,flags,fmt, dbInfo);
+			searchFilesystem(F,exprCom,flags,fmt, dbInfo, pathsDone);
 	}
 }
