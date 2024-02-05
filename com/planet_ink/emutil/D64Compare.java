@@ -65,7 +65,7 @@ public class D64Compare extends D64Base
 		}
 		final int[] f1Len=new int[1];
 		byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
-		final List<FileInfo> fileData1=getDiskFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
+		final List<FileInfo> fileData1=getFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
 		if(fileData1==null)
 		{
 			System.err.println("Bad extension :"+F1.getName());
@@ -80,7 +80,7 @@ public class D64Compare extends D64Base
 		}
 		final int[] f2Len=new int[1];
 		byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
-		final List<FileInfo> fileData2=getDiskFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
+		final List<FileInfo> fileData2=getFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
 		if(fileData2==null)
 		{
 			System.err.println("Bad extension :"+F2.getName());

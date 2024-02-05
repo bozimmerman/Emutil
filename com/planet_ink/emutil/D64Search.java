@@ -309,7 +309,7 @@ public class D64Search extends D64Mod
 					System.err.println("Stupid preparedStatement error: "+e.getMessage());
 				}
 			}
-			final List<FileInfo> fileData=getDiskFiles(fileName,F.typ,disk,F.diskLen);
+			final List<FileInfo> fileData=getFiles(fileName,F.typ,disk,F.diskLen);
 			if((fmt==FILE_FORMAT.PETSCII)||inside)
 			{
 				for(final FileInfo info : fileData)

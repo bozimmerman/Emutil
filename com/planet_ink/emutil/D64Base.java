@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -78,6 +79,11 @@ public class D64Base
 				return ".DNP";
 			}
 		},
+		T64 {
+			public String toString() {
+				return ".T64";
+			}
+		}
 	};
 
 	public enum LOOSE_IMAGE_TYPE {
@@ -303,6 +309,16 @@ public class D64Base
 		}
 	}
 
+	protected static byte[] numToBytes(final int x)
+	{
+		byte[] result = new byte[4];
+		result[3] = (byte) (x >> 24);
+		result[2] = (byte) (x >> 16);
+		result[1] = (byte) (x >> 8);
+		result[0] = (byte) (x /*>> 0*/);
+		return result;	
+	}
+	
 	protected static void errMsg(final String errMsg)
 	{
 		if(!repeatedErrors.contains(errMsg))
@@ -351,12 +367,16 @@ public class D64Base
 			if(t<155) return 23;
 			return 23;
 		}
+		case T64:
+			return 1;
 		}
 		return -1;
 	}
 
 	public static int getImageTotalBytes(final IMAGE_TYPE type, final int fileSize)
 	{
+		if(type == IMAGE_TYPE.T64)
+			return fileSize;
 		final int ts=getImageNumTracks(type, fileSize);
 		int total=0;
 		for(int t=1;t<=ts;t++)
@@ -379,6 +399,8 @@ public class D64Base
 			return 39;
 		case DNP:
 			return 1;
+		case T64:
+			return -1;
 		}
 		return -1;
 	}
@@ -398,6 +420,8 @@ public class D64Base
 			return 10;
 		case DNP:
 			return 1;
+		case T64:
+			return -1;
 		}
 		return -1;
 	}
@@ -417,6 +441,8 @@ public class D64Base
 			return 0;
 		case DNP:
 			return 1;
+		case T64:
+			return -1;
 		}
 		return -1;
 	}
@@ -439,6 +465,8 @@ public class D64Base
 			return 2*77;
 		case DNP:
 			return (int)(fileSize / 256 / 256);
+		case T64:
+			return 1;
 		}
 		return -1;
 	}
@@ -499,7 +527,7 @@ public class D64Base
 		return (char)(petToAscTable[b] & 0xff);
 	}
 
-	protected static byte[][][] parseMap(final IMAGE_TYPE type, final byte[] buf, final int fileLength)
+	protected static byte[][][] parseImageDiskMap(final IMAGE_TYPE type, final byte[] buf, final int fileLength)
 	{
 		final int numTS=getImageNumTracks(type, fileLength);
 		final byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(type,1)][256];
@@ -583,7 +611,13 @@ public class D64Base
 			}
 			if((fileLen != null)&&(fileLen.length>0))
 				fileLen[0]=len;
-			return parseMap(type,buf,len);
+			if(type == IMAGE_TYPE.T64)
+			{
+				byte[][][] image = new byte[1][1][];
+				image[0][0]=buf;
+				return image;
+			}
+			return parseImageDiskMap(type,buf,len);
 		}
 		catch(final java.io.IOException e)
 		{
@@ -1017,6 +1051,8 @@ public class D64Base
 			return new short[]{38,0,6,255,1,0};
 		case DNP:
 			return new short[]{1,2,32,255,0,32};
+		case T64:
+			return null;
 		}
 		return null;
 	}
@@ -1054,6 +1090,8 @@ public class D64Base
 			prev[2]=0;
 			prev[3]=255;
 			return prev;
+		case T64:
+			return null;
 		}
 		return null;
 	}
@@ -1101,9 +1139,103 @@ public class D64Base
 		}
 	}
 
-	public static List<FileInfo> getDiskFiles(final String imgName, final IMAGE_TYPE type,
+	public static List<FileInfo> getTapeFiles(final String imgName, final IMAGE_TYPE type,
 			final byte[][][] tsmap, final int fileSize)
 	{
+		final List<FileInfo> finalData=new Vector<FileInfo>();
+		byte[] data = tsmap[0][0];
+		String marker = new String(data,0,32);
+		if(!marker.startsWith("C64"))
+		{
+			errMsg(imgName+": tape header error.");
+			return finalData;
+		}
+		//final int tapeVersionNumber = (data[32] & 0xff) + (data[33] & 0xff);
+		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
+		//final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff)); // might be gaps, so dont use this!
+		// we skip the tape/disk name. :(
+		
+		// first must do a pre-scan, because some T64s are Wrong.
+		TreeSet<Integer> fileStarts = new TreeSet<Integer>();
+		for(int start = 64; start<64+(32*numEntries); start+=32)
+		{
+			if(data[start]!=1)
+				continue;
+			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
+			fileStarts.add(Integer.valueOf(startAddress));
+		}
+		
+		for(int start = 64; start<64+(32*numEntries); start+=32)
+		{
+			if(data[start]!=1)
+				continue;
+			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
+			int endAddress = (data[start+4]& 0xff) + (256*(data[start+5]& 0xff));
+			if(endAddress == 50118) // this means it's wrong.
+			{
+				for(final Iterator<Integer> i = fileStarts.iterator();i.hasNext();)
+				{
+					final Integer startI = i.next();
+					if(startI.intValue() == startAddress)
+					{
+						if(i.hasNext())
+							endAddress = i.next()-1;
+						else
+							endAddress = fileSize-1;
+						break;
+					}
+				}
+			}
+			final int dataOffset = (data[start+8] & 0xff) 
+									+ (256*(data[start+9] & 0xff))
+									+ (65536 * (data[start+10] & 0xff)); // nothing higher is Good.
+			final int fileLength = endAddress-startAddress+1;
+			final FileInfo f = new FileInfo();
+			finalData.add(f);
+			f.header = Arrays.copyOfRange(data, start, start+32);
+			final StringBuffer file=new StringBuffer("");
+			int fn=start+32-1;
+			for(;fn>=start+16;fn--)
+			{
+				if((data[fn]!=-96)&&(data[fn]!=0)&&(data[fn]!=32))
+					break;
+			}
+			byte[] rawFilename = new byte[fn-start-16+1];
+			for(int x=start+16;x<=fn;x++)
+			{
+				file.append((char)data[x]);
+				rawFilename[x-start-16] = data[x];
+			}
+			for(int ii=0;ii<file.length();ii++)
+				file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii))); // this makes no sense to me
+			f.filePath="/" + file.toString();
+			f.fileName=file.toString();
+			f.rawFileName = rawFilename;
+			f.size=fileLength;
+			{
+				final byte[] bytes = numToBytes(start);
+				f.dirLoc=new short[] {(short)(bytes[0]&0xff),(short)(bytes[1]&0xff),(short)(bytes[2]&0xff)};
+			}
+			f.feblocks = (int)Math.round(Math.floor(f.size / 254));
+			if(data[start+1]!=0) // this is mega lame -- what a messed up format
+				f.fileType = FileType.PRG;
+			else
+				f.fileType = FileType.SEQ;
+			if(dataOffset + f.size > fileSize)
+			{
+				errMsg(imgName+": has bad offsets for file "+f.filePath);
+				return finalData;
+			}
+			f.data = Arrays.copyOfRange(data, dataOffset, dataOffset+f.size);
+		}
+		return finalData;
+	}
+	
+	public static List<FileInfo> getFiles(final String imgName, final IMAGE_TYPE type,
+			final byte[][][] tsmap, final int fileSize)
+	{
+		if(type == IMAGE_TYPE.T64)
+			return getTapeFiles(imgName,type,tsmap,fileSize);
 		int t=getImageDirTrack(type);
 		final int maxT=getImageNumTracks(type, fileSize);
 		int s=getImageDirSector(type);

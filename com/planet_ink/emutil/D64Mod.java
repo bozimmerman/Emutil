@@ -209,8 +209,50 @@ public class D64Mod extends D64Base
 		return numFree[0];
 	}
 
-	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, final FileInfo file) throws IOException
+	protected static boolean scratchTapeFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, 
+			final int imageFLen, final FileInfo file) throws IOException
 	{
+		// first kill the data;
+		int dirLocOffset = file.dirLoc[0] + (256 * file.dirLoc[1]) + (65536 * file.dirLoc[2]);
+		byte[] data = diskBytes[0][0];
+		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
+		final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff));
+		final int startAddress = (data[dirLocOffset+2] & 0xff) + (256*(data[dirLocOffset+3] & 0xff));
+		byte[] start = Arrays.copyOfRange(data, 0, startAddress);
+		byte[] rest = Arrays.copyOfRange(data, startAddress + file.size, data.length);
+		data = Arrays.copyOf(start, start.length+rest.length);
+		for(int i=0;i<rest.length;i++)
+			data[start.length+i] = rest[i];
+		// data killed.  now kill the dir-entry, if that is wise
+		if(numEntries > 1)
+		{
+			start = Arrays.copyOfRange(data, 0, dirLocOffset);
+			rest = Arrays.copyOfRange(data, dirLocOffset + 32, data.length);
+			data = Arrays.copyOf(start, start.length+rest.length);
+			for(int i=0;i<rest.length;i++)
+				data[start.length+i] = rest[i];
+			byte[] numEntriesB = D64Base.numToBytes(numEntries-1);
+			data[34] = numEntriesB[0];
+			data[35] = numEntriesB[1];
+		}
+		else
+		{
+			for(int i=0;i<32;i++) // only one left, so just clear it
+				data[dirLocOffset+i]=0;
+		}
+		// now decrease the number of used entries, and we're done
+		byte[] usedEntriesB = D64Base.numToBytes(usedEntries-1);
+		data[36] = usedEntriesB[0];
+		data[37] = usedEntriesB[1];
+		diskBytes[0][0] = data;
+		return false;
+	}
+
+	protected static boolean scratchFile(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, 
+			final int imageFLen, final FileInfo file) throws IOException
+	{
+		if(imagetype == IMAGE_TYPE.T64)
+			return scratchTapeFile(diskBytes, imagetype, imageFLen, file);
 		final byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
 		dirSector[file.dirLoc[2]]=(byte)(0);
 		final Set<Integer> tsSet=new HashSet<Integer>();
@@ -742,7 +784,7 @@ public class D64Mod extends D64Base
 			final IMAGE_TYPE imagetype = getImageTypeAndZipped(imageF);
 			final int[] imageFLen=new int[1];
 			final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
-			final List<FileInfo> files = getDiskFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
+			final List<FileInfo> files = getFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
 			FileInfo file = findFile(imageFileStr,files,false);
 			if(file == null)
 				file = findFile(imageFileStr,files,true);
@@ -765,6 +807,13 @@ public class D64Mod extends D64Base
 			&& (file == null))
 			{
 				imageError("File not found in image: "+imageFileStr,imageFiles.size()>0);
+				continue;
+			}
+			else
+			if((action == Action.BAM)
+			&&(imagetype == IMAGE_TYPE.T64))
+			{
+				imageError("No BAM action possible on: "+imageFileStr,imageFiles.size()>0);
 				continue;
 			}
 			final LinkedList<FileInfo> fileList=new LinkedList<FileInfo>();
@@ -1172,6 +1221,97 @@ public class D64Mod extends D64Base
 					if(targetFileName.length()==0)
 						targetFileName = localFileF.getName().substring(0,16);
 				}
+				if(imagetype == IMAGE_TYPE.T64)
+				{
+					byte[] data = diskBytes[0][0];
+					final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
+					final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff));
+					int dirStart=-1;
+					if(numEntries > usedEntries)
+					{
+						for(int i = 64; i<64+(32*numEntries); i+=32)
+						{
+							if(data[i]==0)
+							{
+								dirStart=i;
+								break;
+							}
+						}
+					}
+					if(dirStart<0)
+					{
+						// make new dir entry:
+						byte[] start = Arrays.copyOfRange(data, 0, 64 + (32 * numEntries));
+						byte[] rest = Arrays.copyOfRange(data, 64 + (32 * numEntries), data.length);
+						data = Arrays.copyOf(start, start.length+rest.length+32);
+						for(int i=0;i<rest.length;i++)
+							data[start.length+i+32] = rest[i];
+						byte[] numEntriesB = D64Base.numToBytes(numEntries+1);
+						data[34] = numEntriesB[0];
+						data[35] = numEntriesB[1];
+						dirStart = 64 + (32 * numEntries);
+						//now fix ALL the file start offsets, as they are **ALL WRONG**
+						for(int sx = 64; sx<64+(32*numEntries); sx+=32)
+						{
+							if(data[x]!=1)
+								continue;
+							final int dataOffset =  (data[sx+8] & 0xff) // since we are adding a dir entry, the offset moves up
+									+ (256*(data[sx+9] & 0xff))
+									+ (65536 * (data[sx+10] & 0xff)); // nothing higher is Good.
+							byte[] dataOffsetB = D64Base.numToBytes(dataOffset+32);
+							data[sx+8] = dataOffsetB[0];
+							data[sx+9] = dataOffsetB[1];
+							data[sx+10] = dataOffsetB[3];
+							data[sx+11] = 0;
+						}
+					}
+					int endOfCurrData = data.length;
+					byte[] usedEntriesB = D64Base.numToBytes(usedEntries+1);
+					data[36] = usedEntriesB[0];
+					data[37] = usedEntriesB[1];
+					// Now actually compose the new dir entry at dirStart
+					data[dirStart + 0] = 1;
+					data[dirStart + 1] = (byte)0x82;
+					if((fileData.length > 1)&&(cbmtype == FileType.PRG))
+					{
+						data[dirStart+2] = fileData[0];
+						data[dirStart+3] = fileData[1];
+						int startAddr = (fileData[0]&0xff) + (256 * (fileData[1]&0xff));
+						byte[] endAddrB = D64Base.numToBytes(fileData.length + startAddr - 1);
+						data[dirStart+4] = endAddrB[0];
+						data[dirStart+5] = endAddrB[1];
+					}
+					else
+					{
+						data[dirStart+2] = 1;
+						data[dirStart+3] = 8;
+						byte[] endAddrB = D64Base.numToBytes(fileData.length + 2049 - 1);
+						data[dirStart+4] = endAddrB[0];
+						data[dirStart+5] = endAddrB[1];
+					}
+					byte[] newFileOffset = D64Base.numToBytes(data.length);
+					data[dirStart+8] = newFileOffset[0];
+					data[dirStart+9] = newFileOffset[1];
+					data[dirStart+10] = newFileOffset[2];
+					data[dirStart+11] = newFileOffset[3];
+					for(int i=0;i<16;i++)
+					{
+						if(i<targetFileName.length())
+							data[dirStart+16+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(i))));
+						else
+							data[dirStart+16+i]=tobyte(32);
+					}
+					// and lastly, append the file data
+					data = Arrays.copyOf(data, endOfCurrData + fileData.length);
+					for(int i=0;i<fileData.length;i++)
+						data[endOfCurrData + i] = fileData[i];
+					diskBytes[0][0] = data;
+					rewriteD64[0]=true;
+					break; // skip that mess below
+				}
+				// tape crap is done above
+				
+				//** NOW we can insert into a real Disk Image
 				final int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
 				try
 				{
@@ -1280,23 +1420,26 @@ public class D64Mod extends D64Base
 			case CHECK:
 			{
 				final Set<TrackSec> allocedts = new TreeSet<TrackSec>();
-				try
+				if(imagetype != IMAGE_TYPE.T64)
 				{
-					D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
-						@Override
-						public boolean call(final short t, final short s, final boolean set,
-								final short[] curBAM, final short bamByteOffset,
-								final short sumBamByteOffset, final short bamMask)
-						{
-							if(!set)
-								allocedts.add(TrackSec.valueOf(t, s));
-							return false;
-						}
-					});
-				}
-				catch (final IOException e)
-				{
-					e.printStackTrace();
+					try
+					{
+						D64Mod.bamPeruse(diskBytes, imagetype, imageFLen[0], new BAMBack(){
+							@Override
+							public boolean call(final short t, final short s, final boolean set,
+									final short[] curBAM, final short bamByteOffset,
+									final short sumBamByteOffset, final short bamMask)
+							{
+								if(!set)
+									allocedts.add(TrackSec.valueOf(t, s));
+								return false;
+							}
+						});
+					}
+					catch (final IOException e)
+					{
+						e.printStackTrace();
+					}
 				}
 				for(final FileInfo f : files)
 				{

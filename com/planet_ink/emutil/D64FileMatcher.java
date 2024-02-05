@@ -244,7 +244,7 @@ public class D64FileMatcher extends D64Mod
 				}
 				final int[] f1Len=new int[1];
 				byte[][][] diskF1=getDisk(typeF1,zin,entry.getName(),(int)entry.getSize(), f1Len);
-				fileData1=getDiskFiles(entry.getName(),typeF1,diskF1,f1Len[0]);
+				fileData1=getFiles(entry.getName(),typeF1,diskF1,f1Len[0]);
 				if(fileData1==null)
 				{
 					errMsg(F.getName()+": Error: Bad extension :"+entry.getName());
@@ -383,7 +383,7 @@ public class D64FileMatcher extends D64Mod
 		if(typeF != null)
 		{
 			diskF=getDisk(typeF,F,fLen);
-			fileData=getDiskFiles(F.getName(),typeF,diskF,fLen[0]);
+			fileData=getFiles(F.getName(),typeF,diskF,fLen[0]);
 		}
 		else
 		if(getLooseImageTypeAndZipped(F) != null)
