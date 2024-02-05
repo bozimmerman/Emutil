@@ -347,7 +347,7 @@ public class D64FileMatcher extends D64Mod
 								dirsLeft.add(F);
 						}
 						else
-						if((getImageTypeAndZipped(F)!=null)
+						if((getImageTypeAndGZipped(F)!=null)
 						||(D64FileMatcher.getLooseImageTypeAndZipped(F)!=null)
 						||(F.getName().toUpperCase().endsWith(".ZIP"))
 						||(F.getName().toUpperCase().endsWith(".LNX")))
@@ -365,7 +365,7 @@ public class D64FileMatcher extends D64Mod
 			}
 		}
 		else
-		if(getImageTypeAndZipped(baseF)!=null)
+		if(getImageTypeAndGZipped(baseF)!=null)
 		{
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
 				filesToDo.add(baseF);
@@ -379,7 +379,7 @@ public class D64FileMatcher extends D64Mod
 		final int[] fLen=new int[1];
 		byte[][][] diskF;
 		List<FileInfo> fileData = null;
-		final IMAGE_TYPE typeF = getImageTypeAndZipped(F);
+		final IMAGE_TYPE typeF = getImageTypeAndGZipped(F);
 		if(typeF != null)
 		{
 			diskF=getDisk(typeF,F,fLen);

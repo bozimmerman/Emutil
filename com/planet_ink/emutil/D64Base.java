@@ -311,14 +311,14 @@ public class D64Base
 
 	protected static byte[] numToBytes(final int x)
 	{
-		byte[] result = new byte[4];
+		final byte[] result = new byte[4];
 		result[3] = (byte) (x >> 24);
 		result[2] = (byte) (x >> 16);
 		result[1] = (byte) (x >> 8);
 		result[0] = (byte) (x /*>> 0*/);
-		return result;	
+		return result;
 	}
-	
+
 	protected static void errMsg(final String errMsg)
 	{
 		if(!repeatedErrors.contains(errMsg))
@@ -613,7 +613,7 @@ public class D64Base
 				fileLen[0]=len;
 			if(type == IMAGE_TYPE.T64)
 			{
-				byte[][][] image = new byte[1][1][];
+				final byte[][][] image = new byte[1][1][];
 				image[0][0]=buf;
 				return image;
 			}
@@ -1143,8 +1143,8 @@ public class D64Base
 			final byte[][][] tsmap, final int fileSize)
 	{
 		final List<FileInfo> finalData=new Vector<FileInfo>();
-		byte[] data = tsmap[0][0];
-		String marker = new String(data,0,32);
+		final byte[] data = tsmap[0][0];
+		final String marker = new String(data,0,32);
 		if(!marker.startsWith("C64"))
 		{
 			errMsg(imgName+": tape header error.");
@@ -1154,9 +1154,9 @@ public class D64Base
 		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
 		//final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff)); // might be gaps, so dont use this!
 		// we skip the tape/disk name. :(
-		
+
 		// first must do a pre-scan, because some T64s are Wrong.
-		TreeSet<Integer> fileStarts = new TreeSet<Integer>();
+		final TreeSet<Integer> fileStarts = new TreeSet<Integer>();
 		for(int start = 64; start<64+(32*numEntries); start+=32)
 		{
 			if(data[start]!=1)
@@ -1164,7 +1164,7 @@ public class D64Base
 			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
 			fileStarts.add(Integer.valueOf(startAddress));
 		}
-		
+
 		for(int start = 64; start<64+(32*numEntries); start+=32)
 		{
 			if(data[start]!=1)
@@ -1179,14 +1179,14 @@ public class D64Base
 					if(startI.intValue() == startAddress)
 					{
 						if(i.hasNext())
-							endAddress = i.next()-1;
+							endAddress = i.next().intValue()-1;
 						else
 							endAddress = fileSize-1;
 						break;
 					}
 				}
 			}
-			final int dataOffset = (data[start+8] & 0xff) 
+			final int dataOffset = (data[start+8] & 0xff)
 									+ (256*(data[start+9] & 0xff))
 									+ (65536 * (data[start+10] & 0xff)); // nothing higher is Good.
 			final int fileLength = endAddress-startAddress+1;
@@ -1200,7 +1200,7 @@ public class D64Base
 				if((data[fn]!=-96)&&(data[fn]!=0)&&(data[fn]!=32))
 					break;
 			}
-			byte[] rawFilename = new byte[fn-start-16+1];
+			final byte[] rawFilename = new byte[fn-start-16+1];
 			for(int x=start+16;x<=fn;x++)
 			{
 				file.append((char)data[x]);
@@ -1230,7 +1230,7 @@ public class D64Base
 		}
 		return finalData;
 	}
-	
+
 	public static List<FileInfo> getFiles(final String imgName, final IMAGE_TYPE type,
 			final byte[][][] tsmap, final int fileSize)
 	{
@@ -1479,7 +1479,7 @@ public class D64Base
 		return null;
 	}
 
-	protected static IMAGE_TYPE getImageTypeAndZipped(final File F)
+	protected static IMAGE_TYPE getImageTypeAndGZipped(final File F)
 	{
 		if(F==null)
 			return null;

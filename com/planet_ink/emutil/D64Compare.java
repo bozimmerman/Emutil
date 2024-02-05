@@ -57,7 +57,7 @@ public class D64Compare extends D64Base
 			System.exit(-1);
 		}
 
-		final IMAGE_TYPE typeF1 = getImageTypeAndZipped(F1);
+		final IMAGE_TYPE typeF1 = getImageTypeAndGZipped(F1);
 		if(typeF1==null)
 		{
 			System.err.println("Error reading :"+F1.getName());
@@ -72,7 +72,7 @@ public class D64Compare extends D64Base
 			System.exit(-1);
 		}
 		diskF1=null;
-		final IMAGE_TYPE typeF2 = getImageTypeAndZipped(F2);
+		final IMAGE_TYPE typeF2 = getImageTypeAndGZipped(F2);
 		if(typeF2==null)
 		{
 			System.err.println("Error reading :"+F2.getName());
