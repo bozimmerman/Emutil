@@ -7,34 +7,36 @@
 			<compilerarg value="-Xlint:unchecked" />
 		</javac>
 		<mkdir dir="bin"/>
-		<jar destfile="bin/CMDHDParser.jar" basedir="." includes="com/planet_ink/emutil/CMDHDParser*.class, com/planet_ink/emutil/D64Base*.class">
+		<jar destfile="bin/CMDHDParser.jar" basedir="." includes="com/planet_ink/emutil/CMDHDParser*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/IOFile*.class">
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.CMDHDParser"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64Compare.jar" basedir="." includes="com/planet_ink/emutil/D64Compare*.class, com/planet_ink/emutil/D64Base*.class">
+		<jar destfile="bin/D64Compare.jar" basedir="." includes="com/planet_ink/emutil/D64Compare*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/IOFile*.class">
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Compare"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64Duplifind.jar" basedir="." includes="com/planet_ink/emutil/D64Duplifind*.class, com/planet_ink/emutil/D64Base*.class" >
+		<jar destfile="bin/D64Duplifind.jar" basedir="." includes="com/planet_ink/emutil/D64Duplifind*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/IOFile*.class" >
 			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Duplifind"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64FileMatcher.jar" basedir="." includes="com/planet_ink/emutil/D64FileMatcher*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class">
+		<jar destfile="bin/D64FileMatcher.jar" basedir="." includes="com/planet_ink/emutil/D64FileMatcher*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class, com/planet_ink/emutil/IOFile*.class">
 			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64FileMatcher"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64Search.jar" basedir="." includes="com/planet_ink/emutil/D64Search*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class">
+		<jar destfile="bin/D64Search.jar" basedir="." includes="com/planet_ink/emutil/D64Search*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/D64Mod*.class, com/planet_ink/emutil/IOFile*.class">
+			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Search"/>
 			</manifest>
 		</jar>
-		<jar destfile="bin/D64Mod.jar" basedir="." includes="com/planet_ink/emutil/D64Mod*.class, com/planet_ink/emutil/D64Base*.class">
+		<jar destfile="bin/D64Mod.jar" basedir="." includes="com/planet_ink/emutil/D64Mod*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/IOFile*.class">
+			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Mod"/>
 			</manifest>
