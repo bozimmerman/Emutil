@@ -1,6 +1,7 @@
 package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
+
 /*
 Copyright 2017-2017 Bo Zimmerman
 
@@ -671,26 +672,29 @@ public class D64Mod extends D64Base
 			imageFileStr = largs.get(2);
 		String expr="";
 		expr=expr.trim();
-		final List<File> imageFiles = new ArrayList<File>();
-		final File chkF=new File(imagePath);
+		final List<IOFile> imageFiles = new ArrayList<IOFile>();
+		final IOFile chkF=new IOFile(new File(imagePath));
 		if(chkF.isDirectory())
 		{
-			final LinkedList<File> dirs = new LinkedList<File>();
+			final LinkedList<IOFile> dirs = new LinkedList<IOFile>();
 			dirs.add(chkF);
 			while(dirs.size()>0)
 			{
-				final File dirF = dirs.removeFirst();
-				for(final File F : dirF.listFiles())
+				final IOFile dirF = dirs.removeFirst();
+				for(final IOFile F : dirF.listFiles())
 				{
-					if(F.isDirectory() && imgFlags.contains(D64ImageFlag.RECURSE))
+					if(F.isDirectory()
+					&& (imgFlags.contains(D64ImageFlag.RECURSE)||(F.getName().toLowerCase().endsWith(".zip"))))
 					{
 						dirs.add(F);
 						continue;
 					}
 
-					if(F.isFile()&&F.exists()&&F.canRead()
-					&&(getImageTypeAndGZipped(F)!=null))
-						imageFiles.add(F);
+					if(F.isFile()&&F.exists()&&F.canRead())
+					{
+						if(getImageTypeAndGZipped(F)!=null)
+							imageFiles.add(F);
+					}
 				}
 			}
 			if(imageFiles.size()==0)
@@ -779,7 +783,7 @@ public class D64Mod extends D64Base
 			imageFileStr = largs.get(2);
 			break;
 		}
-		for(final File imageF : imageFiles)
+		for(final IOFile imageF : imageFiles)
 		{
 			final IMAGE_TYPE imagetype = getImageTypeAndGZipped(imageF);
 			final int[] imageFLen=new int[1];
@@ -788,7 +792,9 @@ public class D64Mod extends D64Base
 			FileInfo file = findFile(imageFileStr,files,false);
 			if(file == null)
 				file = findFile(imageFileStr,files,true);
-			if((action == Action.LIST)||(action == Action.DIR)||(action == Action.LYNX))
+			if((action == Action.LIST)
+			||(action == Action.DIR)
+			||(action == Action.LYNX))
 			{
 				if((!imageFileStr.equalsIgnoreCase("ALL")) && (file == null))
 				{
@@ -1529,7 +1535,7 @@ public class D64Mod extends D64Base
 			{
 				try
 				{
-					final FileOutputStream fout = new FileOutputStream(imageF);
+					final OutputStream fout = imageF.createOutputStream();
 					for(int b1=1;b1<diskBytes.length;b1++)
 					{
 						for(int b2=0;b2<diskBytes[b1].length;b2++)

@@ -572,6 +572,33 @@ public class D64Base
 		}
 	}
 
+	public static byte[][][] getDisk(final IMAGE_TYPE type, final IOFile F, final int[] fileLen)
+	{
+		InputStream fi=null;
+		try
+		{
+			fi=F.createInputStream();
+			return getDisk(type, fi, F.getName(), (int)F.length(), fileLen);
+		}
+		catch(final IOException e)
+		{
+			e.printStackTrace(System.err);
+			return new byte[D64Base.getImageNumTracks(type, (int)F.length())][255][256];
+		}
+		finally
+		{
+			if(fi != null)
+			{
+				try
+				{
+					fi.close();
+				}
+				catch(final Exception e)
+				{}
+			}
+		}
+	}
+
 	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen, final int[] fileLen)
 	{
 		int len=fLen;
@@ -1197,7 +1224,9 @@ public class D64Base
 			int fn=start+32-1;
 			for(;fn>=start+16;fn--)
 			{
-				if((data[fn]!=-96)&&(data[fn]!=0)&&(data[fn]!=32))
+				if((data[fn]!=-96)
+				&&(data[fn]!=0)
+				&&(data[fn]!=32))
 					break;
 			}
 			final byte[] rawFilename = new byte[fn-start-16+1];
@@ -1221,12 +1250,19 @@ public class D64Base
 				f.fileType = FileType.PRG;
 			else
 				f.fileType = FileType.SEQ;
-			if(dataOffset + f.size > fileSize)
+			final int fakeStart = (f.fileType == FileType.PRG)?dataOffset-2:dataOffset;
+			if(fakeStart + f.size + 1 > fileSize)
 			{
-				errMsg(imgName+": has bad offsets for file "+f.filePath);
-				return finalData;
+				errMsg(imgName+": has bad offsets for file "+f.filePath+", trimming it.");
+				f.data = Arrays.copyOfRange(data, fakeStart, fileSize);
 			}
-			f.data = Arrays.copyOfRange(data, dataOffset, dataOffset+f.size);
+			else
+				f.data = Arrays.copyOfRange(data, fakeStart, fakeStart+f.size+1);
+			if(f.fileType == FileType.PRG)
+			{
+				f.data[0] = data[start+2];
+				f.data[1] = data[start+3];
+			}
 		}
 		return finalData;
 	}
@@ -1487,6 +1523,20 @@ public class D64Base
 	}
 
 	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final File F)
+	{
+		if(F==null)
+			return null;
+		return getLooseImageTypeAndZipped(F.getName());
+	}
+
+	protected static IMAGE_TYPE getImageTypeAndGZipped(final IOFile F)
+	{
+		if(F==null)
+			return null;
+		return getImageTypeAndZipped(F.getName());
+	}
+
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final IOFile F)
 	{
 		if(F==null)
 			return null;
