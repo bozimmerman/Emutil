@@ -4,19 +4,21 @@ import java.io.*;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.zip.CRC32;
+
 import org.apache.commons.compress.archivers.zip.*;
 
 public class IOFile
 {
 	final File F;
-	final File parentF;
+	final IOFile parentF;
 	ZipFile zF = null;
 	final ZipArchiveEntry zE;
 
 	public IOFile(final File F)
 	{
 		this.F = F;
-		this.parentF = F.getParentFile();
+		this.parentF = new IOFile(F.getParentFile());
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -31,7 +33,7 @@ public class IOFile
 	public IOFile(final File F, final String name)
 	{
 		this.F = new File(F, name);
-		this.parentF = F;
+		this.parentF = new IOFile(F.getParentFile());
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -46,7 +48,7 @@ public class IOFile
 	public IOFile(final String name)
 	{
 		this.F = new File(name);
-		this.parentF = this.F.getParentFile();
+		this.parentF = new IOFile(this.F.getParentFile());
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -63,7 +65,7 @@ public class IOFile
 	{
 		this.zE = E;
 		this.F = null;
-		this.parentF = parent.getParentFile();
+		this.parentF = parent;
 		this.zF = F;
 	}
 
@@ -123,7 +125,12 @@ public class IOFile
 	public File getParentFile()
 	{
 		if(parentF != null)
-			return parentF;
+		{
+			IOFile pf = parentF;
+			while(pf.F == null)
+				pf = pf.parentF;
+			return pf.F;
+		}
 		return null;
 	}
 
@@ -187,7 +194,38 @@ public class IOFile
 		else
 		if(zE != null)
 		{
-			return null; // TODO:
+			final File oldZipF = this.parentF.F;
+			final File newZipF = new File(oldZipF.getParentFile(),oldZipF.getName()+".new");
+			final ZipArchiveOutputStream zout = new ZipArchiveOutputStream(newZipF);
+			for(final Enumeration<ZipArchiveEntry> e = zF.getEntries(); e.hasMoreElements(); )
+			{
+				final ZipArchiveEntry E = e.nextElement();
+				if(!E.getName().equals(zE.getName()))
+					zout.putArchiveEntry(E);
+			}
+			zF.close();
+			return new ByteArrayOutputStream() {
+				@Override
+				public void close() throws IOException
+				{
+					super.close();
+					final byte[] data = this.toByteArray();
+					final ZipArchiveEntry E = new ZipArchiveEntry(zE.getName());
+					final CRC32 crc = new CRC32();
+					crc.update(data);
+					E.setSize(data.length);
+					E.setTime(System.currentTimeMillis());
+					E.setCrc(crc.getValue());
+					zout.putArchiveEntry(E);
+					zout.write(data);
+					zout.closeArchiveEntry();
+					zout.close();
+					oldZipF.delete();
+					newZipF.renameTo(oldZipF);
+					parentF.zF = new ZipFile(oldZipF);
+					zF = parentF.zF;
+				}
+			};
 		}
 		else
 			return null;
