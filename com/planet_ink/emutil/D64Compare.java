@@ -2,7 +2,7 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
 /*
-Copyright 2016-2017 Bo Zimmerman
+Copyright 2016-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ public class D64Compare extends D64Base
 		}
 		final int[] f1Len=new int[1];
 		byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
-		final List<FileInfo> fileData1=getFiles(F1.getName(),typeF1,diskF1,f1Len[0]);
+		final List<FileInfo> fileData1=getFiles(F1.getName(),typeF1,diskF1,f1Len[0], new BitSet());
 		if(fileData1==null)
 		{
 			System.err.println("Bad extension :"+F1.getName());
@@ -80,7 +80,7 @@ public class D64Compare extends D64Base
 		}
 		final int[] f2Len=new int[1];
 		byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
-		final List<FileInfo> fileData2=getFiles(F2.getName(),typeF2,diskF2,f2Len[0]);
+		final List<FileInfo> fileData2=getFiles(F2.getName(),typeF2,diskF2,f2Len[0], new BitSet());
 		if(fileData2==null)
 		{
 			System.err.println("Bad extension :"+F2.getName());

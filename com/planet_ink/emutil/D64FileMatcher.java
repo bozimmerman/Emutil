@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 
 /*
-Copyright 2017-2017 Bo Zimmerman
+Copyright 2017-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -208,7 +208,7 @@ public class D64FileMatcher extends D64Mod
 		return list;
 	}
 
-	public static List<FileInfo> getZipDeepContents(final File F) throws IOException
+	public static List<FileInfo> getZipDeepContents(final File F, final BitSet parseFlags) throws IOException
 	{
 		final ZipArchiveInputStream zin = new ZipArchiveInputStream(new FileInputStream(F));
 		java.util.zip.ZipEntry entry = null;
@@ -234,27 +234,29 @@ public class D64FileMatcher extends D64Mod
 				list.addAll(fileData1);
 				continue;
 			}
-			final IMAGE_TYPE typeF1 = getImageTypeAndZipped(entry.getName());
+			final IMAGE_TYPE typeF1 = getImageTypeAndGZipped(entry.getName());
 			if(typeF1 != null)
 			{
 				if(entry.getSize()<0)
 				{
-					errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
+					if(!parseFlags.get(PF_NOERRORS))
+						errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
 					continue;
 				}
 				final int[] f1Len=new int[1];
 				byte[][][] diskF1=getDisk(typeF1,zin,entry.getName(),(int)entry.getSize(), f1Len);
-				fileData1=getFiles(entry.getName(),typeF1,diskF1,f1Len[0]);
+				fileData1=getFiles(entry.getName(),typeF1,diskF1,f1Len[0],parseFlags);
 				if(fileData1==null)
 				{
-					errMsg(F.getName()+": Error: Bad extension :"+entry.getName());
+					if(!parseFlags.get(PF_NOERRORS))
+						errMsg(F.getName()+": Error: Bad extension :"+entry.getName());
 					continue;
 				}
 				diskF1=null;
 				list.addAll(fileData1);
 			}
 			else
-			if(getLooseImageTypeAndZipped(entry.getName()) != null)
+			if(getLooseImageTypeAndGZipped(entry.getName()) != null)
 			{
 				int size = (int)entry.getSize();
 				if(size < 0)
@@ -348,7 +350,7 @@ public class D64FileMatcher extends D64Mod
 						}
 						else
 						if((getImageTypeAndGZipped(F)!=null)
-						||(D64FileMatcher.getLooseImageTypeAndZipped(F)!=null)
+						||(D64FileMatcher.getLooseImageTypeAndGZipped(F)!=null)
 						||(F.getName().toUpperCase().endsWith(".ZIP"))
 						||(F.getName().toUpperCase().endsWith(".LNX")))
 						{
@@ -370,11 +372,18 @@ public class D64FileMatcher extends D64Mod
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
 				filesToDo.add(baseF);
 		}
+		else
+		if((baseF.getName().toUpperCase().endsWith(".ZIP"))
+		||(baseF.getName().toUpperCase().endsWith(".LNX")))
+		{
+			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
+				filesToDo.add(baseF);
+		}
 		return filesToDo;
 	}
 
 
-	public static List<FileInfo> getFileList(final File F, final boolean normalizeForCompare)
+	public static List<FileInfo> getFileList(final File F, final boolean normalizeForCompare, final BitSet parseFlags)
 	{
 		final int[] fLen=new int[1];
 		byte[][][] diskF;
@@ -383,10 +392,10 @@ public class D64FileMatcher extends D64Mod
 		if(typeF != null)
 		{
 			diskF=getDisk(typeF,F,fLen);
-			fileData=getFiles(F.getName(),typeF,diskF,fLen[0]);
+			fileData=getFiles(F.getName(),typeF,diskF,fLen[0],parseFlags);
 		}
 		else
-		if(getLooseImageTypeAndZipped(F) != null)
+		if(getLooseImageTypeAndGZipped(F) != null)
 		{
 			fileData = new ArrayList<FileInfo>();
 			try
@@ -420,7 +429,7 @@ public class D64FileMatcher extends D64Mod
 		{
 			try
 			{
-				fileData = D64FileMatcher.getZipDeepContents(F);
+				fileData = D64FileMatcher.getZipDeepContents(F,parseFlags);
 				final List<FileInfo> readSet = new ArrayList<FileInfo>(fileData);
 				for(final FileInfo iF : readSet)
 				{
@@ -567,6 +576,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("  -P X verbose on disks with X percent matches");
 			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
+			System.out.println("  -Q Suppress parsing errors");
 			System.out.println("  -E X exclude files matching mask 'X'");
 			System.out.println("  -N No sorting of source filenames");
 			System.out.println("");
@@ -579,6 +589,7 @@ public class D64FileMatcher extends D64Mod
 		int depth=Integer.MAX_VALUE;
 		int deeper = -1;
 		double pct=100.0;
+		final BitSet parseFlags = new BitSet();
 		final List<Pattern> excludeMasks = new LinkedList<Pattern>();
 		for(int i=0;i<args.length;i++)
 		{
@@ -592,6 +603,10 @@ public class D64FileMatcher extends D64Mod
 					case 'r':
 					case 'R':
 						flags.add(COMP_FLAG.RECURSE);
+						break;
+					case 'q':
+					case 'Q':
+						parseFlags.set(PF_NOERRORS);
 						break;
 					case 'n':
 					case 'N':
@@ -705,7 +720,7 @@ public class D64FileMatcher extends D64Mod
 		{
 			final Map<FileInfo,List<D64Report>> report = new HashMap<FileInfo,List<D64Report>>();
 			final Map<FileInfo,List<D64Report>> approxs=new HashMap<FileInfo,List<D64Report>>();
-			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true);
+			final List<FileInfo> fileData1=D64FileMatcher.getFileList(F1,true,parseFlags);
 			if(fileData1 == null)
 			{
 				System.err.println("Unable to process "+F1.getName());
@@ -731,7 +746,7 @@ public class D64FileMatcher extends D64Mod
 				}
 				else
 				{
-					fileData2=D64FileMatcher.getFileList(F2,true);
+					fileData2=D64FileMatcher.getFileList(F2,true,parseFlags);
 					if(fileData2 == null)
 					{
 						f.remove();

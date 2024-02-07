@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -19,7 +20,7 @@ import java.util.Vector;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 
 /*
-Copyright 2016-2017 Bo Zimmerman
+Copyright 2016-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,10 +39,14 @@ public class D64Base
 
 	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
-	final static String EMUTIL_VERSION = "2.4";
+	final static String EMUTIL_VERSION = "2.5";
 	final static String EMUTIL_AUTHOR = "2024 Bo Zimmerman";
 
 	public D64Base() {}
+
+	public final static int PF_READINSIDE = 1;
+	public final static int PF_NOERRORS = 2;
+	public final static int PF_RECURSE = 3;
 
 	final static String spaces="                                                                                                               ";
 
@@ -599,7 +604,8 @@ public class D64Base
 		}
 	}
 
-	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen, final int[] fileLen)
+	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen,
+									final int[] fileLen)
 	{
 		int len=fLen;
 		InputStream is=null;
@@ -623,7 +629,7 @@ public class D64Base
 			}
 			if(len == 0)
 			{
-				System.err.println("?: Error: Failed to read at ALL!");
+				errMsg("?: Error: Failed to read '"+fileName+"' at ALL!");
 				return new byte[D64Base.getImageNumTracks(type, len)][255][256];
 			}
 			final byte[] buf=new byte[getImageTotalBytes(type,len)];
@@ -713,8 +719,11 @@ public class D64Base
 		return out.toByteArray();
 	}
 
-	public static void finishFillFileList(final FileInfo dirInfo, final String imgName, final int srcFLen, final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap, final Set<byte[]> doneBefore, final List<FileInfo> finalData, int t, int s, final int maxT, final boolean readInside)
+	public static void finishFillFileList(final FileInfo dirInfo, final String imgName, final int srcFLen,
+			final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap, final Set<byte[]> doneBefore,
+			final List<FileInfo> finalData, int t, int s, final int maxT, final BitSet parseFlags)
 	{
+		final boolean readInside = parseFlags.get(PF_READINSIDE);
 		byte[] sector;
 		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
 		{
@@ -967,7 +976,7 @@ public class D64Base
 							final int newDirT=fileT;
 							final int newDirS=fileS;
 							//if(flags.contains(COMP_FLAG.RECURSE))
-							fillFileListFromHeader(imgName,srcFLen,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, readInside);
+							fillFileListFromHeader(imgName,srcFLen,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, parseFlags);
 							if(readInside)
 							{
 								fileData=getFileContent(f.fileName,tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
@@ -988,7 +997,8 @@ public class D64Base
 						}
 						if(fileData==null)
 						{
-							errMsg(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
+							if(!parseFlags.get(PF_NOERRORS))
+								errMsg(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
 							return;
 						}
 						else
@@ -996,7 +1006,8 @@ public class D64Base
 					}
 					catch(final IOException e)
 					{
-						errMsg(imgName+": Error: "+f.filePath+": "+e.getMessage());
+						if(!parseFlags.get(PF_NOERRORS))
+							errMsg(imgName+": Error: "+f.filePath+": "+e.getMessage());
 						//return; // omg, this doesn't mean EVERY file is bad!
 					}
 				}
@@ -1030,7 +1041,7 @@ public class D64Base
 			final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap,
 			final Set<byte[]> doneBefore, final List<FileInfo> finalData,
 			int t, int s, final int maxT, final FileInfo f,
-			final boolean readInside) throws IOException
+			final BitSet parseFlags) throws IOException
 	{
 		byte[] sector;
 		if((type != IMAGE_TYPE.D80)
@@ -1055,11 +1066,11 @@ public class D64Base
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))
 			{
-				finishFillFileList(f,imgName,srcFLen,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT, readInside);
+				finishFillFileList(f,imgName,srcFLen,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT, parseFlags);
 				getFileContent("/",tsmap,possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
 			}
 		}
-		finishFillFileList(f,imgName,srcFLen,type,prefix,tsmap,doneBefore,finalData,t,s,maxT, readInside);
+		finishFillFileList(f,imgName,srcFLen,type,prefix,tsmap,doneBefore,finalData,t,s,maxT, parseFlags);
 	}
 
 	protected static short[] getBAMStart(final IMAGE_TYPE type)
@@ -1167,14 +1178,15 @@ public class D64Base
 	}
 
 	public static List<FileInfo> getTapeFiles(final String imgName, final IMAGE_TYPE type,
-			final byte[][][] tsmap, final int fileSize)
+			final byte[][][] tsmap, final int fileSize, final BitSet parseFlags)
 	{
 		final List<FileInfo> finalData=new Vector<FileInfo>();
 		final byte[] data = tsmap[0][0];
 		final String marker = new String(data,0,32);
 		if(!marker.startsWith("C64"))
 		{
-			errMsg(imgName+": tape header error.");
+			if(!parseFlags.get(PF_NOERRORS))
+				errMsg(imgName+": tape header error.");
 			return finalData;
 		}
 		//final int tapeVersionNumber = (data[32] & 0xff) + (data[33] & 0xff);
@@ -1253,7 +1265,8 @@ public class D64Base
 			final int fakeStart = (f.fileType == FileType.PRG)?dataOffset-2:dataOffset;
 			if(fakeStart + f.size + 1 > fileSize)
 			{
-				errMsg(imgName+": has bad offsets for file "+f.filePath+", trimming it.");
+				if(!parseFlags.get(PF_NOERRORS))
+					errMsg(imgName+": has bad offsets for file "+f.filePath+", trimming it.");
 				f.data = Arrays.copyOfRange(data, fakeStart, fileSize);
 			}
 			else
@@ -1268,10 +1281,10 @@ public class D64Base
 	}
 
 	public static List<FileInfo> getFiles(final String imgName, final IMAGE_TYPE type,
-			final byte[][][] tsmap, final int fileSize)
+			final byte[][][] tsmap, final int fileSize, final BitSet parseFlags)
 	{
 		if(type == IMAGE_TYPE.T64)
-			return getTapeFiles(imgName,type,tsmap,fileSize);
+			return getTapeFiles(imgName,type,tsmap,fileSize,parseFlags);
 		int t=getImageDirTrack(type);
 		final int maxT=getImageNumTracks(type, fileSize);
 		int s=getImageDirSector(type);
@@ -1324,11 +1337,13 @@ public class D64Base
 			f.size=0;
 			f.feblocks=0;
 			finalData.add(f);
-			fillFileListFromHeader(imgName, fileSize, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, true);
+			parseFlags.set(PF_READINSIDE);
+			fillFileListFromHeader(imgName, fileSize, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, parseFlags);
 		}
 		catch(final IOException e)
 		{
-			errMsg(imgName+": disk Dir Error: "+e.getMessage());
+			if(!parseFlags.get(PF_NOERRORS))
+				errMsg(imgName+": disk Dir Error: "+e.getMessage());
 		}
 		switch(type)
 		{
@@ -1386,7 +1401,7 @@ public class D64Base
 
 	public static FileInfo getLooseFile(final InputStream fin, final String fileName, int fileLen) throws IOException
 	{
-		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndZipped(fileName);
+		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndGZipped(fileName);
 		byte[] filedata;
 		filedata = new byte[fileLen];
 		int lastLen = 0;
@@ -1467,34 +1482,34 @@ public class D64Base
 		return file;
 	}
 
+	protected static IMAGE_TYPE getImageType(String fileName)
+	{
+		fileName = fileName.toUpperCase();
+		for(final IMAGE_TYPE img : IMAGE_TYPE.values())
+		{
+			if(fileName.endsWith(img.toString()))
+			{
+				final IMAGE_TYPE type=img;
+				return type;
+			}
+		}
+		return null;
+	}
+
 	protected static IMAGE_TYPE getImageType(final File F)
 	{
-		for(final IMAGE_TYPE img : IMAGE_TYPE.values())
-		{
-			if(F.getName().toUpperCase().endsWith(img.toString()))
-			{
-				final IMAGE_TYPE type=img;
-				return type;
-			}
-		}
-		return null;
+		return getImageType(F.getName());
 	}
 
-	protected static IMAGE_TYPE getImageTypeAndZipped(final String fileName)
+	protected static IMAGE_TYPE getImageTypeAndGZipped(String fileName)
 	{
-		for(final IMAGE_TYPE img : IMAGE_TYPE.values())
-		{
-			if(fileName.toUpperCase().endsWith(img.toString())
-			||fileName.toUpperCase().endsWith(img.toString()+".GZ"))
-			{
-				final IMAGE_TYPE type=img;
-				return type;
-			}
-		}
-		return null;
+		fileName = fileName.toUpperCase();
+		if(fileName.endsWith(".GZ"))
+			return getImageType(fileName.substring(0,fileName.length()-3));
+		return getImageType(fileName);
 	}
 
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final String fileName)
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final String fileName)
 	{
 		for(final LOOSE_IMAGE_TYPE img : LOOSE_IMAGE_TYPE.values())
 		{
@@ -1519,27 +1534,27 @@ public class D64Base
 	{
 		if(F==null)
 			return null;
-		return getImageTypeAndZipped(F.getName());
+		return getImageTypeAndGZipped(F.getName());
 	}
 
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final File F)
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final File F)
 	{
 		if(F==null)
 			return null;
-		return getLooseImageTypeAndZipped(F.getName());
+		return getLooseImageTypeAndGZipped(F.getName());
 	}
 
 	protected static IMAGE_TYPE getImageTypeAndGZipped(final IOFile F)
 	{
 		if(F==null)
 			return null;
-		return getImageTypeAndZipped(F.getName());
+		return getImageTypeAndGZipped(F.getName());
 	}
 
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndZipped(final IOFile F)
+	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final IOFile F)
 	{
 		if(F==null)
 			return null;
-		return getLooseImageTypeAndZipped(F.getName());
+		return getLooseImageTypeAndGZipped(F.getName());
 	}
 }

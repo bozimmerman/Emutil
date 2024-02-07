@@ -1,14 +1,10 @@
 package com.planet_ink.emutil;
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
-
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 /*
-Copyright 2006-2017 Bo Zimmerman
+Copyright 2006-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,7 +38,8 @@ public class D64Search extends D64Mod
 		INSIDE,
 		SHOWMD5,
 		UNZIP,
-		FULLPATH;
+		FULLPATH,
+		NOPARSEERRORS;
 	};
 
 	public enum FILE_FORMAT {
@@ -134,133 +131,54 @@ public class D64Search extends D64Mod
 
 	private static List<SearchFile> parseSearchFiles(final File F, final boolean unzip)
 	{
-		final String name = F.getName().toUpperCase();
 		List<SearchFile> files = null;
-		if(name.endsWith(".GZ"))
+		final IOFile zF = new IOFile(F);
+		if((zF.isDirectory()||(F.getName().toUpperCase().endsWith(".GZ")))
+		&&(!unzip))
+			return null;
+		Iterable<IOFile> vF;
+		if(zF.isDirectory())
+			vF = Arrays.asList(zF.listFiles());
+		else
+			vF = Arrays.asList(new IOFile[] { zF });
+		try
 		{
-			if(!unzip)
-				return null;
-			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
+			for(final IOFile zE : vF)
 			{
-				if(F.getName().toUpperCase().endsWith(img.toString()+".GZ"))
-				{
-					try
-					{
-						final FileInputStream fin = new FileInputStream(F);
-						final int[] fileLen = new int[] {(int)F.length()};
-						final byte[][][] disk = getDisk(img, fin, F.getName(), (int)F.length(), fileLen);
-						final SearchFile sF = new SearchFile();
-						sF.typ = img;
-						sF.diskData = disk;
-						sF.diskLen = fileLen[0];
-						sF.fileName = F.getName();
-						sF.filePath = F.getAbsolutePath();
-						if(files == null)
-							files = new ArrayList<SearchFile>();
-						files.add(sF);
-						fin.close();
-					}
-					catch(final IOException ioe)
-					{
-						System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+ioe.getMessage());
-					}
+				if(zE.isDirectory())
+					continue;
+				if(zE.length()>83361792)
 					break;
-				}
-			}
-		}
-		else
-		if(name.endsWith(".ZIP"))
-		{
-			if(!unzip)
-				return null;
-			try
-			{
-				final ZipArchiveInputStream zip = new ZipArchiveInputStream(new FileInputStream(F));
-				ZipArchiveEntry entry=zip.getNextZipEntry();
-				while(entry!=null)
-				{
-					if (entry.isDirectory())
-					{
-						entry = zip.getNextZipEntry();
-						continue;
-					}
-					if(entry.getSize()>83361792)
-					{
-						zip.close();
-						break;
-					}
-					IMAGE_TYPE img = null;
-					for(final IMAGE_TYPE i : IMAGE_TYPE.values())
-					{
-						if(entry.getName().toUpperCase().endsWith(i.toString()))
-						{
-							img = i;
-							break;
-						}
-					}
-					if(img == null)
-					{
-						entry = zip.getNextZipEntry();
-						continue;
-					}
-					final SearchFile sF = new SearchFile();
-					final byte[] lbuf = new byte[4096];
-					final int size = (entry.getSize()<1)?174848:(int)entry.getSize();
-					int read=zip.read(lbuf);
-					final ByteBuffer bout = ByteBuffer.allocate(size);
-					sF.diskLen = read;
-					while((read>=0)&&(sF.diskLen < size))
-					{
-						sF.diskLen+=read;
-						bout.put(lbuf,0,read);
-						if(sF.diskLen < size)
-						{
-							long amtToRead = size-sF.diskLen;
-							if(amtToRead > lbuf.length)
-								amtToRead = lbuf.length;
-							read=zip.read(lbuf,0,(int)amtToRead);
-						}
-					}
-					final int[] fileLen =new int[] { sF.diskLen } ;
-					final InputStream is=new ByteArrayInputStream(bout.array());
-					final byte[][][] disk = getDisk(img, is, F.getName()+"@"+entry.getName(), sF.diskLen, fileLen);
-					sF.typ = img;
-					sF.diskData = disk;
-					sF.diskLen = fileLen[0];
-					sF.fileName = F.getName()+"@"+entry.getName();
-					sF.filePath = F.getAbsolutePath()+"@"+entry.getName();
-					if(files == null)
-						files = new ArrayList<SearchFile>();
-					files.add(sF);
-					entry = zip.getNextZipEntry();
-				}
-				zip.close();
-			}
-			catch(final Exception e)
-			{
-				e.printStackTrace();
-				System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+e.getMessage());
-			}
-		}
-		else
-		{
-			for(final IMAGE_TYPE img : IMAGE_TYPE.values())
-			{
-				if(F.getName().toUpperCase().endsWith(img.toString()))
-				{
-					final SearchFile sF = new SearchFile();
-					sF.typ = img;
-					final int[] fLen=new int[1];
-					final byte[][][] disk=getDisk(sF.typ,F,fLen);
-					sF.diskData = disk;
-					sF.diskLen = fLen[0];
-					sF.fileName = F.getName();
+				final IMAGE_TYPE img = getImageTypeAndGZipped(zE.getName());
+				if (img == null)
+					continue;
+				final String prefix = (zE == zF) ? "" : F.getName()+"@";
+				final SearchFile sF = new SearchFile();
+				sF.typ = img;
+				final int size = (zE.length()<1)?174848:(int)zE.length();
+				final int[] fLen=new int[1];
+				final byte[][][] disk;//=getDisk(sF.typ,F,fLen);
+				final InputStream is = zE.createInputStream();
+				final int[] fileLen =new int[] { size } ;
+				disk = getDisk(sF.typ, is, prefix+zE.getName(), size, fileLen);
+				sF.diskData = disk;
+				sF.diskLen = fLen[0] > 0 ? fLen[0] : size;
+				sF.fileName = prefix+zE.getName();
+				if(zE == zF)
 					sF.filePath = F.getAbsolutePath();
-					if(files == null)
-						files = new ArrayList<SearchFile>();
-					files.add(sF);
-				}
+				else
+					sF.filePath = F.getAbsolutePath()+"@"+zE.getName();
+				if(files == null)
+					files = new ArrayList<SearchFile>();
+				files.add(sF);
+				is.close();
 			}
+			zF.close();
+		}
+		catch(final Exception e)
+		{
+			e.printStackTrace();
+			System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+e.getMessage());
 		}
 		return files;
 	}
@@ -309,7 +227,10 @@ public class D64Search extends D64Mod
 					System.err.println("Stupid preparedStatement error: "+e.getMessage());
 				}
 			}
-			final List<FileInfo> fileData=getFiles(fileName,F.typ,disk,F.diskLen);
+			final BitSet parseFlags = new BitSet();
+			parseFlags.set(PF_RECURSE, flags.contains(SEARCH_FLAG.RECURSE));
+			parseFlags.set(PF_NOERRORS, flags.contains(SEARCH_FLAG.NOPARSEERRORS));
+			final List<FileInfo> fileData=getFiles(fileName,F.typ,disk,F.diskLen,parseFlags);
 			if((fmt==FILE_FORMAT.PETSCII)||inside)
 			{
 				for(final FileInfo info : fileData)
@@ -489,6 +410,7 @@ public class D64Search extends D64Mod
 			System.out.println("  -C case sensitive");
 			System.out.println("  -Z unzip archives");
 			System.out.println("  -F full absolute paths");
+			System.out.println("  -Q suppress parse errors");
 			System.out.println("  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
 			System.out.println("  -D db export of disk info data (-Du<user>,");
@@ -520,6 +442,10 @@ public class D64Search extends D64Mod
 					case 'r':
 					case 'R':
 						flags.add(SEARCH_FLAG.RECURSE);
+						break;
+					case 'q':
+					case 'Q':
+						flags.add(SEARCH_FLAG.NOPARSEERRORS);
 						break;
 					case 'c':
 					case 'C':

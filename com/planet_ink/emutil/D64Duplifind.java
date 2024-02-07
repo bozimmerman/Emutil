@@ -3,15 +3,11 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
-
-import org.apache.commons.compress.archivers.zip.*;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-
-import java.util.zip.*;
+import com.planet_ink.emutil.D64Base.IMAGE_TYPE;
 /*
-Copyright 2016-2017 Bo Zimmerman
+Copyright 2016-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +41,7 @@ public class D64Duplifind
 	{
 		boolean contained=false;
 		String filePath = null;
-		File hostFile = null;
+		IOFile hostFile = null;
 		long length = 0;
 		String hash = null;
 		public DupFile toDupFile()
@@ -132,120 +128,23 @@ public class D64Duplifind
 		}
 	}
 
-	public static boolean doZipEntry(final InputStream zip, final File F, final List<DupFileExt> files, final String name, final long size, final DupFileExt d, final byte[] lbuf) throws IOException, NoSuchAlgorithmException
-	{
-		int read=zip.read(lbuf);
-		ByteBuffer bout = ByteBuffer.allocate((int)size);
-		while((read>=0)&&(d.length < size))
-		{
-			d.length+=read;
-			bout.put(lbuf,0,read);
-			if(d.length < size)
-			{
-				long amtToRead = size-d.length;
-				if(amtToRead > lbuf.length)
-					amtToRead = lbuf.length;
-				read=zip.read(lbuf,0,(int)amtToRead);
-			}
-		}
-		final String ename = name.toLowerCase();
-		if(goodExt(ename))
-		{
-			if(((bout.limit() != size || size != d.length)))
-			{
-				System.err.print("\r\nSize Match Failed: "+bout.limit()+"/"+size+": "+F.getAbsolutePath()+": "+name);
-				return false;
-			}
-			d.buf=bout.array();
-			d.contained=true;
-			d.filePath=name;
-			d.hostFile=F;
-			final MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			digest.update(d.buf);
-			final byte[] hash = digest.digest();
-			d.hash=toHex(hash);
-			files.add(d);
-		}
-		bout=null;
-		return true;
-	}
-
-	public static List<DupFileExt> getFileStuff(final File F) throws Exception
+	public static List<DupFileExt> getFileStuff(final IOFile F) throws Exception
 	{
 		final List<DupFileExt> files = new LinkedList<DupFileExt>();
 		final String name=F.getName().toLowerCase();
 		final byte[] lbuf = new byte[4096];
-		if(name.endsWith(".zip"))
+		if(F.isDirectory())
 		{
-			try
-			{
-				final ZipArchiveInputStream zip = new ZipArchiveInputStream(new FileInputStream(F));
-				ZipArchiveEntry entry=zip.getNextZipEntry();
-				while(entry!=null)
-				{
-					final DupFileExt d = new DupFileExt();
-					if (entry.isDirectory())
-					{
-						entry = zip.getNextZipEntry();
-						continue;
-					}
-					if(entry.getSize()>83361792)
-					{
-						zip.close();
-						return files;
-					}
-					long size=entry.getSize();
-					if(size < 0)
-						size=174848;
-					if(!doZipEntry(zip, F, files, entry.getName(), size, d, lbuf))
-					{
-						zip.close();
-						final ZipInputStream zip2 = new ZipInputStream(new FileInputStream(F));
-						ZipEntry entry2=zip2.getNextEntry();
-						while(entry2!=null)
-						{
-							final DupFileExt d2 = new DupFileExt();
-							if (entry2.isDirectory())
-							{
-								entry2 = zip2.getNextEntry();
-								continue;
-							}
-							if(entry2.getSize()>83361792)
-							{
-								zip2.close();
-								return files;
-							}
-							long size2=entry2.getSize();
-							if(size2 < 0)
-								size2=174848;
-							if(!doZipEntry(zip2, F, files, entry2.getName(), size2, d2, lbuf))
-							{
-								zip2.close();
-								break;
-							}
-							else
-								entry2=zip2.getNextEntry();
-						}
-						zip2.close();
-						break;
-					}
-					else
-						entry=zip.getNextZipEntry();
-				}
-				zip.close();
-			}
-			catch(final Exception e)
-			{
-				e.printStackTrace();
-				System.err.print("\r\nFailed: "+F.getAbsolutePath()+": "+e.getMessage());
-			}
+			for(final IOFile subF : F.listFiles())
+				files.addAll(getFileStuff(subF));
+			F.close();
 		}
 		else
 		if(name.endsWith(".gz"))
 		{
 			try
 			{
-				final GzipCompressorInputStream in = new GzipCompressorInputStream(new FileInputStream(F));
+				final GzipCompressorInputStream in = new GzipCompressorInputStream(F.createInputStream());
 				int read=in.read(lbuf);
 				final DupFileExt d = new DupFileExt();
 				ByteArrayOutputStream bout=new ByteArrayOutputStream((int)F.length()*2);
@@ -260,7 +159,7 @@ public class D64Duplifind
 				bout = null;
 				d.contained=false;
 				d.filePath=F.getAbsolutePath();
-				d.hostFile=F.getAbsoluteFile();
+				d.hostFile=F;
 				final MessageDigest digest = MessageDigest.getInstance("SHA-256");
 				digest.update(d.buf);
 				final byte[] hash = digest.digest();
@@ -275,10 +174,21 @@ public class D64Duplifind
 		}
 		else
 		{
-			final FileInputStream in = new FileInputStream(F);
-			int read=in.read(lbuf);
+			int size = (int)F.length();
+			if(size > 83361792)
+				return files;
 			final DupFileExt d = new DupFileExt();
-			ByteBuffer bout=ByteBuffer.allocate((int)F.length());
+			if(size <= 0)
+			{
+				final IMAGE_TYPE typ = D64Base.getImageType(F.getName());
+				if(typ != null)
+					size = D64Base.getImageTotalBytes(typ, size);
+				else
+					size = 174848;
+			}
+			ByteBuffer bout=ByteBuffer.allocate(size);
+			final InputStream in = F.createInputStream();
+			int read=in.read(lbuf);
 			while(read >= 0)
 			{
 				d.length += read;
@@ -362,7 +272,7 @@ public class D64Duplifind
 						final DupFile d=new DupFile();
 						final String hash=parts[0];
 						d.contained=Boolean.valueOf(parts[1]).booleanValue();
-						d.hostFile=new File(parts[2]);
+						d.hostFile=new IOFile(parts[2]);
 						d.filePath=parts[3];
 						d.length=Integer.valueOf(parts[4]).intValue();
 						d.hash=hash;
@@ -391,7 +301,7 @@ public class D64Duplifind
 				{
 					for(final File F : allPathFiles)
 					{
-						for(final DupFileExt d : getFileStuff(F))
+						for(final DupFileExt d : getFileStuff(new IOFile(F)))
 						{
 							if(!pathHashes.containsKey(d.hash))
 								pathHashes.put(d.hash, new LinkedList<DupFile>());

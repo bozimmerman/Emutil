@@ -3,7 +3,7 @@ import java.io.*;
 import java.util.*;
 
 /*
-Copyright 2017-2017 Bo Zimmerman
+Copyright 2017-2024 Bo Zimmerman
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -448,11 +448,6 @@ public class D64Mod extends D64Base
 			System.exit(-1);
 	}
 
-	public enum D64ImageFlag
-	{
-		RECURSE
-	}
-
 	public enum D64FormatFlag
 	{
 		PRGSEQ
@@ -590,7 +585,7 @@ public class D64Mod extends D64Base
 		System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
 		System.out.println("");
 		System.out.println("USAGE: ");
-		System.out.println("  D64Mod (-r) <image file> <action> <action arguments>");
+		System.out.println("  D64Mod (-r -q) <image file> <action> <action arguments>");
 		System.out.println("ACTIONS:");
 		System.out.println("  SCRATCH <file>");
 		System.out.println("  EXTRACT (-p) <file> <target path>");
@@ -608,7 +603,7 @@ public class D64Mod extends D64Base
 
 	public static void main(final String[] args)
 	{
-		final Set<D64ImageFlag> imgFlags = new HashSet<D64ImageFlag>();
+		final BitSet parseFlags = new BitSet();
 		final Set<D64FormatFlag> fmtFlags = new HashSet<D64FormatFlag>();
 		final List<String> largs=new ArrayList<String>(args.length);
 		largs.addAll(Arrays.asList(args));
@@ -619,7 +614,14 @@ public class D64Mod extends D64Base
 				break;
 			if(Character.toLowerCase(s.charAt(1))=='r')
 			{
-				imgFlags.add(D64ImageFlag.RECURSE);
+				parseFlags.set(PF_RECURSE);
+				largs.remove(i);
+				i--;
+			}
+			else
+			if(Character.toLowerCase(s.charAt(1))=='q')
+			{
+				parseFlags.set(PF_NOERRORS);
 				largs.remove(i);
 				i--;
 			}
@@ -684,7 +686,7 @@ public class D64Mod extends D64Base
 				for(final IOFile F : dirF.listFiles())
 				{
 					if(F.isDirectory()
-					&& (imgFlags.contains(D64ImageFlag.RECURSE)||(F.getName().toLowerCase().endsWith(".zip"))))
+					&& (parseFlags.get(PF_RECURSE)||(F.getName().toLowerCase().endsWith(".zip"))))
 					{
 						dirs.add(F);
 						continue;
@@ -695,6 +697,14 @@ public class D64Mod extends D64Base
 						if(getImageTypeAndGZipped(F)!=null)
 							imageFiles.add(F);
 					}
+				}
+				try
+				{
+					dirF.close();
+				}
+				catch (final IOException e)
+				{
+					e.printStackTrace();
 				}
 			}
 			if(imageFiles.size()==0)
@@ -788,7 +798,7 @@ public class D64Mod extends D64Base
 			final IMAGE_TYPE imagetype = getImageTypeAndGZipped(imageF);
 			final int[] imageFLen=new int[1];
 			final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
-			final List<FileInfo> files = getFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0]);
+			final List<FileInfo> files = getFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0], parseFlags);
 			FileInfo file = findFile(imageFileStr,files,false);
 			if(file == null)
 				file = findFile(imageFileStr,files,true);

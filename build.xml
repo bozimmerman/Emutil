@@ -13,6 +13,7 @@
 			</manifest>
 		</jar>
 		<jar destfile="bin/D64Compare.jar" basedir="." includes="com/planet_ink/emutil/D64Compare*.class, com/planet_ink/emutil/D64Base*.class, com/planet_ink/emutil/IOFile*.class">
+			<zipgroupfileset dir="." includes="**/*.jar" />
 			<manifest>
 				<attribute name="Main-Class" value="com.planet_ink.emutil.D64Compare"/>
 			</manifest>

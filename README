@@ -40,6 +40,8 @@ OPTIONS:
   -V verbose
   -M show MD5 sum for each matching file
   -C case sensitive
+  -F full absolute paths
+  -Q suppress parse errors
   -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)
   -I search inside files (substring search)
   -D db export of disk info data (-Du<user>,
@@ -84,6 +86,7 @@ OPTIONS:
   -R recursive search inside DNP
   -A X approx matching min X% (slower)
   -V verbose
+  -Q suppress parse errors
   -P X verbose on disks with X percent matches
   -C use memory cache of all comparison files
   -D X Recursive depth X
@@ -104,7 +107,7 @@ java com.planet_ink.emutil.D64Mod
 D64Mod v2.1 (c)2017-2021 Bo Zimmerman
 
 USAGE:
-  D64Mod <image file> <action> <action arguments>
+  D64Mod <options> <image file> <action> <action arguments>
 ACTIONS:
   SCRATCH <file>
   EXTRACT <file> <target path>
@@ -114,6 +117,9 @@ ACTIONS:
   BAM FREE (Checks for sectors that need bam free)
   LIST/DIR <PATH>
   LIST/DIR ALL
+OPTIONS:
+  -r Recurse into subdirectories
+  -q suppress parsing errors
 
 -----------------------------------------------------------------------------
 CMDHDParser

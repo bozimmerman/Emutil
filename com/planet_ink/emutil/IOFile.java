@@ -14,11 +14,30 @@ public class IOFile
 	final IOFile parentF;
 	ZipFile zF = null;
 	final ZipArchiveEntry zE;
+	final List<Closeable> closers = new java.util.Vector<Closeable>(1);
 
 	public IOFile(final File F)
 	{
 		this.F = F;
-		this.parentF = new IOFile(F.getParentFile());
+		if(F.getParentFile() == this.F)
+			this.parentF = this;
+		else
+			this.parentF = new IOFile(this.F.getParentFile(),true);
+		try
+		{
+			if(F.getName().toLowerCase().endsWith(".zip"))
+				this.zF = new ZipFile(F);
+		}
+		catch(final IOException e)
+		{
+		}
+		this.zE = null;
+	}
+
+	public IOFile(final File F, final boolean noParent)
+	{
+		this.F = F;
+		this.parentF = this;
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -33,7 +52,7 @@ public class IOFile
 	public IOFile(final File F, final String name)
 	{
 		this.F = new File(F, name);
-		this.parentF = new IOFile(F.getParentFile());
+		this.parentF = new IOFile(this.F.getParentFile(),true);
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -48,7 +67,7 @@ public class IOFile
 	public IOFile(final String name)
 	{
 		this.F = new File(name);
-		this.parentF = new IOFile(this.F.getParentFile());
+		this.parentF = new IOFile(this.F.getParentFile(),true);
 		try
 		{
 			if(F.getName().toLowerCase().endsWith(".zip"))
@@ -122,6 +141,20 @@ public class IOFile
 		return "";
 	}
 
+	public String getAbsolutePath()
+	{
+		if(this.F != null)
+			return F.getAbsolutePath();
+		if(this.zE != null)
+		{
+			final File pF = getParentFile();
+			if(pF == null)
+				return getName();
+			return pF.getAbsolutePath() + File.separator + zE.getName();
+		}
+		return "";
+	}
+
 	public File getParentFile()
 	{
 		if(parentF != null)
@@ -183,13 +216,24 @@ public class IOFile
 		}
 	}
 
+	public void close() throws IOException
+	{
+		if(zF != null)
+			zF.close();
+		for(final Closeable c : closers)
+			c.close();
+		closers.clear();
+	}
+
 	public OutputStream createOutputStream() throws IOException
 	{
 		if(F != null)
 		{
 			if(zF != null) // can't output stream to a directory
 				return null;
-			return new FileOutputStream(F);
+			final OutputStream o = new FileOutputStream(F);
+			closers.add(o);
+			return o;
 		}
 		else
 		if(zE != null)
@@ -204,7 +248,7 @@ public class IOFile
 					zout.putArchiveEntry(E);
 			}
 			zF.close();
-			return new ByteArrayOutputStream() {
+			final OutputStream o = new ByteArrayOutputStream() {
 				@Override
 				public void close() throws IOException
 				{
@@ -226,6 +270,8 @@ public class IOFile
 					zF = parentF.zF;
 				}
 			};
+			closers.add(o);
+			return o;
 		}
 		else
 			return null;
@@ -237,11 +283,17 @@ public class IOFile
 		{
 			if(zF != null) // can't input stream to a directory
 				return null;
-			return new FileInputStream(F);
+			final InputStream i = new FileInputStream(F);
+			closers.add(i);
+			return i;
 		}
 		else
 		if(zE != null)
-			return zF.getInputStream(zE);
+		{
+			final InputStream i = zF.getInputStream(zE);
+			closers.add(i);
+			return i;
+		}
 		return null;
 	}
 
