@@ -31,8 +31,6 @@ java -jar bin/D64Search.jar
 or
 java com.planet_ink.emutil.D64Search
 
-D64Search v2.1 (c)2006-2021 Bo Zimmerman
-
 USAGE:
   D64Search <options> <path> <expression>
 OPTIONS:
@@ -70,15 +68,12 @@ java -jar bin/D64Compare.jar
 or
 java com.planet_ink.emutil.D64Compare
 
-D64Compare v2.1 (c)2016-2021 Bo Zimmerman
-
 USAGE:
   D64Compare <file1> <file2>
 
 -----------------------------------------------------------------------------
 D64FileMatcher
 --------------
-D64FileMatcher v2.1 (c)2017-2021 Bo Zimmerman
 
 USAGE:
   D64FileMatcher <file/path1> <file/path2>
@@ -103,8 +98,6 @@ To execute from the command line (and get further help):
 java -jar bin/D64Mod.jar 
 or
 java com.planet_ink.emutil.D64Mod
-
-D64Mod v2.1 (c)2017-2021 Bo Zimmerman
 
 USAGE:
   D64Mod <options> <image file> <action> <action arguments>
@@ -137,8 +130,6 @@ java -jar bin/CMDHDParser.jar
 or
 java com.planet_ink.emutil.CMDHDParser
 
-CMDHDParser v2.1 (c)2016-2021 Bo Zimmerman
-
 USAGE:
   CMDHDParser LIST <CMDHD_RAWIMAGE>
   CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH_OR_FILENAME> <CMDHD_PARTITION_NUMBER>
@@ -162,8 +153,6 @@ or
 java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
 or
 java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
-
-D64Duplifind v2.1 (c)2016-2021 Bo Zimmerman
 
 USAGE:
   D64Duplifind <options>
