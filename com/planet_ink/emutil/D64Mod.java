@@ -721,7 +721,9 @@ public class D64Mod extends D64Base
 				System.exit(-1);
 			}
 			final IMAGE_TYPE imagetype = getImageTypeAndGZipped(chkF);
-			if(imagetype == null)
+			if((imagetype == null)
+			&&((action!=Action.DIR)
+				||((!chkF.getName().toLowerCase().endsWith(".lnx"))&&(!chkF.getName().toLowerCase().endsWith(".lnx.gz")))))
 			{
 				System.err.println("File is not an image: "+imagePath);
 				System.exit(-1);
@@ -797,8 +799,21 @@ public class D64Mod extends D64Base
 		{
 			final IMAGE_TYPE imagetype = getImageTypeAndGZipped(imageF);
 			final int[] imageFLen=new int[1];
-			final byte[][][] diskBytes = getDisk(imagetype,imageF,imageFLen);
-			final List<FileInfo> files = getFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0], parseFlags);
+			final List<FileInfo> files;
+			final byte[][][] diskBytes;
+			if((imagetype==null)
+			&&(action==Action.DIR)
+			&&((chkF.getName().toLowerCase().endsWith(".lnx"))
+				||(chkF.getName().toLowerCase().endsWith(".lnx.gz"))))
+			{
+				diskBytes = null;
+				files = D64FileMatcher.getFileList(chkF.F, true, new BitSet(0));
+			}
+			else
+			{
+				diskBytes = getDisk(imagetype,imageF,imageFLen);
+				files = getFiles(imageF.getName(),imagetype, diskBytes, imageFLen[0], parseFlags);
+			}
 			FileInfo file = findFile(imageFileStr,files,false);
 			if(file == null)
 				file = findFile(imageFileStr,files,true);
