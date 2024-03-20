@@ -6,18 +6,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
-import java.util.HashSet;
 import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 import java.util.TreeSet;
-import java.util.Vector;
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+
+import com.planet_ink.emutil.CBMDiskImage.FileInfo;
+import com.planet_ink.emutil.CBMDiskImage.FileType;
 
 /*
 Copyright 2016-2024 Bo Zimmerman
@@ -36,281 +32,26 @@ limitations under the License.
 */
 public class D64Base
 {
+	final static String EMUTIL_VERSION = "2.6";
+	final static String EMUTIL_AUTHOR = "2024 Bo Zimmerman";
+
+	final static String spaces="                                                        "
+							 + "                                                        ";
 
 	final static int MAGIC_MAX = 16 * 1024 * 1024;
 
-	final static String EMUTIL_VERSION = "2.5";
-	final static String EMUTIL_AUTHOR = "2024 Bo Zimmerman";
-
-	public D64Base() {}
-
-	public final static int PF_READINSIDE = 1;
-	public final static int PF_NOERRORS = 2;
-	public final static int PF_RECURSE = 3;
-
-	final static String spaces="                                                                                                               ";
+	public final static int	PF_READINSIDE	= 1;
+	public final static int	PF_NOERRORS		= 2;
+	public final static int	PF_RECURSE		= 3;
 
 	protected static TreeSet<String> repeatedErrors = new TreeSet<String>();
 
-	// todo: add file masks to options
-	public enum IMAGE_TYPE {
-		D64 {
-			public String toString() {
-				return ".D64";
-			}
-		},
-		D71 {
-			public String toString() {
-				return ".D71";
-			}
-		},
-		D81 {
-			public String toString() {
-				return ".D81";
-			}
-		},
-		D80 {
-			public String toString() {
-				return ".D80";
-			}
-		},
-		D82 {
-			public String toString() {
-				return ".D82";
-			}
-		},
-		DNP {
-			public String toString() {
-				return ".DNP";
-			}
-		},
-		T64 {
-			public String toString() {
-				return ".T64";
-			}
-		}
-	};
-
-	public enum LOOSE_IMAGE_TYPE {
-		PRG {
-			public String toString() {
-				return ".PRG";
-			}
-		},
-		SEQ {
-			public String toString() {
-				return ".SEQ";
-			}
-		},
-		CVT {
-			public String toString() {
-				return ".CVT";
-			}
-		},
-		SDA {
-			public String toString() {
-				return ".SDA";
-			}
-		},
-		SFX {
-			public String toString() {
-				return ".SFX";
-			}
-		},
-		ARC {
-			public String toString() {
-				return ".ARC";
-			}
-		}
-	}
-
-	enum FileType
+	protected static void errMsg(final String errMsg)
 	{
-		DEL,SEQ,PRG,USR,REL,CBM,DIR;
-		public static FileType fileType(String s)
+		if(!repeatedErrors.contains(errMsg))
 		{
-			s=(s==null)?"":s.toUpperCase().trim();
-			if(s.length()==0)
-				return null;
-			for(final FileType T : FileType.values())
-				if(T.name().startsWith(s))
-					return T;
-			return null;
-		}
-	}
-
-	public static class TrackSec implements Comparable<TrackSec>
-	{
-		short track;
-		short sector;
-
-		private static TrackSec[][] cache = new TrackSec[256][256];
-		private TrackSec(final short t, final short s)
-		{
-			track=t;
-			sector=s;
-		}
-
-		public static TrackSec valueOf(final short t, final short s)
-		{
-			if((t<0)||(t>255)||(s<0)||(s>255))
-				throw new IllegalArgumentException();
-			synchronized(cache)
-			{
-				if(cache[t][s] == null)
-					cache[t][s] = new TrackSec(t,s);
-				return cache[t][s];
-			}
-		}
-
-		@Override
-		public int compareTo(final TrackSec o)
-		{
-			if(track > o.track)
-				return 1;
-			if(track < o.track)
-				return -1;
-			if(sector > o.sector)
-				return 1;
-			if(sector < o.sector)
-				return -1;
-			return 0;
-		}
-
-	}
-
-	public static class FileInfo
-	{
-		FileInfo		parentF			= null;
-		String			fileName		= "";
-		byte[]			rawFileName		= new byte[0];
-		String			filePath		= "";
-		FileType		fileType		= null;
-		int				feblocks		= 0;
-		int				size			= 0;
-		byte[]			data			= null;
-		Set<Long>		rollingHashes	= null;
-		Set<Long>		fixedHashes		= null;
-		byte[]			header			= null;
-		short[]			dirLoc			= new short[3];
-		List<TrackSec>	tracksNSecs		= new ArrayList<TrackSec>();
-		private long	hash			= -1;
-
-		public String toString()
-		{
-			return filePath;
-		}
-
-		public void reset()
-		{
-			hash=-1;
-			rollingHashes = null;
-			fixedHashes = null;
-		}
-
-		public long hash()
-		{
-			if(hash ==-1)
-			{
-				if(data != null)
-				{
-					hash=size;
-					for(int bn=0;bn<data.length-1;bn+=2)
-						hash ^= ( ((data[bn+1]) << 8) | (data[bn]));
-
-				}
-			}
-			return hash;
-		}
-		Set<Long> getRollingHashes() {
-			if(rollingHashes == null) {
-				if(size == 0 || data == null)
-					rollingHashes = new TreeSet<Long>();
-				else
-				{
-					final TreeSet<Long> rh = new TreeSet<Long>();
-					long roller=0;
-					for(int i=0;i<data.length;i++)
-					{
-						roller = (roller << 8) | data[i];
-						rh.add(Long.valueOf(roller));
-					}
-					rollingHashes = rh;
-				}
-			}
-			return rollingHashes;
-		}
-		Set<Long> getFixedHashes() {
-			if(fixedHashes == null) {
-				if(size == 0)
-					fixedHashes = new TreeSet<Long>();
-				else
-				{
-					final TreeSet<Long> rh = new TreeSet<Long>();
-					for(int i=0;i<data.length-7;i+=8)
-					{
-						long roller=0;
-						for(int ii=0;ii<8;ii++)
-							roller = (roller << 8) | data[i+ii];
-						rh.add(Long.valueOf(roller));
-					}
-					if((data.length>8)&&(data.length%8!=0))
-					{
-						long roller=0;
-
-						for(int ii=(data.length>8?data.length-8:0);ii<data.length;ii++)
-							roller = (roller << 8) | data[ii];
-						rh.add(Long.valueOf(roller));
-					}
-					fixedHashes = rh;
-				}
-			}
-			return fixedHashes;
-		}
-		public static int hashCompare(final FileInfo F1, final FileInfo F2)
-		{
-			try
-			{
-				final Set<Long> f1ch = F1.getFixedHashes();
-				final Set<Long> f2ch = F2.getFixedHashes();
-				final Set<Long> f1ro = F1.getRollingHashes();
-				final Set<Long> f2ro = F2.getRollingHashes();
-				final double lenPct = (F1.size > F2.size) ? ((double)F2.size/(double)F1.size): ((double)F1.size/(double)F2.size);
-				int ct1 = 0;
-				int ct2 = 0;
-				for(final Long I : f1ch)
-					if(f2ro.contains(I))
-						ct1++;
-				for(final Long I : f2ch)
-					if(f1ro.contains(I))
-						ct2++;
-				double pct1=0;
-				if(f1ch.size()>0)
-					pct1=(double)ct1/(double)f1ch.size();
-				double pct2=0;
-				if(f2ch.size()>0)
-					pct2=(double)ct2/(double)f2ch.size();
-				return (int)Math.round((lenPct*pct1*pct2*30)+(pct1*35)+(pct2*35));
-			}
-			catch(final NullPointerException ne)
-			{
-				return 0;
-			}
-		}
-	}
-
-	public static final String[] HEX=new String[256];
-	public static final Hashtable<String,Short> ANTI_HEX=new Hashtable<String,Short>();
-	public static final String HEX_DIG="0123456789ABCDEF";
-	static
-	{
-		for(int h=0;h<16;h++)
-		{
-			for(int h2=0;h2<16;h2++)
-			{
-				HEX[(h*16)+h2]=""+HEX_DIG.charAt(h)+HEX_DIG.charAt(h2);
-				ANTI_HEX.put(HEX[(h*16)+h2],new Short((short)((h*16)+h2)));
-			}
+			repeatedErrors.add(errMsg);
+			System.err.println(errMsg);
 		}
 	}
 
@@ -324,156 +65,9 @@ public class D64Base
 		return result;
 	}
 
-	protected static void errMsg(final String errMsg)
+	public static byte tobyte(final int b)
 	{
-		if(!repeatedErrors.contains(errMsg))
-		{
-			repeatedErrors.add(errMsg);
-			System.err.println(errMsg);
-		}
-	}
-
-	protected static int getImageSecsPerTrack(final IMAGE_TYPE type, final int t)
-	{
-		switch(type)
-		{
-		case D64:
-		{
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			return 17;
-		}
-		case D71:
-		{
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			if(t<36) return 17;
-			if(t<53) return 21;
-			if(t<60) return 19;
-			if(t<66) return 18;
-			return 17;
-		}
-		case D81:
-			return 40;
-		case DNP:
-			return 256;
-		case D80:
-		case D82:
-		{
-			if(t<40) return 29;
-			if(t<54) return 27;
-			if(t<65) return 25;
-			if(t<78) return 23;
-			if(t<117) return 29;
-			if(t<131) return 27;
-			if(t<142) return 25;
-			if(t<155) return 23;
-			return 23;
-		}
-		case T64:
-			return 1;
-		}
-		return -1;
-	}
-
-	public static int getImageTotalBytes(final IMAGE_TYPE type, final int fileSize)
-	{
-		if(type == IMAGE_TYPE.T64)
-			return fileSize;
-		final int ts=getImageNumTracks(type, fileSize);
-		int total=0;
-		for(int t=1;t<=ts;t++)
-			total+=(256*getImageSecsPerTrack(type,t));
-		return total;
-	}
-
-	public static int getImageDirTrack(final IMAGE_TYPE type)
-	{
-		switch(type)
-		{
-		case D64:
-			return 18;
-		case D71:
-			return 18;
-		case D81:
-			return 40;
-		case D80:
-		case D82:
-			return 39;
-		case DNP:
-			return 1;
-		case T64:
-			return -1;
-		}
-		return -1;
-	}
-
-	public static short getImageInterleave(final IMAGE_TYPE type)
-	{
-		switch(type)
-		{
-		case D64:
-			return 10;
-		case D71:
-			return 5;
-		case D81:
-			return 1;
-		case D80:
-		case D82:
-			return 10;
-		case DNP:
-			return 1;
-		case T64:
-			return -1;
-		}
-		return -1;
-	}
-
-	public static int getImageDirSector(final IMAGE_TYPE type)
-	{
-		switch(type)
-		{
-		case D64:
-			return 0;
-		case D71:
-			return 0;
-		case D81:
-			return 0;
-		case D80:
-		case D82:
-			return 0;
-		case DNP:
-			return 1;
-		case T64:
-			return -1;
-		}
-		return -1;
-	}
-
-	protected static int getImageNumTracks(final IMAGE_TYPE type, final long fileSize)
-	{
-		switch(type)
-		{
-		case D64:
-			if(fileSize >= 349696)
-				return 70;
-			return 35;
-		case D71:
-			return 70;
-		case D81:
-			return 80;
-		case D80:
-			return 77;
-		case D82:
-			return 2*77;
-		case DNP:
-			return (int)(fileSize / 256 / 256);
-		case T64:
-			return 1;
-		}
-		return -1;
+		return (byte)(0xFF & b);
 	}
 
 	protected static final int[] petToAscTable = new int[]
@@ -516,6 +110,48 @@ public class D64Base
 		0xf0,0xf1,0xf2,0xf3,0xf4,0xf5,0xf6,0xf7,0xf8,0xf9,0xfa,0xfb,0xfc,0xfd,0xfe,0xff
 	};
 
+	/**
+	 * A Loose File is one that can not be reduced any further,
+	 * or is too difficult to.  It must also be C= related, of
+	 * course.
+	 *
+	 * @author BZ
+	 *
+	 */
+	public enum LooseCBMFileType
+	{
+		PRG {
+			public String toString() {
+				return ".PRG";
+			}
+		},
+		SEQ {
+			public String toString() {
+				return ".SEQ";
+			}
+		},
+		CVT {
+			public String toString() {
+				return ".CVT";
+			}
+		},
+		SDA {
+			public String toString() {
+				return ".SDA";
+			}
+		},
+		SFX {
+			public String toString() {
+				return ".SFX";
+			}
+		},
+		ARC {
+			public String toString() {
+				return ".ARC";
+			}
+		}
+	}
+
 	protected static char convertToPetscii(final byte b)
 	{
 		if(b<65) return (char)b;
@@ -532,133 +168,20 @@ public class D64Base
 		return (char)(petToAscTable[b] & 0xff);
 	}
 
-	protected static byte[][][] parseImageDiskMap(final IMAGE_TYPE type, final byte[] buf, final int fileLength)
+	public static final String[] HEX=new String[256];
+	public static final Hashtable<String,Short> ANTI_HEX=new Hashtable<String,Short>();
+	public static final String HEX_DIG="0123456789ABCDEF";
+	static
 	{
-		final int numTS=getImageNumTracks(type, fileLength);
-		final byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(type,1)][256];
-		int index=0;
-		for(int t=1;t<=numTS;t++)
+		for(int h=0;h<16;h++)
 		{
-			final int secs=getImageSecsPerTrack(type,t);
-			for(int s=0;s<secs;s++)
+			for(int h2=0;h2<16;h2++)
 			{
-				for(int i=0;i<256;i++)
-					tsmap[t][s][i]=buf[index+i];
-				index+=256;
-			}
-		}
-		return tsmap;
-	}
-
-	public static byte[][][] getDisk(final IMAGE_TYPE type, final File F, final int[] fileLen)
-	{
-		FileInputStream fi=null;
-		try
-		{
-			fi=new FileInputStream(F);
-			return getDisk(type, fi, F.getName(), (int)F.length(), fileLen);
-		}
-		catch(final IOException e)
-		{
-			e.printStackTrace(System.err);
-			return new byte[D64Base.getImageNumTracks(type, (int)F.length())][255][256];
-		}
-		finally
-		{
-			if(fi != null)
-			{
-				try
-				{
-					fi.close();
-				}
-				catch(final Exception e)
-				{}
+				HEX[(h*16)+h2]=""+HEX_DIG.charAt(h)+HEX_DIG.charAt(h2);
+				ANTI_HEX.put(HEX[(h*16)+h2],new Short((short)((h*16)+h2)));
 			}
 		}
 	}
-
-	public static byte[][][] getDisk(final IMAGE_TYPE type, final IOFile F, final int[] fileLen)
-	{
-		InputStream fi=null;
-		try
-		{
-			fi=F.createInputStream();
-			return getDisk(type, fi, F.getName(), (int)F.length(), fileLen);
-		}
-		catch(final IOException e)
-		{
-			e.printStackTrace(System.err);
-			return new byte[D64Base.getImageNumTracks(type, (int)F.length())][255][256];
-		}
-		finally
-		{
-			if(fi != null)
-			{
-				try
-				{
-					fi.close();
-				}
-				catch(final Exception e)
-				{}
-			}
-		}
-	}
-
-	public static byte[][][] getDisk(final IMAGE_TYPE type, final InputStream fin, final String fileName, final int fLen,
-									final int[] fileLen)
-	{
-		int len=fLen;
-		InputStream is=null;
-		try
-		{
-			if(fileName.toUpperCase().endsWith(".GZ"))
-			{
-				@SuppressWarnings("resource")
-				final GzipCompressorInputStream in = new GzipCompressorInputStream(fin);
-				final byte[] lbuf = new byte[4096];
-				int read=in.read(lbuf);
-				final ByteArrayOutputStream bout=new ByteArrayOutputStream(len*2);
-				while(read >= 0)
-				{
-					bout.write(lbuf,0,read);
-					read=in.read(lbuf);
-				}
-				//in.close(); dont do it -- this might be from a zip
-				len=bout.toByteArray().length;
-				is=new ByteArrayInputStream(bout.toByteArray());
-			}
-			if(len == 0)
-			{
-				errMsg("?: Error: Failed to read '"+fileName+"' at ALL!");
-				return new byte[D64Base.getImageNumTracks(type, len)][255][256];
-			}
-			final byte[] buf=new byte[getImageTotalBytes(type,len)];
-			if(is == null)
-				is=fin;
-			int totalRead = 0;
-			while((totalRead < len) && (totalRead < buf.length))
-			{
-				final int read = is.read(buf,totalRead,buf.length-totalRead);
-				if(read>=0)
-					totalRead += read;
-			}
-			if((fileLen != null)&&(fileLen.length>0))
-				fileLen[0]=len;
-			if(type == IMAGE_TYPE.T64)
-			{
-				final byte[][][] image = new byte[1][1][];
-				image[0][0]=buf;
-				return image;
-			}
-			return parseImageDiskMap(type,buf,len);
-		}
-		catch(final java.io.IOException e)
-		{
-			e.printStackTrace(System.err);
-			return new byte[D64Base.getImageNumTracks(type, len)][255][256];
-		}
-	}
-
 	public static String toHex(final byte b)
 	{
 		return HEX[unsigned(b)];
@@ -682,691 +205,42 @@ public class D64Base
 		return (short)(0xFF & b);
 	}
 
-	public static byte tobyte(final int b)
+	public static boolean isInteger(final String s)
 	{
-		return (byte)(0xFF & b);
-	}
-
-	public static byte[] getFileContent(final String fileName, final byte[][][] tsmap, int t, final int mt, int s, final List<TrackSec> secsUsed) throws IOException
-	{
-		final HashSet<byte[]> doneBefore=new HashSet<byte[]>();
-		byte[] sector=null;
-		final ByteArrayOutputStream out=new ByteArrayOutputStream();
-		if(t>=tsmap.length)
-			throw new IOException("Illegal File First Track "+t+" for "+fileName);
-		if(s>=tsmap[t].length)
-			throw new IOException("Illegal File First Sector ("+t+","+s+")"+" for "+fileName);
-		while((t!=0)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=mt))
-		{
-			if(secsUsed != null)
-				secsUsed.add(TrackSec.valueOf((short)t,(short)s));
-			int maxBytes=255;
-			sector=tsmap[t][s];
-			if(sector[0]==0)
-				maxBytes=unsigned(sector[1]);
-			doneBefore.add(sector);
-			for(int i=2;i<=maxBytes;i++)
-				out.write(sector[i]);
-			t=unsigned(sector[0]);
-			s=unsigned(sector[1]);
-			if(t==0)
-				break;
-			if(t>=tsmap.length)
-				throw new IOException("Illegal File Link Track "+t);
-			if(s>=tsmap[t].length)
-				throw new IOException("Illegal File Link Sector ("+t+","+s+")");
-		}
-		return out.toByteArray();
-	}
-
-	public static void finishFillFileList(final FileInfo dirInfo, final String imgName, final int srcFLen,
-			final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap, final Set<byte[]> doneBefore,
-			final List<FileInfo> finalData, int t, int s, final int maxT, final BitSet parseFlags)
-	{
-		final boolean readInside = parseFlags.get(PF_READINSIDE);
-		byte[] sector;
-		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
-		{
-			sector=tsmap[t][s];
-			dirInfo.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
-			doneBefore.add(sector);
-			for(int i=2;i<256;i+=32)
-			{
-				if((sector[i]==(byte)128)||(sector[i]&(byte)128)==0)
-					continue;
-
-				int fn=i+19-1;
-				for(;fn>=i+3;fn--)
-				{
-					if((sector[fn]!=-96)&&(sector[fn]!=0))
-						break;
-				}
-				final StringBuffer file=new StringBuffer("");
-				for(int x=i+3;x<=fn;x++)
-					file.append((char)sector[x]);
-				final byte[] rawFileName = new byte[fn-i-3+1];
-				for(int x=i+3;x<=fn;x++)
-					rawFileName[x-i-3] = sector[x];
-
-				if(file.length()>0)
-				{
-					final FileInfo f = new FileInfo();
-					f.parentF = dirInfo;
-					finalData.add(f);
-
-					final int pht = unsigned(sector[i+19]);
-					final int phs = unsigned(sector[i+20]);
-					if(((sector[i] & 0x0f)!=4) //rel files never have headers
-					&&(pht!=0)
-					&&(pht<=maxT)
-					&&(phs<=tsmap[pht].length))
-					{
-						final byte[] ssec = tsmap[pht][phs];
-						if((unsigned(ssec[0])==0)&&(unsigned(ssec[1])==255)&&(!doneBefore.contains(ssec)))
-						{
-							f.header = ssec;
-							f.tracksNSecs.add(TrackSec.valueOf((short)pht,(short)phs));
-							doneBefore.add(ssec);
-						}
-					}
-
-					if(f.header==null)
-					{
-						for(int ii=0;ii<file.length();ii++)
-							file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii)));
-					}
-					f.filePath=prefix + file.toString();
-					f.fileName=file.toString();
-					f.rawFileName = rawFileName;
-					f.dirLoc=new short[]{(short)t,(short)s,(short)i};
-					final short lb=unsigned(sector[i+28]);
-					final short hb=unsigned(sector[i+29]);
-					final int size=(256*(lb+(256*hb)));
-					if(size<0)
-						System.out.println(lb+","+hb+","+size);
-					f.feblocks = (lb+(256*hb));
-					f.size = size;
-
-					try
-					{
-						final int fileT=unsigned(sector[i+1]);
-						final int fileS=unsigned(sector[i+2]);
-						byte[] fileData = null;
-						switch(sector[i] & 0x0f)
-						{
-						case (byte) 0:
-							if(readInside)
-							{
-								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
-							f.fileType = FileType.DEL;
-							if((fileData != null)&&(fileData.length>0))
-								f.size=fileData.length;
-							break;
-						case (byte) 1:
-							if(readInside)
-							{
-								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
-							f.fileType = FileType.SEQ;
-							break;
-						case (byte) 2:
-							if(readInside)
-							{
-								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
-							f.fileType = FileType.PRG;
-							break;
-						case (byte) 3:
-							f.fileType = FileType.USR;
-							//fileData =getFileContent(tsmap,fileT,maxT,fileS);
-							if((f.header!=null)
-							&&(fileT!=0)
-							&&(!doneBefore.contains(tsmap[fileT][fileS]))&&(fileT<=maxT))
-							{
-								final ByteArrayOutputStream data = new ByteArrayOutputStream();
-								if(readInside)
-								{
-									final byte[] block = new byte[254];
-									final byte[] dirLocBlock =tsmap[f.dirLoc[0]][f.dirLoc[1]];
-									for(int l=2;l<=31;l++)
-										block[l-2]=dirLocBlock[f.dirLoc[2]+l-2];
-									block[1]=0;
-									block[2]=0;
-									block[19]=0;
-									block[20]=0;
-									final byte[] convertHeader=new String("PRG formatted GEOS file V1.0").getBytes("US-ASCII");
-									for(int l=30;l<30+convertHeader.length;l++)
-										block[l]=convertHeader[l-30];
-									data.write(block);
-									for(int l=0;l<block.length;l++)
-										block[l]=f.header[l+2];
-									data.write(block);
-								}
-								int extra=0;
-								if(unsigned(sector[i+21])==1)
-								{
-									final byte[] vlirSec = tsmap[fileT][fileS];
-									doneBefore.add(vlirSec);
-									f.tracksNSecs.add(TrackSec.valueOf((short)fileT,(short)fileS));
-									final byte[] vlirblock = new byte[254];
-									final List<byte[]> contents = new ArrayList<byte[]>();
-									for(int vt=0;vt<=254;vt+=2)
-									{
-										final int vfileT=unsigned(vlirSec[vt]);
-										final int vfileS=unsigned(vlirSec[vt+1]);
-										if(vfileT==0)
-										{
-											if(vt>1)
-											{
-												vlirblock[vt-2]=0;
-												vlirblock[vt-1]=(byte)(255 & 0xff);
-											}
-											continue;
-										}
-										else
-										if(vt==0) // this is a corrupt file.. and this is NOT a record
-											continue;
-										if(readInside)
-										{
-											final byte[] content = getFileContent(f.fileName,tsmap,vfileT,maxT,vfileS,f.tracksNSecs);
-											final int numBlocks = (int)Math.round(Math.ceil(content.length/254.0));
-											final int lowBlocks = (int)Math.round(Math.floor(content.length/254.0));
-											extra = content.length - (lowBlocks * 254) +1;
-											vlirblock[vt-2]=(byte)(numBlocks & 0xff);
-											vlirblock[vt-1]=(byte)(extra & 0xff);
-											for(int x=0;x<numBlocks*254;x+=254)
-											{
-												final byte[] newConBlock = new byte[254];
-												for(int y=x;y<x+254;y++)
-													if(y<content.length)
-														newConBlock[y-x]=content[y];
-													//else
-													//	newConBlock[y-x]=(byte)((y-x+2) & 0xff);
-												contents.add(newConBlock);
-											}
-										}
-									}
-									if((contents.size()>0)&&(extra>1)) // only on last file in the whole file
-									{
-										final byte[] lblk = contents.get(contents.size()-1);
-										if(lblk.length>extra)
-											contents.set(contents.size()-1, Arrays.copyOf(lblk, extra-1));
-									}
-									data.write(vlirblock);
-									for(final byte[] content : contents)
-										data.write(content);
-								}
-								else
-								if(readInside)
-								{
-									fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-									if((fileData != null)&&(fileData.length>0))
-										data.write(fileData);
-								}
-								if(readInside)
-								{
-									fileData = data.toByteArray();
-									f.size=fileData.length;
-								}
-							}
-							else
-							if(readInside)
-								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-							break;
-						case (byte) 4:
-							f.fileType = FileType.REL;
-							{
-								final int recsz = unsigned(sector[i+21]);
-								if((pht!=0)
-								&&(recsz!=0)
-								&&(pht<tsmap.length)
-								&&(phs<tsmap[pht].length)
-								&&(!doneBefore.contains(tsmap[pht][phs]))
-								&&(pht<=maxT))
-								{
-									final byte[] sides=tsmap[pht][phs];
-									doneBefore.add(sides);
-									f.tracksNSecs.add(TrackSec.valueOf((short)pht,(short)phs));
-									if(unsigned(sides[2])==254)
-									{
-										if(sides[0]!=0)
-											getFileContent(f.fileName,tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
-										for(int si=3;si<254;si+=2)
-										{
-											final short sit=unsigned(sides[si]);
-											final short sis=unsigned(sides[si+1]);
-											if(sit != 0)
-											{
-												if(readInside)
-													getFileContent(f.fileName,tsmap,sit,maxT,sis,f.tracksNSecs);
-											}
-										}
-									}
-									else
-									if(unsigned(sides[3])==recsz)
-									{
-										if(sides[0]!=0)
-										{
-											if(readInside)
-												getFileContent(f.fileName,tsmap,unsigned(sides[0]),maxT,unsigned(sides[1]),f.tracksNSecs);
-										}
-									}
-									if(readInside)
-									{
-										fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-										if((fileData != null)&&(fileData.length>0))
-											f.size=fileData.length;
-									}
-								}
-							}
-							break;
-						case (byte) 5:
-							f.fileType = FileType.CBM;
-							//$FALL-THROUGH$
-						case (byte) 6:
-							if((sector[i] & 0x0f)==(byte)6)
-								f.fileType = FileType.DIR;
-							final int newDirT=fileT;
-							final int newDirS=fileS;
-							//if(flags.contains(COMP_FLAG.RECURSE))
-							fillFileListFromHeader(imgName,srcFLen,type,f.filePath+"/",tsmap,doneBefore,finalData,newDirT,newDirS,maxT,f, parseFlags);
-							if(readInside)
-							{
-								fileData=getFileContent(f.fileName,tsmap,newDirT,maxT,newDirS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
-							//finalData.remove(f);
-							break;
-						default:
-							f.fileType = FileType.PRG;
-							if(readInside)
-							{
-								fileData =getFileContent(f.fileName,tsmap,fileT,maxT,fileS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
-							break;
-						}
-						if(fileData==null)
-						{
-							if(!parseFlags.get(PF_NOERRORS))
-								errMsg(imgName+": Error reading: "+f.fileName+": "+fileT+","+fileS);
-							return;
-						}
-						else
-							f.data = fileData;
-					}
-					catch(final IOException e)
-					{
-						if(!parseFlags.get(PF_NOERRORS))
-							errMsg(imgName+": Error: "+f.filePath+": "+e.getMessage());
-						//return; // omg, this doesn't mean EVERY file is bad!
-					}
-				}
-			}
-			t=unsigned(sector[0]);
-			s=unsigned(sector[1]);
-		}
-	}
-
-	protected static boolean isSectorAllocated(final byte[][][] diskBytes, final IMAGE_TYPE imagetype, final int imageFLen, final short track, final short sector) throws IOException
-	{
-		final boolean[] isAllocated = new boolean[]{false};
-		D64Mod.bamPeruse(diskBytes, imagetype, imageFLen, new BAMBack(){
-			@Override
-			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
-					final short sumBamByteOffset, final short bamMask)
-			{
-				if((t==track)&&(s==sector))
-				{
-					isAllocated[0]=!set;
-					return true;
-				}
-				return false;
-			}
-		});
-		return isAllocated[0];
-	}
-
-	public static void fillFileListFromHeader(final String imgName, final int srcFLen,
-			final IMAGE_TYPE type, final String prefix, final byte[][][] tsmap,
-			final Set<byte[]> doneBefore, final List<FileInfo> finalData,
-			int t, int s, final int maxT, final FileInfo f,
-			final BitSet parseFlags) throws IOException
-	{
-		byte[] sector;
-		if((type != IMAGE_TYPE.D80)
-		&&(type != IMAGE_TYPE.D82)
-		&&(t!=0)
-		&&(t<tsmap.length)
-		&&(s<tsmap[t].length)
-		&&(!doneBefore.contains(tsmap[t][s]))
-		&&(t<=maxT))
-		{
-			sector=tsmap[t][s];
-			t=unsigned(sector[0]);
-			s=unsigned(sector[1]);
-			final short possDTrack = unsigned(sector[160+11]);
-			final short possDSector = unsigned(sector[160+12]);
-			if((possDTrack!=0)
-			&&(possDTrack<tsmap.length)
-			&&(f.fileType==FileType.DIR)
-			&&(D64Base.isSectorAllocated(tsmap, type, srcFLen, possDTrack, possDSector)
-				||(possDTrack==t))
-			&&(possDSector<tsmap[possDTrack].length)
-			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
-			&&(possDTrack<=maxT))
-			{
-				finishFillFileList(f,imgName,srcFLen,type,prefix+"*/",tsmap,doneBefore,finalData,possDTrack,possDSector,maxT, parseFlags);
-				getFileContent("/",tsmap,possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
-			}
-		}
-		finishFillFileList(f,imgName,srcFLen,type,prefix,tsmap,doneBefore,finalData,t,s,maxT, parseFlags);
-	}
-
-	protected static short[] getBAMStart(final IMAGE_TYPE type)
-	{
-		switch(type)
-		{
-		case D64:
-			return new short[]{18,0,4,143,1,0};
-		case D71:
-			return new short[]{18,0,4,143,1,0};
-		case D81:
-			return new short[]{40,1,16,255,1,0};
-		case D80:
-			return new short[]{38,0,6,255,1,0};
-		case D82:
-			return new short[]{38,0,6,255,1,0};
-		case DNP:
-			return new short[]{1,2,32,255,0,32};
-		case T64:
-			return null;
-		}
-		return null;
-	}
-
-	protected static short[] getBAMNext(final short[] prev, final IMAGE_TYPE type)
-	{
-		switch(type)
-		{
-		case D64:
-			return null;
-		case D71:
-			if(prev[0]==18)
-				return new short[]{53,0,0,104,0,3};
-			return null;
-		case D81:
-			if((prev[0]==40)&&(prev[1]==1))
-				return new short[]{40,2,16,255,1,0};
-			return null;
-		case D80:
-			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,140,1,5};
-			return null;
-		case D82:
-			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,255,1,5};
-			if((prev[0]==38)&&(prev[1]==3))
-				return new short[]{38,6,6,255,1,5};
-			if((prev[0]==38)&&(prev[1]==6))
-				return new short[]{38,9,6,255,1,5};
-			return null;
-		case DNP:
-			if(prev[1]>=33)
-				return null;
-			prev[1]++;
-			prev[2]=0;
-			prev[3]=255;
-			return prev;
-		case T64:
-			return null;
-		}
-		return null;
-	}
-
-	public interface BAMBack
-	{
-		public boolean call(short t, short s, boolean set, short[] curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
-	}
-
-	protected static void bamPeruse(final byte[][][] bytes, final IMAGE_TYPE type, final long imageSize, final BAMBack call) throws IOException
-	{
-		short[] currBAM = getBAMStart(type);
-		byte[] bam=bytes[currBAM[0]][currBAM[1]];
-		short bamOffset = currBAM[2];
-		for(int t=1;t<=getImageNumTracks(type, imageSize);t++)
-		{
-			if(bamOffset > currBAM[3])
-			{
-				currBAM = getBAMNext(currBAM, type);
-				if(currBAM==null)
-					throw new IOException("BAM failure");
-				bam=bytes[currBAM[0]][currBAM[1]];
-				bamOffset = currBAM[2];
-			}
-			final int secsPerTrack = getImageSecsPerTrack(type,t);
-			final int skipByte = currBAM[4];
-			for(int s=0;s<secsPerTrack;s++)
-			{
-				final short sumBamByteOffset = (short)((skipByte <= 0) ? -1 : (bamOffset + skipByte));
-				final short bamByteOffset = (short)(bamOffset + skipByte + (int)Math.round(Math.floor(s/8.0)));
-				final short bamByte = (short)(bam[bamByteOffset] & 0xff);
-				short mask;
-				if(type==IMAGE_TYPE.DNP)
-					mask = (short)Math.round(Math.pow(2.0,7-(s%8)));
-				else
-					mask = (short)Math.round(Math.pow(2.0,s%8));
-				final boolean set = (bamByte & mask) == mask;
-				if((call != null)&&(call.call((short)t, (short)s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
-					return;
-			}
-			if(currBAM[5] != 0)
-				bamOffset += currBAM[5];
-			else
-				bamOffset+=(skipByte + (int)Math.round(Math.ceil(secsPerTrack/8.0)));
-		}
-	}
-
-	public static List<FileInfo> getTapeFiles(final String imgName, final IMAGE_TYPE type,
-			final byte[][][] tsmap, final int fileSize, final BitSet parseFlags)
-	{
-		final List<FileInfo> finalData=new Vector<FileInfo>();
-		final byte[] data = tsmap[0][0];
-		final String marker = new String(data,0,32);
-		if(!marker.startsWith("C64"))
-		{
-			if(!parseFlags.get(PF_NOERRORS))
-				errMsg(imgName+": tape header error.");
-			return finalData;
-		}
-		//final int tapeVersionNumber = (data[32] & 0xff) + (data[33] & 0xff);
-		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
-		//final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff)); // might be gaps, so dont use this!
-		// we skip the tape/disk name. :(
-
-		// first must do a pre-scan, because some T64s are Wrong.
-		final TreeSet<Integer> fileStarts = new TreeSet<Integer>();
-		for(int start = 64; start<64+(32*numEntries); start+=32)
-		{
-			if(data[start]!=1)
-				continue;
-			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
-			fileStarts.add(Integer.valueOf(startAddress));
-		}
-
-		for(int start = 64; start<64+(32*numEntries); start+=32)
-		{
-			if(data[start]!=1)
-				continue;
-			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
-			int endAddress = (data[start+4]& 0xff) + (256*(data[start+5]& 0xff));
-			if(endAddress == 50118) // this means it's wrong.
-			{
-				for(final Iterator<Integer> i = fileStarts.iterator();i.hasNext();)
-				{
-					final Integer startI = i.next();
-					if(startI.intValue() == startAddress)
-					{
-						if(i.hasNext())
-							endAddress = i.next().intValue()-1;
-						else
-							endAddress = fileSize-1;
-						break;
-					}
-				}
-			}
-			final int dataOffset = (data[start+8] & 0xff)
-									+ (256*(data[start+9] & 0xff))
-									+ (65536 * (data[start+10] & 0xff)); // nothing higher is Good.
-			final int fileLength = endAddress-startAddress+1;
-			final FileInfo f = new FileInfo();
-			finalData.add(f);
-			f.header = Arrays.copyOfRange(data, start, start+32);
-			final StringBuffer file=new StringBuffer("");
-			int fn=start+32-1;
-			for(;fn>=start+16;fn--)
-			{
-				if((data[fn]!=-96)
-				&&(data[fn]!=0)
-				&&(data[fn]!=32))
-					break;
-			}
-			final byte[] rawFilename = new byte[fn-start-16+1];
-			for(int x=start+16;x<=fn;x++)
-			{
-				file.append((char)data[x]);
-				rawFilename[x-start-16] = data[x];
-			}
-			for(int ii=0;ii<file.length();ii++)
-				file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii))); // this makes no sense to me
-			f.filePath="/" + file.toString();
-			f.fileName=file.toString();
-			f.rawFileName = rawFilename;
-			f.size=fileLength;
-			{
-				final byte[] bytes = numToBytes(start);
-				f.dirLoc=new short[] {(short)(bytes[0]&0xff),(short)(bytes[1]&0xff),(short)(bytes[2]&0xff)};
-			}
-			f.feblocks = (int)Math.round(Math.floor(f.size / 254));
-			if(data[start+1]!=0) // this is mega lame -- what a messed up format
-				f.fileType = FileType.PRG;
-			else
-				f.fileType = FileType.SEQ;
-			final int fakeStart = (f.fileType == FileType.PRG)?dataOffset-2:dataOffset;
-			if(fakeStart + f.size + 1 > fileSize)
-			{
-				if(!parseFlags.get(PF_NOERRORS))
-					errMsg(imgName+": has bad offsets for file "+f.filePath+", trimming it.");
-				f.data = Arrays.copyOfRange(data, fakeStart, fileSize);
-			}
-			else
-				f.data = Arrays.copyOfRange(data, fakeStart, fakeStart+f.size+1);
-			if(f.fileType == FileType.PRG)
-			{
-				f.data[0] = data[start+2];
-				f.data[1] = data[start+3];
-			}
-		}
-		return finalData;
-	}
-
-	public static List<FileInfo> getFiles(final String imgName, final IMAGE_TYPE type,
-			final byte[][][] tsmap, final int fileSize, final BitSet parseFlags)
-	{
-		if(type == IMAGE_TYPE.T64)
-			return getTapeFiles(imgName,type,tsmap,fileSize,parseFlags);
-		int t=getImageDirTrack(type);
-		final int maxT=getImageNumTracks(type, fileSize);
-		int s=getImageDirSector(type);
-		final List<FileInfo> finalData=new Vector<FileInfo>();
-		short[] currBAM = getBAMStart(type);
-		FileInfo f=new FileInfo();
-		f.dirLoc=new short[]{currBAM[0],currBAM[1],currBAM[2]};
-		f.fileName="*BAM*";
-		f.filePath="*BAM*";
-		f.fileType=FileType.DIR;
-		f.size=0;
-		f.feblocks=0;
-		f.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
-		finalData.add(f);
-		if(currBAM[1]!=0)
-			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],(short)0));
-		while(currBAM != null)
-		{
-			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],currBAM[1]));
-			currBAM = getBAMNext(currBAM,type);
-		}
-		switch(type)
-		{
-		case D80:
-			currBAM = getBAMStart(type);
-			currBAM = getBAMNext(currBAM,type);
-			// sometimes a d80 is formatted like an 8250 if user fail.
-			t=39;//unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
-			s=1;//unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
-			break;
-		case D82:
-			currBAM = getBAMStart(type);
-			currBAM = getBAMNext(currBAM,type);
-			currBAM = getBAMNext(currBAM,type);
-			currBAM = getBAMNext(currBAM,type);
-			t=unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
-			s=unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
-			break;
-		default:
-			break;
-		}
-		final Set<byte[]> doneBefore=new HashSet<byte[]>();
 		try
 		{
-			f=new FileInfo();
-			f.dirLoc=new short[]{(short)t,(short)s,(short)0};
-			f.fileName="/";
-			f.filePath="/";
-			f.fileType=FileType.DIR;
-			f.size=0;
-			f.feblocks=0;
-			finalData.add(f);
-			parseFlags.set(PF_READINSIDE);
-			fillFileListFromHeader(imgName, fileSize, type,"",tsmap, doneBefore, finalData, t, s, maxT,f, parseFlags);
+			final int x=Integer.parseInt(s);
+			return x>0;
 		}
-		catch(final IOException e)
+		catch(final Exception e)
 		{
-			if(!parseFlags.get(PF_NOERRORS))
-				errMsg(imgName+": disk Dir Error: "+e.getMessage());
+			return false;
 		}
-		switch(type)
-		{
-		case D71:
-			for(int sec=1;sec<getImageSecsPerTrack(type, 53);sec++)
-			{
-				boolean found=false;
-				for(final TrackSec chk : f.tracksNSecs)
-				{
-					if((chk.track==53)&&(chk.sector==sec))
-						found=true;
-				}
-				if(!found)
-					f.tracksNSecs.add(TrackSec.valueOf((short)53,(short)sec));
-			}
-			break;
-		default:
-			break;
-		}
-		return finalData;
+
 	}
 
-	public static FileInfo getLooseFile(final File F1) throws IOException
+	protected static LooseCBMFileType getLooseImageTypeAndGZipped(final String fileName)
+	{
+		for(final LooseCBMFileType img : LooseCBMFileType.values())
+		{
+			final String uf = fileName.toUpperCase();
+			if(uf.endsWith(img.toString())
+			||uf.endsWith(img.toString()+".GZ"))
+			{
+				final LooseCBMFileType type=img;
+				return type;
+			}
+			else
+			if(uf.endsWith(",S"))
+				return LooseCBMFileType.SEQ;
+			else
+			if(uf.endsWith(",P"))
+				return LooseCBMFileType.PRG;
+		}
+		return null;
+	}
+
+	protected static FileInfo getLooseFile(final File F1) throws IOException
 	{
 		FileInputStream fi=null;
 		try
@@ -1381,27 +255,23 @@ public class D64Base
 		}
 	}
 
-	public static void normalizeCvt(final FileInfo file)
+	protected static LooseCBMFileType getLooseImageTypeAndGZipped(final File F)
 	{
-		if((file.data != null)
-		&&(file.data.length>256)
-		&&(new String(file.data,34,24).equals("formatted GEOS file V1.0")))
-		{
-			file.data[1]=0;
-			file.data[2]=0;
-			file.data[19]=0;
-			file.data[20]=0;
-			file.data[30]='P';
-			file.data[31]='R';
-			file.data[32]='G';
-			for(int i=60;i<254;i++)
-				file.data[i]=0;
-		}
+		if(F==null)
+			return null;
+		return getLooseImageTypeAndGZipped(F.getName());
 	}
 
-	public static FileInfo getLooseFile(final InputStream fin, final String fileName, int fileLen) throws IOException
+	protected static LooseCBMFileType getLooseImageTypeAndGZipped(final IOFile F)
 	{
-		final LOOSE_IMAGE_TYPE typ = getLooseImageTypeAndGZipped(fileName);
+		if(F==null)
+			return null;
+		return getLooseImageTypeAndGZipped(F.getName());
+	}
+
+	protected static FileInfo getLooseFile(final InputStream fin, final String fileName, int fileLen) throws IOException
+	{
+		final LooseCBMFileType typ = getLooseImageTypeAndGZipped(fileName);
 		byte[] filedata;
 		filedata = new byte[fileLen];
 		int lastLen = 0;
@@ -1435,28 +305,28 @@ public class D64Base
 		if(typ == null)
 		{
 			file.fileName = fileName;
-			file.fileType = D64Base.FileType.SEQ;
+			file.fileType = FileType.SEQ;
 		}
 		else
 		switch(typ)
 		{
 		case CVT:
 			file.fileName = fileName;
-			file.fileType = D64Base.FileType.USR;
+			file.fileType = FileType.USR;
 			break;
 		case SDA:
 		case SFX:
 		case ARC:
 			file.fileName = fileName;
-			file.fileType = D64Base.FileType.PRG;
+			file.fileType = FileType.PRG;
 			break;
 		case PRG:
 			file.fileName = fileName.substring(0,fileName.length()-4);
-			file.fileType = D64Base.FileType.PRG;
+			file.fileType = FileType.PRG;
 			break;
 		case SEQ:
 			file.fileName = fileName.substring(0,fileName.length()-4);
-			file.fileType = D64Base.FileType.SEQ;
+			file.fileType = FileType.SEQ;
 			break;
 		}
 		final ByteArrayOutputStream fout = new ByteArrayOutputStream();
@@ -1482,79 +352,4 @@ public class D64Base
 		return file;
 	}
 
-	protected static IMAGE_TYPE getImageType(String fileName)
-	{
-		fileName = fileName.toUpperCase();
-		for(final IMAGE_TYPE img : IMAGE_TYPE.values())
-		{
-			if(fileName.endsWith(img.toString()))
-			{
-				final IMAGE_TYPE type=img;
-				return type;
-			}
-		}
-		return null;
-	}
-
-	protected static IMAGE_TYPE getImageType(final File F)
-	{
-		return getImageType(F.getName());
-	}
-
-	protected static IMAGE_TYPE getImageTypeAndGZipped(String fileName)
-	{
-		fileName = fileName.toUpperCase();
-		if(fileName.endsWith(".GZ"))
-			return getImageType(fileName.substring(0,fileName.length()-3));
-		return getImageType(fileName);
-	}
-
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final String fileName)
-	{
-		for(final LOOSE_IMAGE_TYPE img : LOOSE_IMAGE_TYPE.values())
-		{
-			final String uf = fileName.toUpperCase();
-			if(uf.endsWith(img.toString())
-			||uf.endsWith(img.toString()+".GZ"))
-			{
-				final LOOSE_IMAGE_TYPE type=img;
-				return type;
-			}
-			else
-			if(uf.endsWith(",S"))
-				return LOOSE_IMAGE_TYPE.SEQ;
-			else
-			if(uf.endsWith(",P"))
-				return LOOSE_IMAGE_TYPE.PRG;
-		}
-		return null;
-	}
-
-	protected static IMAGE_TYPE getImageTypeAndGZipped(final File F)
-	{
-		if(F==null)
-			return null;
-		return getImageTypeAndGZipped(F.getName());
-	}
-
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final File F)
-	{
-		if(F==null)
-			return null;
-		return getLooseImageTypeAndGZipped(F.getName());
-	}
-
-	protected static IMAGE_TYPE getImageTypeAndGZipped(final IOFile F)
-	{
-		if(F==null)
-			return null;
-		return getImageTypeAndGZipped(F.getName());
-	}
-
-	protected static LOOSE_IMAGE_TYPE getLooseImageTypeAndGZipped(final IOFile F)
-	{
-		if(F==null)
-			return null;
-		return getLooseImageTypeAndGZipped(F.getName());
-	}
 }

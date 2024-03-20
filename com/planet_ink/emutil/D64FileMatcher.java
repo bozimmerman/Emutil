@@ -3,7 +3,8 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import com.planet_ink.emutil.CBMDiskImage.FileInfo;
+import com.planet_ink.emutil.CBMDiskImage.FileType;
 
 /*
 Copyright 2017-2024 Bo Zimmerman
@@ -22,13 +23,16 @@ limitations under the License.
 */
 public class D64FileMatcher extends D64Mod
 {
-	public enum COMP_FLAG {
+	public enum CompFlag
+	{
 		VERBOSE,
 		RECURSE,
 		NOSORT,
 		CACHE
 	};
-	public enum FILE_FORMAT {
+
+	public enum FileFormat
+	{
 		PETSCII,
 		ASCII,
 		HEX;
@@ -39,236 +43,39 @@ public class D64FileMatcher extends D64Mod
 		List<FileInfo>	fileData1	= null;
 	}
 
-	public static List<FileInfo> getLNXDeepContents(final File F) throws IOException
-	{
-		final FileInputStream fin=new FileInputStream(F);
-		try
-		{
-			//final long fileLen = F.length();
-			return getLNXDeepContents(fin);
-		}
-		finally
-		{
-			fin.close();
-		}
-	}
-
-	public static String getNextLYNXLineFromInputStream(final InputStream in, final int[] bytesRead, final OutputStream bout) throws IOException
-	{
-		final StringBuilder line=new StringBuilder("");
-		while(in.available()>0)
-		{
-			int b=in.read();
-			if(b<0)
-				throw new IOException("Unexpected EOF");
-			if(bytesRead != null)
-				bytesRead[0]++;
-			if(b==13)
-			{
-				if(line.length()>0)
-					break;
-			}
-			if(bout != null)
-				bout.write(b);
-			if(b == 160)
-				continue;
-			b = D64Base.convertToAscii(b);
-			if(b != 0)
-				line.append((char)b);
-		}
-		return line.toString();
-	}
-
-	public static boolean isInteger(final String s)
-	{
-		try
-		{
-			final int x=Integer.parseInt(s);
-			return x>0;
-		}
-		catch(final Exception e)
-		{
-			return false;
-		}
-
-	}
-
-	public static List<FileInfo> getLNXDeepContents(final InputStream in) throws IOException
-	{
-		final List<FileInfo> list = new ArrayList<FileInfo>();
-		final int[] bytesSoFar=new int[1];
-		int zeroes=0;
-		while(in.available()>0)
-		{
-			final int b = in.read();
-			if(b<0)
-				break;
-			bytesSoFar[0]++;
-			if(b == 0)
-			{
-				zeroes++;
-				if(zeroes==3)
-					break;
-			}
-			else
-				zeroes=0;
-		}
-		if(zeroes != 3)
-			throw new IOException("Illegal LNX format: missing 0 0 0");
-		final String sigLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
-		int headerSize = 0;
-		final String[] splitSig = sigLine.split(" ");
-		final String sz = splitSig[0].trim();
-		if((sz.length()>0)
-		&&(Character.isDigit(sz.charAt(0)))
-		&&(sz.length()<20))
-			headerSize = Integer.parseInt(sz);
-		if((sigLine.length()==0)
-		||(headerSize <= 0)
-		||(sigLine.indexOf("LYNX")<0))
-			throw new IOException("Illegal signature: "+sigLine);
-		final int numEntries;
-		if(isInteger(splitSig[splitSig.length-1])
-		&&(Integer.parseInt(splitSig[splitSig.length-1])<1000))
-		{
-			numEntries = Integer.parseInt(splitSig[splitSig.length-1]);
-		}
-		else
-		{
-			final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
-			if((numEntryLine.length()==0)
-			||(!Character.isDigit(numEntryLine.charAt(0))))
-				throw new IOException("Illegal numEntries: "+numEntryLine);
-			numEntries = Integer.parseInt(numEntryLine);
-		}
-		final byte[] rawDirBlock = new byte[(254 - bytesSoFar[0]) + ((headerSize-1) * 254)];
-		int bytesRead = 0;
-		while((in.available()>0) && (bytesRead < rawDirBlock.length))
-		{
-			final int justRead = in.read(rawDirBlock, bytesRead, rawDirBlock.length-bytesRead);
-			if(justRead < 0)
-				break;
-			if(justRead > 0)
-				bytesRead += justRead;
-		}
-		if(bytesRead < rawDirBlock.length)
-			throw new IOException("Incomplete Directory Block");
-		final ByteArrayInputStream bin=new ByteArrayInputStream(rawDirBlock);
-		for(int i=0;i<numEntries;i++)
-		{
-			final ByteArrayOutputStream fout = new ByteArrayOutputStream();
-			final String fileName =  getNextLYNXLineFromInputStream(bin, null, fout); // don't trim, cuz spaces are valid.
-			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			final String typChar =   getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			String lastBlockSz=getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			if((lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
-				lastBlockSz="0";
-
-			if((fileName.length()==0)
-			||(numBlockSz.length()==0)||(!Character.isDigit(numBlockSz.charAt(0)))
-			||(typChar.length()==0)||(typChar.length()>3)
-			||(lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
-				throw new IOException("Bad directory entry "+(i+1)+": "+fileName+"."+typChar+": "+numBlockSz+"("+lastBlockSz+")");
-			final FileInfo file = new FileInfo();
-			file.fileName = fileName;
-			file.rawFileName = fout.toByteArray();
-			file.fileType = FileType.fileType(typChar);
-			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue()-1;
-			list.add(file);
-		}
-		for(final FileInfo f : list)
-		{
-			int fbytesRead = 0;
-			int numBlocks = (int)Math.round(Math.floor(f.size / 254.0));
-			if((f.size % 254) > 0)
-				numBlocks++;
-			final int allBlocksSize = numBlocks * 254;
-			final byte[] fileSubBytes = new byte[allBlocksSize];
-			while((in.available()>0) && (fbytesRead < allBlocksSize))
-			{
-				final int justRead = in.read(fileSubBytes, fbytesRead, allBlocksSize-fbytesRead);
-				if(justRead < 0)
-					break;
-				if(justRead > 0)
-					fbytesRead += justRead;
-			}
-			if(fbytesRead < allBlocksSize)
-			{
-				if((list.get(list.size()-1)!=f)
-				||(fbytesRead < f.size-1024))
-				{
-					System.err.println("Incomplete data for "+f.fileName+" in LYNX file.");
-					if(f == list.get(0))
-						throw new IOException("Incomplete data for "+f.fileName);
-					return list;
-				}
-			}
-			f.data = Arrays.copyOf(fileSubBytes, f.size);
-		}
-		return list;
-	}
-
 	public static List<FileInfo> getZipDeepContents(final File F, final BitSet parseFlags) throws IOException
 	{
-		final ZipArchiveInputStream zin = new ZipArchiveInputStream(new FileInputStream(F));
-		java.util.zip.ZipEntry entry = null;
+		final IOFile zipF = new IOFile(F);
 		final List<FileInfo> list = new ArrayList<FileInfo>();
-		while ((entry = zin.getNextZipEntry()) != null)
+		for(final IOFile ioF : zipF.listFiles())
 		{
 			final List<FileInfo> fileData1;
-			if(entry.getName().toUpperCase().endsWith(".LNX")) // loose file conditions
+			final CBMDiskImage diskF1 = new CBMDiskImage(ioF);
+			if(diskF1.getType() != null)
 			{
-				int size = (int)entry.getSize();
-				if(size < 0)
-					size=MAGIC_MAX;
-				fileData1 = new ArrayList<FileInfo>();
-				try
-				{
-					fileData1.add(D64FileMatcher.getLooseFile(zin, entry.getName(), size));
-				}
-				catch(final IOException e)
-				{
-					System.err.println(entry.getName()+": "+e.getMessage());
-					continue;
-				}
-				list.addAll(fileData1);
-				continue;
-			}
-			final IMAGE_TYPE typeF1 = getImageTypeAndGZipped(entry.getName());
-			if(typeF1 != null)
-			{
-				if(entry.getSize()<0)
-				{
-					if(!parseFlags.get(PF_NOERRORS))
-						errMsg(F.getName()+": Error: Bad -1 size :"+entry.getName());
-					continue;
-				}
-				final int[] f1Len=new int[1];
-				byte[][][] diskF1=getDisk(typeF1,zin,entry.getName(),(int)entry.getSize(), f1Len);
-				fileData1=getFiles(entry.getName(),typeF1,diskF1,f1Len[0],parseFlags);
+				fileData1=diskF1.getFiles(parseFlags);
 				if(fileData1==null)
 				{
 					if(!parseFlags.get(PF_NOERRORS))
-						errMsg(F.getName()+": Error: Bad extension :"+entry.getName());
+						errMsg(F.getName()+": Error: Bad extension :"+ioF.getName());
 					continue;
 				}
-				diskF1=null;
 				list.addAll(fileData1);
 			}
 			else
-			if(getLooseImageTypeAndGZipped(entry.getName()) != null)
+			if(getLooseImageTypeAndGZipped(ioF.getName()) != null)
 			{
-				int size = (int)entry.getSize();
+				int size = (int)ioF.length();
 				if(size < 0)
 					size=MAGIC_MAX;
 				fileData1 = new ArrayList<FileInfo>();
-				try
+				try(InputStream in = ioF.createInputStream())
 				{
-					fileData1.add(D64FileMatcher.getLooseFile(zin, entry.getName(), size));
+					fileData1.add(getLooseFile(in, ioF.getName(), size));
 				}
 				catch(final IOException e)
 				{
-					System.err.println(entry.getName()+": "+e.getMessage());
+					System.err.println(ioF.getName()+": "+e.getMessage());
 					continue;
 				}
 				list.addAll(fileData1);
@@ -279,7 +86,7 @@ public class D64FileMatcher extends D64Mod
 				continue;
 			}
 		}
-		zin.close();
+		zipF.close();
 		return list;
 	}
 
@@ -349,10 +156,9 @@ public class D64FileMatcher extends D64Mod
 								dirsLeft.add(F);
 						}
 						else
-						if((getImageTypeAndGZipped(F)!=null)
-						||(D64FileMatcher.getLooseImageTypeAndGZipped(F)!=null)
-						||(F.getName().toUpperCase().endsWith(".ZIP"))
-						||(F.getName().toUpperCase().endsWith(".LNX")))
+						if((CBMDiskImage.getImageTypeAndGZipped(F)!=null)
+						||(getLooseImageTypeAndGZipped(F)!=null)
+						||(F.getName().toUpperCase().endsWith(".ZIP")))
 						{
 							if((P==null)||(P.matcher(F.getName().subSequence(0, F.getName().length())).matches()))
 								filesToDo.add(F);
@@ -367,14 +173,13 @@ public class D64FileMatcher extends D64Mod
 			}
 		}
 		else
-		if(getImageTypeAndGZipped(baseF)!=null)
+		if(CBMDiskImage.getImageTypeAndGZipped(baseF)!=null)
 		{
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
 				filesToDo.add(baseF);
 		}
 		else
-		if((baseF.getName().toUpperCase().endsWith(".ZIP"))
-		||(baseF.getName().toUpperCase().endsWith(".LNX")))
+		if(baseF.getName().toUpperCase().endsWith(".ZIP"))
 		{
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
 				filesToDo.add(baseF);
@@ -385,38 +190,17 @@ public class D64FileMatcher extends D64Mod
 
 	public static List<FileInfo> getFileList(final File F, final boolean normalizeForCompare, final BitSet parseFlags)
 	{
-		final int[] fLen=new int[1];
-		byte[][][] diskF;
 		List<FileInfo> fileData = null;
-		final IMAGE_TYPE typeF = getImageTypeAndGZipped(F);
-		if(typeF != null)
-		{
-			diskF=getDisk(typeF,F,fLen);
-			fileData=getFiles(F.getName(),typeF,diskF,fLen[0],parseFlags);
-		}
+		final CBMDiskImage disk = new CBMDiskImage(F);
+		if(disk.getType() != null)
+			fileData=disk.getFiles(parseFlags);
 		else
 		if(getLooseImageTypeAndGZipped(F) != null)
 		{
 			fileData = new ArrayList<FileInfo>();
 			try
 			{
-				final FileInfo iF=D64FileMatcher.getLooseFile(F);
-				if((iF.fileName!=null)
-				&& iF.fileName.toUpperCase().endsWith(".LNX")
-				&& (iF.data!=null))
-				{
-					final ByteArrayInputStream fin=new ByteArrayInputStream(iF.data);
-					try
-					{
-						fileData.addAll(getLNXDeepContents(fin));
-					}
-					finally
-					{
-						fin.close();
-					}
-				}
-				else
-					fileData.add(iF);
+				fileData.add(getLooseFile(F));
 			}
 			catch(final IOException e)
 			{
@@ -430,38 +214,6 @@ public class D64FileMatcher extends D64Mod
 			try
 			{
 				fileData = D64FileMatcher.getZipDeepContents(F,parseFlags);
-				final List<FileInfo> readSet = new ArrayList<FileInfo>(fileData);
-				for(final FileInfo iF : readSet)
-				{
-					if((iF.fileName!=null)
-					&& iF.fileName.toUpperCase().endsWith(".LNX")
-					&& (iF.data!=null))
-					{
-						fileData.remove(iF);
-						final ByteArrayInputStream fin=new ByteArrayInputStream(iF.data);
-						try
-						{
-							fileData.addAll(getLNXDeepContents(fin));
-						}
-						finally
-						{
-							fin.close();
-						}
-					}
-				}
-			}
-			catch(final IOException e)
-			{
-				System.err.println(F.getName()+": "+e.getMessage());
-				return null;
-			}
-		}
-		else
-		if(F.getName().toUpperCase().endsWith(".LNX"))
-		{
-			try
-			{
-				fileData = D64FileMatcher.getLNXDeepContents(F);
 			}
 			catch(final IOException e)
 			{
@@ -477,7 +229,7 @@ public class D64FileMatcher extends D64Mod
 		if(normalizeForCompare)
 		{
 			for(final FileInfo f : fileData)
-				normalizeCvt(f);
+				CBMDiskImage.normalizeCvt(f);
 		}
 		return fileData;
 	}
@@ -582,7 +334,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("");
 			return;
 		}
-		final HashSet<COMP_FLAG> flags=new HashSet<COMP_FLAG>();
+		final HashSet<CompFlag> flags=new HashSet<CompFlag>();
 		int verboseLevel = 0;
 		String path=null;
 		String expr="";
@@ -602,7 +354,7 @@ public class D64FileMatcher extends D64Mod
 					{
 					case 'r':
 					case 'R':
-						flags.add(COMP_FLAG.RECURSE);
+						flags.add(CompFlag.RECURSE);
 						break;
 					case 'q':
 					case 'Q':
@@ -610,7 +362,7 @@ public class D64FileMatcher extends D64Mod
 						break;
 					case 'n':
 					case 'N':
-						flags.add(COMP_FLAG.NOSORT);
+						flags.add(CompFlag.NOSORT);
 						break;
 					case 'a':
 					case 'A':
@@ -633,12 +385,12 @@ public class D64FileMatcher extends D64Mod
 						break;
 					case 'v':
 					case 'V':
-						flags.add(COMP_FLAG.VERBOSE);
+						flags.add(CompFlag.VERBOSE);
 						verboseLevel++;
 						break;
 					case 'c':
 					case 'C':
-						flags.add(COMP_FLAG.CACHE);
+						flags.add(CompFlag.CACHE);
 						break;
 					case 'd':
 					case 'D':
@@ -704,7 +456,7 @@ public class D64FileMatcher extends D64Mod
 			}
 		}
 
-		if(!flags.contains(COMP_FLAG.VERBOSE))
+		if(!flags.contains(CompFlag.VERBOSE))
 			System.setErr(new PrintStream(new OutputStream() {public void write(final int b) {}}));
 		Collections.sort(F1s,new Comparator<File>() {
 			@Override
@@ -752,7 +504,7 @@ public class D64FileMatcher extends D64Mod
 						f.remove();
 						continue;
 					}
-					if(flags.contains(COMP_FLAG.CACHE))
+					if(flags.contains(CompFlag.CACHE))
 					{
 						final FMCache cacheEntry=new FMCache();
 						//cacheEntry.diskF=diskF;
@@ -773,7 +525,8 @@ public class D64FileMatcher extends D64Mod
 					{
 						final List<D64Report> rep = report.get(f1);
 						/*
-						if(f2.fileName.toLowerCase().startsWith("combin")&&(f1.fileName.toLowerCase().startsWith("combin")))
+						if(f2.fileName.toLowerCase().startsWith("combin")
+						&&(f1.fileName.toLowerCase().startsWith("combin")))
 						{
 							try {
 								FileOutputStream fo=new FileOutputStream("c:\\tmp\\a.bin");
@@ -837,7 +590,7 @@ public class D64FileMatcher extends D64Mod
 			final List<FileInfo> sortedKeys = new ArrayList<FileInfo>();
 			for(final FileInfo key : report.keySet())
 				sortedKeys.add(key);
-			if(!flags.contains(D64FileMatcher.COMP_FLAG.NOSORT))
+			if(!flags.contains(D64FileMatcher.CompFlag.NOSORT))
 			{
 				Collections.sort(sortedKeys,new Comparator<FileInfo>()
 				{
@@ -867,7 +620,7 @@ public class D64FileMatcher extends D64Mod
 				numFiles++;
 				final List<D64Report> rep = report.get(key);
 				final String fs1 = "  " + key.fileName+"("+key.fileType+"): "+(key.data==null?"null":Integer.toString(key.data.length));
-				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE))
+				if(flags.contains(D64FileMatcher.CompFlag.VERBOSE))
 				{
 					if(rep.size()==0)
 					{
@@ -898,7 +651,7 @@ public class D64FileMatcher extends D64Mod
 							highestPercent = d;
 					}
 				}
-				if(flags.contains(D64FileMatcher.COMP_FLAG.VERBOSE)
+				if(flags.contains(D64FileMatcher.CompFlag.VERBOSE)
 					||((highestPercent > pct)&&((pct < 100.0))))
 				{
 

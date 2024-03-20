@@ -2,8 +2,8 @@ package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
 
-import com.planet_ink.emutil.D64Base.FileInfo;
-import com.planet_ink.emutil.D64Base.FileType;
+import com.planet_ink.emutil.CBMDiskImage.FileInfo;
+import com.planet_ink.emutil.CBMDiskImage.FileType;
 
 /*
 Copyright 2023-2023 Bo Zimmerman
@@ -20,7 +20,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-public class EmuConv 
+public class EmuConv
 {
 
 	protected static final void showHelp()
@@ -40,10 +40,10 @@ public class EmuConv
 		RAW,
 		P00
 	}
-	
+
 	public static boolean matches(final File F, final String mask)
 	{
-		String name = F.getName();
+		final String name = F.getName();
 		int ndex = 0;
 		for(int i=0;i<mask.length();i++)
 		{
@@ -58,7 +58,7 @@ public class EmuConv
 			{
 				if(i==mask.length()-1)
 					return true;
-				StringBuilder nextMatch = new StringBuilder("");
+				final StringBuilder nextMatch = new StringBuilder("");
 				int ii;
 				for(ii=i+1;ii<mask.length();ii++)
 				{
@@ -70,7 +70,7 @@ public class EmuConv
 				{
 					if(ii==mask.length())
 						return name.toUpperCase().endsWith(nextMatch.toString().toUpperCase());
-					int x = name.toUpperCase().indexOf(nextMatch.toString().toUpperCase(),ndex);
+					final int x = name.toUpperCase().indexOf(nextMatch.toString().toUpperCase(),ndex);
 					if(x<0)
 						return false;
 					ndex=x+nextMatch.length();
@@ -86,7 +86,7 @@ public class EmuConv
 		}
 		return true;
 	}
-	
+
 	public static void main(final String[] args)
 	{
 		final List<String> largs=new ArrayList<String>(args.length);
@@ -116,7 +116,7 @@ public class EmuConv
 		{
 			mTyp = ModType.valueOf(targType.toUpperCase().trim());
 		}
-		catch(Exception e)
+		catch(final Exception e)
 		{
 			System.err.println("Bad target type: "+targType);
 			showHelp();
@@ -124,7 +124,7 @@ public class EmuConv
 		}
 		File srcPathF;
 		String fileMask="*";
-		File chkF = new File(srcPathMask);
+		final File chkF = new File(srcPathMask);
 		if(chkF.exists())
 		{
 			if(chkF.isDirectory())
@@ -137,7 +137,7 @@ public class EmuConv
 		}
 		else
 		{
-			int x = srcPathMask.lastIndexOf(File.separator);
+			final int x = srcPathMask.lastIndexOf(File.separator);
 			if(x<0)
 			{
 				srcPathF=new File(".");
@@ -154,11 +154,11 @@ public class EmuConv
 				fileMask=srcPathMask.substring(x+1);
 			}
 		}
-		Stack<File> dirs = new Stack<File>();
+		final Stack<File> dirs = new Stack<File>();
 		dirs.push(srcPathF);
 		while(dirs.size()>0)
 		{
-			File path = dirs.pop();
+			final File path = dirs.pop();
 			for(final File F : path.listFiles())
 			{
 				if(F.isDirectory())
@@ -166,7 +166,7 @@ public class EmuConv
 				else
 				if(matches(F,fileMask))
 				{
-					FileInfo inf = new FileInfo();
+					final FileInfo inf = new FileInfo();
 					if(F.getName().toLowerCase().endsWith(".seq")
 					||(F.getName().toLowerCase().endsWith(".prg")))
 					{
@@ -181,13 +181,13 @@ public class EmuConv
 							for(int i=0;i<inf.rawFileName.length;i++)
 								inf.rawFileName[i]=(byte)(D64Base.ascToPetTable[inf.rawFileName[i]] & 0xff);
 							inf.data=new byte[(int)F.length()];
-							FileInputStream fin = new FileInputStream(F);
+							final FileInputStream fin = new FileInputStream(F);
 							int r = fin.read(inf.data,0,(int)F.length());
 							while(r<F.length())
 								r += fin.read(inf.data,r,(int)(F.length()-r));
 							fin.close();
 						}
-						catch(Exception e)
+						catch(final Exception e)
 						{
 							e.printStackTrace();
 						}
@@ -200,14 +200,14 @@ public class EmuConv
 							inf.fileType=FileType.PRG;
 						else
 							inf.fileType=FileType.SEQ;
-						int dlen = (int)F.length()-26;
+						final int dlen = (int)F.length()-26;
 						FileInputStream fin = null;
 						try
 						{
 							fin = new FileInputStream(F);
-							byte[] buf=new byte[26];
+							final byte[] buf=new byte[26];
 							fin.read(buf, 0, 7);
-							String h1 = new String(buf,0,7);
+							final String h1 = new String(buf,0,7);
 							if((!h1.equals("C64File"))
 							||(fin.read() != 0))
 							{
@@ -234,7 +234,7 @@ public class EmuConv
 								r += fin.read(inf.data,r,dlen-r);
 							fin.close();
 						}
-						catch(Exception e)
+						catch(final Exception e)
 						{
 							e.printStackTrace();
 						}
@@ -242,11 +242,11 @@ public class EmuConv
 						{
 							if(fin != null)
 							{
-								try 
+								try
 								{
 									fin.close();
-								} 
-								catch (IOException e) 
+								}
+								catch (final IOException e)
 								{
 								}
 							}
@@ -267,14 +267,14 @@ public class EmuConv
 							app++;
 							newF=new File(F.getParentFile(), inf.fileName + "_"+app+"." + inf.fileType.name().toLowerCase());
 						}
-						try 
+						try
 						{
-							FileOutputStream fo = new FileOutputStream(newF);
+							final FileOutputStream fo = new FileOutputStream(newF);
 							fo.write(inf.data);
 							fo.close();
 							System.out.println("Wrote "+newF.getAbsolutePath());
-						} 
-						catch (Exception e) 
+						}
+						catch (final Exception e)
 						{
 							e.printStackTrace();
 						}
@@ -289,9 +289,9 @@ public class EmuConv
 							app++;
 							newF=new File(F.getParentFile(), inf.fileName + "_"+app+"." + inf.fileType.name().toLowerCase().charAt(0)+"00");
 						}
-						try 
+						try
 						{
-							FileOutputStream fo = new FileOutputStream(newF);
+							final FileOutputStream fo = new FileOutputStream(newF);
 							fo.write("C64File".getBytes("US-ASCII"));
 							fo.write(0);
 							for(int i=0;i<16;i++)
@@ -306,8 +306,8 @@ public class EmuConv
 							fo.write(inf.data);
 							fo.close();
 							System.out.println("Wrote "+newF.getAbsolutePath());
-						} 
-						catch (Exception e) 
+						}
+						catch (final Exception e)
 						{
 							e.printStackTrace();
 						}

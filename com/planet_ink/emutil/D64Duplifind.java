@@ -1,11 +1,9 @@
 package com.planet_ink.emutil;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import com.planet_ink.emutil.D64Base.IMAGE_TYPE;
 /*
 Copyright 2016-2024 Bo Zimmerman
 
@@ -23,20 +21,23 @@ limitations under the License.
 */
 public class D64Duplifind
 {
-	public enum SEARCH_FLAG {
+	public enum SEARCH_FLAG
+	{
 		VERBOSE,
 		RECURSE,
 		DEEPCOMPARE
 		;
 	};
 
-	public enum SHOW_FLAG {
+	public enum SHOW_FLAG
+	{
 		MATCHES1,
 		MATCHES2,
 		MISMATCHES1,
 		MISMATCHES2,
 		;
 	};
+
 	private static class DupFile
 	{
 		boolean contained=false;
@@ -74,7 +75,8 @@ public class D64Duplifind
 	public static final String[] HEX=new String[256];
 	public static final Hashtable<String,Short> ANTI_HEX=new Hashtable<String,Short>();
 	public static final String HEX_DIG="0123456789ABCDEF";
-	static{
+	static
+	{
 		for(int h=0;h<16;h++)
 			for(int h2=0;h2<16;h2++)
 			{
@@ -83,7 +85,8 @@ public class D64Duplifind
 			}
 	}
 	public static String toHex(final byte b){ return HEX[unsigned(b)];}
-	public static String toHex(final byte[] buf){
+	public static String toHex(final byte[] buf)
+	{
 		final StringBuffer ret=new StringBuffer("");
 		for(int b=0;b<buf.length;b++)
 			ret.append(toHex(buf[b]));
@@ -174,30 +177,12 @@ public class D64Duplifind
 		}
 		else
 		{
-			int size = (int)F.length();
+			final int size = (int)F.length();
 			if(size > 83361792)
 				return files;
 			final DupFileExt d = new DupFileExt();
-			if(size <= 0)
-			{
-				final IMAGE_TYPE typ = D64Base.getImageType(F.getName());
-				if(typ != null)
-					size = D64Base.getImageTotalBytes(typ, size);
-				else
-					size = 174848;
-			}
-			ByteBuffer bout=ByteBuffer.allocate(size);
-			final InputStream in = F.createInputStream();
-			int read=in.read(lbuf);
-			while(read >= 0)
-			{
-				d.length += read;
-				bout.put(lbuf,0,read);
-				read=in.read(lbuf);
-			}
-			in.close();
-			d.buf=bout.array();
-			bout=null;
+			final CBMDiskImage img = new CBMDiskImage(F);
+			d.buf=img.getFlatBytes();
 			d.contained=false;
 			d.filePath=F.getAbsolutePath();
 			d.hostFile=F;

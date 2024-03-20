@@ -1,6 +1,10 @@
 package com.planet_ink.emutil;
 import java.io.*;
 import java.util.*;
+
+import com.planet_ink.emutil.CBMDiskImage.FileInfo;
+import com.planet_ink.emutil.CBMDiskImage.FileType;
+
 /*
 Copyright 2016-2024 Bo Zimmerman
 
@@ -57,30 +61,26 @@ public class D64Compare extends D64Base
 			System.exit(-1);
 		}
 
-		final IMAGE_TYPE typeF1 = getImageTypeAndGZipped(F1);
-		if(typeF1==null)
+		CBMDiskImage diskF1 = new CBMDiskImage(F1);
+		if(diskF1.getType()==null)
 		{
 			System.err.println("Error reading :"+F1.getName());
 			System.exit(-1);
 		}
-		final int[] f1Len=new int[1];
-		byte[][][] diskF1=getDisk(typeF1,F1,f1Len);
-		final List<FileInfo> fileData1=getFiles(F1.getName(),typeF1,diskF1,f1Len[0], new BitSet());
+		final List<FileInfo> fileData1=diskF1.getFiles(new BitSet());
 		if(fileData1==null)
 		{
 			System.err.println("Bad extension :"+F1.getName());
 			System.exit(-1);
 		}
 		diskF1=null;
-		final IMAGE_TYPE typeF2 = getImageTypeAndGZipped(F2);
-		if(typeF2==null)
+		CBMDiskImage diskF2 = new CBMDiskImage(F2);
+		if(diskF2.getType()==null)
 		{
 			System.err.println("Error reading :"+F2.getName());
 			System.exit(-1);
 		}
-		final int[] f2Len=new int[1];
-		byte[][][] diskF2=getDisk(typeF2,F2,f2Len);
-		final List<FileInfo> fileData2=getFiles(F2.getName(),typeF2,diskF2,f2Len[0], new BitSet());
+		final List<FileInfo> fileData2=diskF2.getFiles(new BitSet());
 		if(fileData2==null)
 		{
 			System.err.println("Bad extension :"+F2.getName());

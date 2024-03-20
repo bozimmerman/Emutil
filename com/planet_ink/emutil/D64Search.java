@@ -3,6 +3,9 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
+
+import com.planet_ink.emutil.CBMDiskImage.FileInfo;
+import com.planet_ink.emutil.CBMDiskImage.ImageType;
 /*
 Copyright 2006-2024 Bo Zimmerman
 
@@ -124,9 +127,7 @@ public class D64Search extends D64Mod
 	{
 		public String filePath = "";
 		public String fileName = "";
-		public int diskLen = 0;
-		public IMAGE_TYPE typ = null;
-		public byte[][][] diskData = null;
+		public CBMDiskImage diskData = null;
 	}
 
 	private static List<SearchFile> parseSearchFiles(final File F, final boolean unzip)
@@ -149,20 +150,14 @@ public class D64Search extends D64Mod
 					continue;
 				if(zE.length()>83361792)
 					break;
-				final IMAGE_TYPE img = getImageTypeAndGZipped(zE.getName());
+				final ImageType img = CBMDiskImage.getImageTypeAndGZipped(zE.getName());
 				if (img == null)
 					continue;
 				final String prefix = (zE == zF) ? "" : F.getName()+"@";
 				final SearchFile sF = new SearchFile();
-				sF.typ = img;
-				final int size = (zE.length()<1)?174848:(int)zE.length();
-				final int[] fLen=new int[1];
-				final byte[][][] disk;//=getDisk(sF.typ,F,fLen);
-				final InputStream is = zE.createInputStream();
-				final int[] fileLen =new int[] { size } ;
-				disk = getDisk(sF.typ, is, prefix+zE.getName(), size, fileLen);
+				final CBMDiskImage disk = new CBMDiskImage(zE);
+				disk.getLength(); // necessary to cache data before zipFile is closed
 				sF.diskData = disk;
-				sF.diskLen = fLen[0] > 0 ? fLen[0] : size;
 				sF.fileName = prefix+zE.getName();
 				if(zE == zF)
 					sF.filePath = F.getAbsolutePath();
@@ -171,7 +166,6 @@ public class D64Search extends D64Mod
 				if(files == null)
 					files = new ArrayList<SearchFile>();
 				files.add(sF);
-				is.close();
 			}
 			zF.close();
 		}
@@ -194,7 +188,7 @@ public class D64Search extends D64Mod
 		for(final SearchFile F : files)
 		{
 			final String fileName = fullPath?F.filePath:F.fileName;
-			final byte[][][] disk = F.diskData;
+			final CBMDiskImage disk = F.diskData;
 			if(dbInfo!=null)
 			{
 				try
@@ -202,21 +196,13 @@ public class D64Search extends D64Mod
 					dbInfo.stmt.clearParameters();
 					MD.reset();
 					//ByteArrayOutputStream bout = new ByteArrayOutputStream();
-					long diskLen=0;
-					for(int b1=0;b1<disk.length;b1++)
-					{
-						for(int b2=0;b2<disk[b1].length;b2++)
-						{
-							MD.update(disk[b1][b2]);
-							diskLen += disk[b1][b2].length;
-							//bout.write(disk[b1][b2]);
-						}
-					}
+					final byte[] flatBytes = disk.getFlatBytes();
+					MD.update(flatBytes);
 					final byte[] md5 = MD.digest();
 					dbInfo.stmt.setString(1, fileName);
 					dbInfo.stmt.setString(2, "*");
 					dbInfo.stmt.setInt(3, 0);
-					dbInfo.stmt.setLong(4, diskLen);
+					dbInfo.stmt.setLong(4, flatBytes.length);
 					dbInfo.stmt.setString(5, toHex(md5));
 					dbInfo.stmt.setString(6, "dsk");
 					dbInfo.stmt.addBatch();
@@ -230,7 +216,7 @@ public class D64Search extends D64Mod
 			final BitSet parseFlags = new BitSet();
 			parseFlags.set(PF_RECURSE, flags.contains(SEARCH_FLAG.RECURSE));
 			parseFlags.set(PF_NOERRORS, flags.contains(SEARCH_FLAG.NOPARSEERRORS));
-			final List<FileInfo> fileData=getFiles(fileName,F.typ,disk,F.diskLen,parseFlags);
+			final List<FileInfo> fileData=disk.getFiles(parseFlags);
 			if((fmt==FILE_FORMAT.PETSCII)||inside)
 			{
 				for(final FileInfo info : fileData)
