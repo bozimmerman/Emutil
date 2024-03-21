@@ -138,6 +138,8 @@ public class CBMDiskImage extends D64Base
 						skipThese.add(new TrackSec((short)36,(short)5));
 						skipThese.add(new TrackSec((short)53,(short)0));
 					}
+					if(diskBytes[1][0][255] != (byte)0xff)
+						allocUnitSize = 4;
 				}
 				else
 				if((type == ImageType.D81)
@@ -1426,9 +1428,16 @@ public class CBMDiskImage extends D64Base
 				int recordsRemaining = ((fullExNumber * 128)-(file.size/128)) + rcNumber;
 				file.size += (recordsRemaining * 128);
 				file.feblocks = file.size / 254;
+				final boolean bit16 = getType() == ImageType.D81;
 				for(int i=16;(i<32) && (recordsRemaining >0);i++)
 				{
-					final int blockNum = blk[offset + i] & 0xff;
+					int blockNum;
+					blockNum = blk[offset + i] & 0xff;
+					if(bit16)
+					{
+						i++;
+						blockNum += (blk[offset + i] & 0xff) * 256;
+					}
 					if(blockNum == 0)
 						continue;
 					final TrackSec[] secs = this.getCPMBlock(blockNum);
