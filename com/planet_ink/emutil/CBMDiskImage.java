@@ -213,47 +213,112 @@ public class CBMDiskImage extends D64Base
 		return bout.toByteArray();
 	}
 
+	public static class BAMInfo
+	{
+		short	track		= 0;
+		short	sector		= 0;
+		short	firstByte	= 0;
+		short	lastByte	= 0;
+		short	byteOffset	= 0;
+		short	trackOffset	= 0;
+		BAMInfo next		= null;
+		public BAMInfo(final int track, final int sector, final int firstByte,
+					   final int lastByte, final int byteOffset, final int trackOffset)
+		{
+			this.track = (short)track;
+			this.sector = (short)sector;
+			this.firstByte = (short)firstByte;
+			this.lastByte = (short)lastByte;
+			this.byteOffset = (short)byteOffset;
+			this.trackOffset = (short)trackOffset;
+		}
+	}
+
 	// todo: add file masks to options
 	public enum ImageType
 	{
-		D64 {
+		D64('6'){
 			public String toString() {
 				return ".D64";
 			}
 		},
-		D71 {
+		D71('7'){
 			public String toString() {
 				return ".D71";
 			}
 		},
-		D81 {
+		D81('1'){
 			public String toString() {
 				return ".D81";
 			}
 		},
-		D80 {
+		D80('8'){
 			public String toString() {
 				return ".D80";
 			}
 		},
-		D82 {
+		D82('2'){
 			public String toString() {
 				return ".D82";
 			}
 		},
-		DNP {
+		DNP('0'){
 			public String toString() {
 				return ".DNP";
 			}
 		},
-		T64 {
+		T64('\0'){
 			public String toString() {
 				return ".T64";
 			}
 		},
-		LNX{
+		LNX('\0'){
 			public String toString() {
 				return ".LNX";
+			}
+		}
+		;
+		final BAMInfo bamHead;
+		private ImageType(final char bamCode)
+		{
+			switch(bamCode)
+			{
+			case '6': //d64
+				bamHead = new BAMInfo(18,0,4,143,0,0);
+				break;
+			case '7': //d71
+				bamHead = new BAMInfo(18,0,4,143,0,0);
+				bamHead.next = new BAMInfo(53,0,0,104,-1,3);
+				break;
+			case '1': //d81
+				bamHead = new BAMInfo(40,1,16,255,0,0);
+				bamHead.next = new BAMInfo(40,2,16,255,0,0);
+				break;
+			case '8': //d80
+				bamHead = new BAMInfo(38,0,6,255,0,0);
+				bamHead.next = new BAMInfo(38,3,6,140,0,5);
+				break;
+			case '2': //d82
+				bamHead = new BAMInfo(38,0,6,255,0,0);
+				bamHead.next = new BAMInfo(38,3,6,255,0,5);
+				bamHead.next.next = new BAMInfo(38,6,6,255,0,5);
+				bamHead.next.next.next = new BAMInfo(38,9,6,255,0,5);
+				break;
+			case '0': //dnp
+			{
+				bamHead = new BAMInfo(1,2,32,255,0,32);
+				BAMInfo curr = bamHead;
+				for(int i=2;i<33;i++)
+				{
+					curr.next = new BAMInfo(1,i+1,0,255,0,32);
+					curr = curr.next;
+				}
+				break;
+			}
+			case '\0': // lnx, t64, etc
+			default:
+				bamHead = null;
+				break;
 			}
 		}
 	};
@@ -1091,7 +1156,7 @@ public class CBMDiskImage extends D64Base
 		{
 			@Override
 			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
+					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
 				if((t==track)&&(s==sector))
@@ -1141,101 +1206,37 @@ public class CBMDiskImage extends D64Base
 		finishFillFileList(f,imgName,prefix,doneBefore,finalData,t,s,maxT, parseFlags);
 	}
 
-	private short[] getBAMStart()
-	{
-		switch(type)
-		{
-		case D64:
-			return new short[]{18,0,4,143,1,0};
-		case D71:
-			return new short[]{18,0,4,143,1,0};
-		case D81:
-			return new short[]{40,1,16,255,1,0};
-		case D80:
-			return new short[]{38,0,6,255,1,0};
-		case D82:
-			return new short[]{38,0,6,255,1,0};
-		case DNP:
-			return new short[]{1,2,32,255,0,32};
-		case LNX:
-		case T64:
-			return null;
-		}
-		return null;
-	}
-
-	private short[] getBAMNext(final short[] prev)
-	{
-		switch(type)
-		{
-		case D64:
-			return null;
-		case D71:
-			if(prev[0]==18)
-				return new short[]{53,0,0,104,0,3};
-			return null;
-		case D81:
-			if((prev[0]==40)&&(prev[1]==1))
-				return new short[]{40,2,16,255,1,0};
-			return null;
-		case D80:
-			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,140,1,5};
-			return null;
-		case D82:
-			if((prev[0]==38)&&(prev[1]==0))
-				return new short[]{38,3,6,255,1,5};
-			if((prev[0]==38)&&(prev[1]==3))
-				return new short[]{38,6,6,255,1,5};
-			if((prev[0]==38)&&(prev[1]==6))
-				return new short[]{38,9,6,255,1,5};
-			return null;
-		case DNP:
-			if(prev[1]>=33)
-				return null;
-			prev[1]++;
-			prev[2]=0;
-			prev[3]=255;
-			return prev;
-		case LNX:
-		case T64:
-			return null;
-		}
-		return null;
-	}
-
 	public interface BAMBack
 	{
-		public boolean call(short t, short s, boolean set, short[] curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
+		public boolean call(short t, short s, boolean set, BAMInfo curBAM, short bamByteOffset, short sumBamByteOffset, short bamMask);
 	}
 
 	public void bamPeruse(final BAMBack call) throws IOException
 	{
-		if((type == ImageType.T64)
-		||(type == ImageType.LNX)
-		||(cpmOs != CPMType.NOT))
+		BAMInfo currBAM = type.bamHead;
+		if((currBAM == null) || (cpmOs != CPMType.NOT))
 			throw new IOException("Illegal image type.");
 		final byte[][][] bytes=getDiskBytes();
 		final long imageSize=getLength();
-		short[] currBAM = getBAMStart();
-		byte[] bam=bytes[currBAM[0]][currBAM[1]];
-		short bamOffset = currBAM[2];
+		byte[] bam=bytes[currBAM.track][currBAM.sector];
+		short bamOffset = currBAM.firstByte;
 		for(int t=1;t<=getImageNumTracks(imageSize);t++)
 		{
-			if(bamOffset > currBAM[3])
+			if(bamOffset > currBAM.lastByte)
 			{
-				currBAM = getBAMNext(currBAM);
+				currBAM = currBAM.next;
 				if(currBAM==null)
 					throw new IOException("BAM failure");
-				bam=bytes[currBAM[0]][currBAM[1]];
-				bamOffset = currBAM[2];
+				bam=bytes[currBAM.track][currBAM.sector];
+				bamOffset = currBAM.firstByte;
 			}
 			final int secsPerTrack = getImageSecsPerTrack(t);
-			final int skipByte = currBAM[4];
+			final int skipByte = currBAM.byteOffset; //wtf? on 1541, this is the sum of first track!
+			final short skipOffset = (short)((skipByte < 0)?0:1);
 			for(int s=0;s<secsPerTrack;s++)
 			{
-				final short sumBamByteOffset = (short)((skipByte <= 0) ? -1 : (bamOffset + skipByte));
-				final short bamByteOffset = (short)(bamOffset + skipByte + (int)Math.round(Math.floor(s/8.0)));
+				final short sumBamByteOffset = (short)((skipByte < 0) ? -1 : (bamOffset + skipByte));
+				final short bamByteOffset = (short)(bamOffset + skipOffset + (int)Math.round(Math.floor(s/8.0)));
 				final short bamByte = (short)(bam[bamByteOffset] & 0xff);
 				short mask;
 				if(type==ImageType.DNP)
@@ -1246,10 +1247,10 @@ public class CBMDiskImage extends D64Base
 				if((call != null)&&(call.call((short)t, (short)s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
 					return;
 			}
-			if(currBAM[5] != 0)
-				bamOffset += currBAM[5];
+			if(currBAM.trackOffset != 0)
+				bamOffset += currBAM.trackOffset;
 			else
-				bamOffset+=(skipByte + (int)Math.round(Math.ceil(secsPerTrack/8.0)));
+				bamOffset+=(skipOffset + (int)Math.round(Math.ceil(secsPerTrack/8.0)));
 		}
 	}
 
@@ -1529,9 +1530,9 @@ public class CBMDiskImage extends D64Base
 		final int maxT=getImageNumTracks( fileSize);
 		int s=getImageDirSector();
 		final List<FileInfo> finalData=new Vector<FileInfo>();
-		short[] currBAM = getBAMStart();
+		BAMInfo currBAM = type.bamHead;
 		FileInfo f=new FileInfo();
-		f.dirLoc=new short[]{currBAM[0],currBAM[1],currBAM[2]};
+		f.dirLoc=new short[]{currBAM.track,currBAM.sector,currBAM.firstByte};
 		f.fileName="*BAM*";
 		f.filePath="*BAM*";
 		f.fileType=FileType.DIR;
@@ -1539,29 +1540,29 @@ public class CBMDiskImage extends D64Base
 		f.feblocks=0;
 		f.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
 		finalData.add(f);
-		if(currBAM[1]!=0)
-			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],(short)0));
+		if(currBAM.sector!=0)
+			f.tracksNSecs.add(TrackSec.valueOf(currBAM.track,(short)0));
 		while(currBAM != null)
 		{
-			f.tracksNSecs.add(TrackSec.valueOf(currBAM[0],currBAM[1]));
-			currBAM = getBAMNext(currBAM);
+			f.tracksNSecs.add(TrackSec.valueOf(currBAM.track,currBAM.sector));
+			currBAM = currBAM.next;
 		}
 		switch(type)
 		{
 		case D80:
-			currBAM = getBAMStart();
-			currBAM = getBAMNext(currBAM);
+			currBAM = type.bamHead;
+			currBAM = currBAM.next;
 			// sometimes a d80 is formatted like an 8250 if user fail.
 			t=39;//unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
 			s=1;//unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
 			break;
 		case D82:
-			currBAM = getBAMStart();
-			currBAM = getBAMNext(currBAM);
-			currBAM = getBAMNext(currBAM);
-			currBAM = getBAMNext(currBAM);
-			t=unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
-			s=unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
+			currBAM = type.bamHead;
+			currBAM = currBAM.next;
+			currBAM = currBAM.next;
+			currBAM = currBAM.next;
+			t=unsigned(tsmap[currBAM.track][currBAM.sector][0]);
+			s=unsigned(tsmap[currBAM.track][currBAM.sector][1]);
 			break;
 		default:
 			break;
@@ -1923,7 +1924,7 @@ public class CBMDiskImage extends D64Base
 		{
 			@Override
 			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
+					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
 				if(t==track)
@@ -1950,9 +1951,10 @@ public class CBMDiskImage extends D64Base
 		{
 			@Override
 			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
+					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
+//if(!set) System.out.println(t+","+s+","+bamByteOffset+","+sumBamByteOffset+","+bamMask);
 				if(!set)
 					numAllocated[0]++;
 				else
@@ -2076,13 +2078,14 @@ public class CBMDiskImage extends D64Base
 		{
 			@Override
 			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
+					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
 
 				final Integer tsInt=Integer.valueOf((t << 8) + s);
 				if(tsSet.contains(tsInt)&&(!set))
 				{
+					final byte[] bamSector = diskBytes[curBAM.track][curBAM.sector];
 					if(sumBamByteOffset>=0)
 					{
 						try
@@ -2090,14 +2093,13 @@ public class CBMDiskImage extends D64Base
 							final int totalSectors=getImageSecsPerTrack(t);
 							final int sectorsFree=sectorsFreeOnTrack(t);
 							if((sectorsFree<=totalSectors)
-							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
-								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)-1);
+							&&(((bamSector[sumBamByteOffset]&0xff)==sectorsFree)))
+								bamSector[sumBamByteOffset] = (byte)((bamSector[sumBamByteOffset]&0xff)-1);
 						}
 						catch(final Exception e)
 						{
 						}
 					}
-					final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
 					bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] | bamMask);
 				}
 				return false;
@@ -2206,20 +2208,21 @@ public class CBMDiskImage extends D64Base
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			return false;
-		final HashSet<Integer> secsToDo=new HashSet<Integer>();
+		final Set<Integer> secsToDo=new HashSet<Integer>();
 		for(final short[] sec : sectors)
 			secsToDo.add(Integer.valueOf((sec[0] << 8) + sec[1]));
 		bamPeruse(new BAMBack()
 		{
 			@Override
 			public boolean call(final short t, final short s, final boolean set,
-					final short[] curBAM, final short bamByteOffset,
+					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
 
 				final Integer tsInt=Integer.valueOf((t << 8) + s);
 				if(secsToDo.contains(tsInt)&&(set))
 				{
+					final byte[] bamSector = diskBytes[curBAM.track][curBAM.sector];
 					if(sumBamByteOffset>=0)
 					{
 						try
@@ -2227,15 +2230,17 @@ public class CBMDiskImage extends D64Base
 							final int totalSectors=getImageSecsPerTrack(t);
 							final int sectorsFree=sectorsFreeOnTrack(t);
 							if((sectorsFree<=totalSectors)
-							&&(((curBAM[sumBamByteOffset]&0xff)==sectorsFree)))
-								curBAM[sumBamByteOffset] = (byte)((curBAM[sumBamByteOffset]&0xff)+1);
+							&&(((bamSector[sumBamByteOffset]&0xff)==sectorsFree)))
+								bamSector[sumBamByteOffset] = (byte)((bamSector[sumBamByteOffset]&0xff)-1);
 						}
 						catch(final Exception e)
 						{
 						}
 					}
-					final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
+final int b4 = (bamSector[bamByteOffset] & 0xff);
 					bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
+final int af = (bamSector[bamByteOffset] & 0xff);
+System.out.println(t+"("+curBAM.track+"), "+s+"("+curBAM.sector+"),"+bamByteOffset+", "+bamMask+", "+b4+"="+af);
 				}
 				return false;
 			}

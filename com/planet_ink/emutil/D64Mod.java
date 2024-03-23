@@ -3,6 +3,7 @@ import java.io.*;
 import java.util.*;
 
 import com.planet_ink.emutil.CBMDiskImage.BAMBack;
+import com.planet_ink.emutil.CBMDiskImage.BAMInfo;
 import com.planet_ink.emutil.CBMDiskImage.FileInfo;
 import com.planet_ink.emutil.CBMDiskImage.FileType;
 import com.planet_ink.emutil.CBMDiskImage.ImageType;
@@ -589,7 +590,7 @@ public class D64Mod extends D64Base
 						{
 							@Override
 							public boolean call(final short t, final short s, final boolean set,
-									final short[] curBAM, final short bamByteOffset,
+									final BAMInfo curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
@@ -667,7 +668,7 @@ public class D64Mod extends D64Base
 						{
 							@Override
 							public boolean call(final short t, final short s, final boolean set,
-									final short[] curBAM, final short bamByteOffset,
+									final BAMInfo curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
@@ -676,7 +677,7 @@ public class D64Mod extends D64Base
 								{
 									if(used.contains(ts))
 									{
-										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
+										final byte[] bamSector = diskBytes[curBAM.track][curBAM.sector];
 										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
 										rewriteD64[0]=true;
 										unbammed.add(ts);
@@ -700,7 +701,7 @@ public class D64Mod extends D64Base
 						{
 							@Override
 							public boolean call(final short t, final short s, final boolean set,
-									final short[] curBAM, final short bamByteOffset,
+									final BAMInfo curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 
@@ -716,7 +717,7 @@ public class D64Mod extends D64Base
 								{
 									if(!used.contains(ts))
 									{
-										final byte[] bamSector = diskBytes[curBAM[0]][curBAM[1]];
+										final byte[] bamSector = diskBytes[curBAM.track][curBAM.sector];
 										bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] | bamMask);
 										rewriteD64[0]=true;
 										overbammed.add(ts);
@@ -865,7 +866,7 @@ public class D64Mod extends D64Base
 						{
 							@Override
 							public boolean call(final short t, final short s, final boolean set,
-									final short[] curBAM, final short bamByteOffset,
+									final BAMInfo curBAM, final short bamByteOffset,
 									final short sumBamByteOffset, final short bamMask)
 							{
 								if(!set)
@@ -968,13 +969,7 @@ public class D64Mod extends D64Base
 				try
 				{
 					final OutputStream fout = imageF.createOutputStream();
-					for(int b1=1;b1<diskBytes.length;b1++)
-					{
-						for(int b2=0;b2<diskBytes[b1].length;b2++)
-						{
-							fout.write(diskBytes[b1][b2]);
-						}
-					}
+					fout.write(disk.getFlatBytes());
 					fout.close();
 				} catch (final Exception e) {
 					imageError(e.getMessage(),imageFiles.size()>0);
