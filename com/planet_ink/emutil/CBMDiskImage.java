@@ -104,7 +104,6 @@ public class CBMDiskImage extends D64Base
 				int firstDirTrack = 1;
 				final int numTracks = this.getImageNumTracks(length);
 				final Set<TrackSec> skipThese = new TreeSet<TrackSec>();
-				int allocUnitSize = 8;
 				if((type == ImageType.D64)
 				&& diskName.equalsIgnoreCase("CP/M DISK")
 				&& diskId.startsWith("65")
@@ -119,7 +118,6 @@ public class CBMDiskImage extends D64Base
 						for(int s=startSec;s<numSecs;s++)
 							skipThese.add(new TrackSec((short)t,(short)s));
 					}
-					allocUnitSize = 4;
 				}
 				else
 				if(((type == ImageType.D64)||(type == ImageType.D71))
@@ -138,8 +136,6 @@ public class CBMDiskImage extends D64Base
 						skipThese.add(new TrackSec((short)36,(short)5));
 						skipThese.add(new TrackSec((short)53,(short)0));
 					}
-					if(diskBytes[1][0][255] != (byte)0xff)
-						allocUnitSize = 4;
 				}
 				else
 				if((type == ImageType.D81)
@@ -153,6 +149,7 @@ public class CBMDiskImage extends D64Base
 					for(int s=0;s<20;s++)
 						skipThese.add(new TrackSec((short)40,(short)s));
 				}
+				final int allocUnitSize = this.getCPMAllocUnits(diskBytes);
 				final List<TrackSec[]> alloBuilder = new ArrayList<TrackSec[]>();
 				final int interleave = getImageInterleave();
 				final short[] ts = new short[] { (short)firstDirTrack, (short)0};
@@ -1366,11 +1363,36 @@ public class CBMDiskImage extends D64Base
 		return this.cpmAllocUnits[blockNumber];
 	}
 
+	private List<short[]> getFirstCPMFreeDirEntries()
+	{
+		final byte[][][] diskBytes = this.getDiskBytes();
+		final List<TrackSec> allDirSecs = new ArrayList<TrackSec>();
+		for(int bn = 0; bn < 1; bn++)
+		{
+			for(final TrackSec ts : getCPMBlock(bn))
+				allDirSecs.add(ts);
+		}
+		final List<short[]> allEntries = new ArrayList<short[]>();
+		for(final TrackSec dts : allDirSecs)
+		{
+			final byte[] blk = diskBytes[dts.track][dts.sector];
+			for(int e=0;e<8;e++)
+			{
+				final int offset = e * 32;
+				final int userId = (blk[offset] & 0xff);
+				if(userId == 0xe5)
+					allEntries.add(new short[] { dts.track, dts.sector, (short)offset });
+			}
+		}
+		return allEntries;
+	}
+
 	private List<FileInfo> getCPMFiles(final BitSet parseFlags)
 	{
 		final byte[][][] diskBytes = this.getDiskBytes();
 		final List<FileInfo> finalData=new Vector<FileInfo>();
 		final Map<String, FileInfo> prevEntries = new HashMap<String, FileInfo>();
+		final boolean readInside = parseFlags.get(PF_READINSIDE);
 		final List<TrackSec> allDirSecs = new ArrayList<TrackSec>();
 		for(int bn = 0; bn < 1; bn++)
 			for(final TrackSec ts : getCPMBlock(bn))
@@ -1428,21 +1450,27 @@ public class CBMDiskImage extends D64Base
 				int recordsRemaining = ((fullExNumber * 128)-(file.size/128)) + rcNumber;
 				file.size += (recordsRemaining * 128);
 				file.feblocks = file.size / 254;
-				final boolean bit16 = getType() == ImageType.D81;
-				for(int i=16;(i<32) && (recordsRemaining >0);i++)
+				if(readInside)
 				{
-					int blockNum;
-					blockNum = blk[offset + i] & 0xff;
-					if(bit16)
+					final boolean bit16 = getType() == ImageType.D81;
+					for(int i=16;(i<32) && (recordsRemaining >0);i++)
 					{
-						i++;
-						blockNum += (blk[offset + i] & 0xff) * 256;
-					}
-					if(blockNum == 0)
-						continue;
-					final TrackSec[] secs = this.getCPMBlock(blockNum);
-					if(secs != null)
-					{
+						int blockNum;
+						blockNum = blk[offset + i] & 0xff;
+						if(bit16)
+						{
+							i++;
+							blockNum += (blk[offset + i] & 0xff) * 256;
+						}
+						if(blockNum == 0)
+							continue;
+						final TrackSec[] secs = this.getCPMBlock(blockNum);
+						if(secs == null)
+						{
+							if(!parseFlags.get(D64Base.PF_NOERRORS))
+								errMsg("Illegal block num in file "+file.fileName+": "+blockNum);
+							continue;
+						}
 						for(final TrackSec ts : secs)
 						{
 							if(recordsRemaining == 1)
@@ -1927,6 +1955,42 @@ public class CBMDiskImage extends D64Base
 		return numFree[0];
 	}
 
+	private Integer[] getFreeCPMBlocks()
+	{
+		final byte[][][] diskBytes = getDiskBytes();
+		final BitSet flags = new BitSet(D64Mod.PF_NOERRORS);
+		final List<FileInfo> files = this.getCPMFiles(flags);
+		if(files == null)
+			return null;
+		final Set<Integer> freeBlocks = new TreeSet<Integer>();
+		for(int i=2;i<cpmAllocUnits.length;i++) // always start at 2
+			freeBlocks.add(Integer.valueOf(i));
+		final boolean bit16 = getType() == ImageType.D81;
+		for(final FileInfo file : files)
+		{
+			for(int i = 0;i<file.dirLoc.length;i+=3)
+			{
+				final short track =file.dirLoc[i+0];
+				final short sector =file.dirLoc[i+1];
+				final short offset =file.dirLoc[i+2];
+				final byte[] dirBlk =  diskBytes[track][sector];
+				for(int b=16;b<32;b++)
+				{
+					int blockNum = (dirBlk[offset+b] & 0xff);
+					if(bit16)
+					{
+						b++;
+						blockNum += ((dirBlk[offset+b] & 0xff) * 256);
+					}
+					if(blockNum != 0)
+						freeBlocks.remove(Integer.valueOf(blockNum));
+				}
+			}
+		}
+		return freeBlocks.toArray(new Integer[freeBlocks.size()]);
+	}
+
+
 	private boolean scratchTapeFile(final FileInfo file) throws IOException
 	{
 		final byte[][][] diskBytes = this.getDiskBytes();
@@ -1966,6 +2030,23 @@ public class CBMDiskImage extends D64Base
 		return false;
 	}
 
+	public boolean scratchCPMFile(final FileInfo file) throws IOException
+	{
+		if((file.dirLoc == null)||(file.dirLoc.length<3))
+			return false;
+		final byte[][][] diskBytes = this.getDiskBytes();
+		boolean didOne=false;
+		for(int i = 0;i<file.dirLoc.length;i+=3)
+		{
+			final short track =file.dirLoc[i+0];
+			final short sector =file.dirLoc[i+1];
+			final short offset =file.dirLoc[i+2];
+			diskBytes[track][sector][offset] = (byte)0xe5;
+			didOne=true;
+		}
+		return didOne;
+	}
+
 	public boolean scratchFile(final FileInfo file) throws IOException
 	{
 		final byte[][][] diskBytes = this.getDiskBytes(); // force load for cpm
@@ -1974,7 +2055,7 @@ public class CBMDiskImage extends D64Base
 		if(type == ImageType.LNX)
 			return false; //TODO:
 		if(cpmOs != CPMType.NOT)
-			return false; //TODO:
+			return scratchCPMFile(file);
 
 		final byte[] dirSector = diskBytes[file.dirLoc[0]][file.dirLoc[1]];
 		dirSector[file.dirLoc[2]]=(byte)(0);
@@ -2020,7 +2101,8 @@ public class CBMDiskImage extends D64Base
 	{
 		for(int i=2;i<256;i+=32)
 		{
-			if((sector[i]==(byte)128)||(sector[i]&(byte)128)==0)
+			if((sector[i]==(byte)128)
+			||(sector[i]&(byte)128)==0)
 				return new short[]{dirts.track,dirts.sector,(short)i};
 		}
 		return null;
@@ -2152,102 +2234,219 @@ public class CBMDiskImage extends D64Base
 		return true;
 	}
 
+	private boolean insertT64File(final String targetFileName, final byte[] fileData, final FileType cbmtype)
+	{
+		byte[] data = diskBytes[0][0];
+		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
+		final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff));
+		int dirStart=-1;
+		if(numEntries > usedEntries)
+		{
+			for(int i = 64; i<64+(32*numEntries); i+=32)
+			{
+				if(data[i]==0)
+				{
+					dirStart=i;
+					break;
+				}
+			}
+		}
+		if(dirStart<0)
+		{
+			// make new dir entry:
+			final byte[] start = Arrays.copyOfRange(data, 0, 64 + (32 * numEntries));
+			final byte[] rest = Arrays.copyOfRange(data, 64 + (32 * numEntries), data.length);
+			data = Arrays.copyOf(start, start.length+rest.length+32);
+			for(int i=0;i<rest.length;i++)
+				data[start.length+i+32] = rest[i];
+			final byte[] numEntriesB = D64Base.numToBytes(numEntries+1);
+			data[34] = numEntriesB[0];
+			data[35] = numEntriesB[1];
+			dirStart = 64 + (32 * numEntries);
+			//now fix ALL the file start offsets, as they are **ALL WRONG**
+			for(int sx = 64; sx<64+(32*numEntries); sx+=32)
+			{
+				if(data[sx]!=1)
+					continue;
+				final int dataOffset =  (data[sx+8] & 0xff) // since we are adding a dir entry, the offset moves up
+						+ (256*(data[sx+9] & 0xff))
+						+ (65536 * (data[sx+10] & 0xff)); // nothing higher is Good.
+				final byte[] dataOffsetB = D64Base.numToBytes(dataOffset+32);
+				data[sx+8] = dataOffsetB[0];
+				data[sx+9] = dataOffsetB[1];
+				data[sx+10] = dataOffsetB[3];
+				data[sx+11] = 0;
+			}
+		}
+		final int endOfCurrData = data.length;
+		final byte[] usedEntriesB = D64Base.numToBytes(usedEntries+1);
+		data[36] = usedEntriesB[0];
+		data[37] = usedEntriesB[1];
+		// Now actually compose the new dir entry at dirStart
+		data[dirStart + 0] = 1;
+		data[dirStart + 1] = (byte)0x82;
+		if((fileData.length > 1)&&(cbmtype == FileType.PRG))
+		{
+			data[dirStart+2] = fileData[0];
+			data[dirStart+3] = fileData[1];
+			final int startAddr = (fileData[0]&0xff) + (256 * (fileData[1]&0xff));
+			final byte[] endAddrB = D64Base.numToBytes(fileData.length + startAddr - 1);
+			data[dirStart+4] = endAddrB[0];
+			data[dirStart+5] = endAddrB[1];
+		}
+		else
+		{
+			data[dirStart+2] = 1;
+			data[dirStart+3] = 8;
+			final byte[] endAddrB = D64Base.numToBytes(fileData.length + 2049 - 1);
+			data[dirStart+4] = endAddrB[0];
+			data[dirStart+5] = endAddrB[1];
+		}
+		final byte[] newFileOffset = D64Base.numToBytes(data.length);
+		data[dirStart+8] = newFileOffset[0];
+		data[dirStart+9] = newFileOffset[1];
+		data[dirStart+10] = newFileOffset[2];
+		data[dirStart+11] = newFileOffset[3];
+		for(int i=0;i<16;i++)
+		{
+			if(i<targetFileName.length())
+				data[dirStart+16+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(i))));
+			else
+				data[dirStart+16+i]=tobyte(32);
+		}
+		// and lastly, append the file data
+		data = Arrays.copyOf(data, endOfCurrData + fileData.length);
+		for(int i=0;i<fileData.length;i++)
+			data[endOfCurrData + i] = fileData[i];
+		diskBytes[0][0] = data;
+		return true;
+	}
+
+	private int getCPMAllocUnits(final byte[][][] diskBytes)
+	{
+		if(cpmOs == CPMType.C64)
+			return 4;
+		if((cpmOs == CPMType.NORMAL)
+		&&(getType()==ImageType.D64))
+		{
+			if(diskBytes[1][0][255] != (byte)0xff)
+				return 4;
+		}
+		return 8;
+	}
+
+	private boolean insertCPMFile(String targetFileName, final byte[] fileData)
+	{
+		final byte[][][] diskBytes = getDiskBytes(); // force load for cpm
+		final int allocUnitSecSize = getCPMAllocUnits(diskBytes);
+		final double allocUnitBytes = allocUnitSecSize * 256.0;
+		final int numAllocUnits = (int)Math.round(Math.ceil(fileData.length / allocUnitBytes));
+		final List<Integer> freeAllocUnits = new ArrayList<Integer>();
+		freeAllocUnits.addAll(Arrays.asList(getFreeCPMBlocks()));
+		if(freeAllocUnits.size() < numAllocUnits)
+			return false;
+		final boolean bit16 = getType() == ImageType.D81;
+		final double unitsPerDirEntry = bit16 ? 8 : 16;
+		final int numDirEntriesNeeded = (int)Math.round(Math.ceil(numAllocUnits / unitsPerDirEntry));
+		final List<short[]> dirEntries = this.getFirstCPMFreeDirEntries();
+		if(dirEntries.size() < numDirEntriesNeeded)
+			return false;
+		String extension3="   ";
+		String filename8="        ";
+		targetFileName = targetFileName.toUpperCase();
+		final int extx = targetFileName.lastIndexOf('.');
+		if((extx==0)
+		&&(targetFileName.length()>4))
+			filename8=(targetFileName+filename8).substring(0,8);
+		else
+		if(extx<0)
+			filename8=(targetFileName+filename8).substring(0,8);
+		else
+		{
+			filename8=(targetFileName.substring(0,extx)+filename8).substring(0,8);
+			extension3=(targetFileName.substring(extx+1)+filename8).substring(0,3);
+		}
+		final String reFileName;
+		if(extension3.trim().length()==0)
+			reFileName = filename8.trim();
+		else
+			reFileName = filename8.trim() + "." + extension3.trim();
+		if(reFileName.trim().length()==0)
+			return false;
+		final FileInfo chkF = this.findFile(reFileName, true, new BitSet(0));
+		if(chkF != null)
+			return false;
+		int fullExNumber = 0;
+		int dataPos = 0;
+		final int maxBytesPerExtend = (int)Math.round(unitsPerDirEntry * allocUnitBytes);
+		for(int deDex = 0; deDex < numDirEntriesNeeded; deDex++)
+		{
+			final short[] deRef = dirEntries.get(deDex);
+			final short dt = deRef[0];
+			final short ds = deRef[1];
+			final byte[] blk = diskBytes[dt][ds];
+			final short offset = deRef[2];
+			blk[offset] = 0;
+			for(int i=0;i<8;i++)
+				blk[offset+i+1] = (byte)(filename8.charAt(i) & 0xff);
+			for(int i=0;i<3;i++)
+				blk[offset+i+9] = (byte)(extension3.charAt(i) & 0xff);
+			final int exh = (int)Math.round(Math.floor(fullExNumber/256.0));
+			final int exl = fullExNumber - (exh * 256);
+			blk[offset+12] = (byte)(exl & 0xff);
+			blk[offset+13] = (byte)(exh & 0xff);
+			blk[offset+14] = (byte)0;
+			int bytesThisExtend = (fileData.length - dataPos);
+			if(bytesThisExtend > maxBytesPerExtend)
+				bytesThisExtend = maxBytesPerExtend;
+			blk[offset+15] = (byte)(Math.round(Math.ceil(bytesThisExtend / 128.0)) & 0xff);
+			for(int o=16;o<32;o++)
+			{
+				if(dataPos < fileData.length)
+				{
+					final Integer blockNum = freeAllocUnits.remove(0);
+					if(bit16)
+					{
+						final int bnh = (int)Math.round(Math.floor(blockNum.intValue()/256.0));
+						final int bnl = blockNum.intValue() - (bnh * 256);
+						blk[offset+o] = (byte)bnl;
+						o++;
+						blk[offset+o] = (byte)bnh;
+					}
+					else
+						blk[offset+o] = (byte)blockNum.intValue();
+					final TrackSec[] dsecs = this.getCPMBlock(blockNum.intValue());
+					if(dsecs == null)
+					{
+						errMsg("Unable to allocate "+reFileName);
+						return false;
+					}
+					for(final TrackSec ts : dsecs)
+					{
+						final byte[] block = diskBytes[ts.track][ts.sector];
+						for(int b=dataPos;b<(dataPos + 256) && (b<fileData.length);b++)
+							block[b-dataPos] = fileData[b];
+						dataPos += 256;
+					}
+				}
+				else
+					blk[offset+o] = 0;
+			}
+			fullExNumber++;
+		}
+		return true;
+	}
+
 	public boolean insertFile(final FileInfo targetDir, final String targetFileName, final byte[] fileData,
 			final FileType cbmtype) throws IOException
 	{
 		final byte[][][] diskBytes = getDiskBytes(); // force load for cpm
-		if(cpmOs != CPMType.NOT) //TODO:
-			return false;
+		if(cpmOs != CPMType.NOT)
+			return insertCPMFile(targetFileName, fileData);
 		if(getType() == ImageType.LNX)
-			return false;
-		if(getType() == ImageType.T64)
-		{
-			byte[] data = diskBytes[0][0];
-			final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
-			final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff));
-			int dirStart=-1;
-			if(numEntries > usedEntries)
-			{
-				for(int i = 64; i<64+(32*numEntries); i+=32)
-				{
-					if(data[i]==0)
-					{
-						dirStart=i;
-						break;
-					}
-				}
-			}
-			if(dirStart<0)
-			{
-				// make new dir entry:
-				final byte[] start = Arrays.copyOfRange(data, 0, 64 + (32 * numEntries));
-				final byte[] rest = Arrays.copyOfRange(data, 64 + (32 * numEntries), data.length);
-				data = Arrays.copyOf(start, start.length+rest.length+32);
-				for(int i=0;i<rest.length;i++)
-					data[start.length+i+32] = rest[i];
-				final byte[] numEntriesB = D64Base.numToBytes(numEntries+1);
-				data[34] = numEntriesB[0];
-				data[35] = numEntriesB[1];
-				dirStart = 64 + (32 * numEntries);
-				//now fix ALL the file start offsets, as they are **ALL WRONG**
-				for(int sx = 64; sx<64+(32*numEntries); sx+=32)
-				{
-					if(data[sx]!=1)
-						continue;
-					final int dataOffset =  (data[sx+8] & 0xff) // since we are adding a dir entry, the offset moves up
-							+ (256*(data[sx+9] & 0xff))
-							+ (65536 * (data[sx+10] & 0xff)); // nothing higher is Good.
-					final byte[] dataOffsetB = D64Base.numToBytes(dataOffset+32);
-					data[sx+8] = dataOffsetB[0];
-					data[sx+9] = dataOffsetB[1];
-					data[sx+10] = dataOffsetB[3];
-					data[sx+11] = 0;
-				}
-			}
-			final int endOfCurrData = data.length;
-			final byte[] usedEntriesB = D64Base.numToBytes(usedEntries+1);
-			data[36] = usedEntriesB[0];
-			data[37] = usedEntriesB[1];
-			// Now actually compose the new dir entry at dirStart
-			data[dirStart + 0] = 1;
-			data[dirStart + 1] = (byte)0x82;
-			if((fileData.length > 1)&&(cbmtype == FileType.PRG))
-			{
-				data[dirStart+2] = fileData[0];
-				data[dirStart+3] = fileData[1];
-				final int startAddr = (fileData[0]&0xff) + (256 * (fileData[1]&0xff));
-				final byte[] endAddrB = D64Base.numToBytes(fileData.length + startAddr - 1);
-				data[dirStart+4] = endAddrB[0];
-				data[dirStart+5] = endAddrB[1];
-			}
-			else
-			{
-				data[dirStart+2] = 1;
-				data[dirStart+3] = 8;
-				final byte[] endAddrB = D64Base.numToBytes(fileData.length + 2049 - 1);
-				data[dirStart+4] = endAddrB[0];
-				data[dirStart+5] = endAddrB[1];
-			}
-			final byte[] newFileOffset = D64Base.numToBytes(data.length);
-			data[dirStart+8] = newFileOffset[0];
-			data[dirStart+9] = newFileOffset[1];
-			data[dirStart+10] = newFileOffset[2];
-			data[dirStart+11] = newFileOffset[3];
-			for(int i=0;i<16;i++)
-			{
-				if(i<targetFileName.length())
-					data[dirStart+16+i]=tobyte(D64Base.convertToPetscii(tobyte(targetFileName.charAt(i))));
-				else
-					data[dirStart+16+i]=tobyte(32);
-			}
-			// and lastly, append the file data
-			data = Arrays.copyOf(data, endOfCurrData + fileData.length);
-			for(int i=0;i<fileData.length;i++)
-				data[endOfCurrData + i] = fileData[i];
-			diskBytes[0][0] = data;
-			return true;
-		}
-		// tape crap is done above
+			return false;  //TODO:
+		if(getType() == ImageType.T64) // tape crap is done above
+			return insertT64File(targetFileName, fileData, cbmtype);
 
 		//** NOW we can insert into a real Disk Image
 		final int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
@@ -2343,4 +2542,38 @@ public class CBMDiskImage extends D64Base
 		allocateSectors(sectorsToUse);
 		return true;
 	}
+
+	public FileInfo findFile(final String fileStr, final boolean caseInsensitive)
+	{
+		final BitSet flags = new BitSet(PF_NOERRORS);
+		flags.set(PF_READINSIDE);
+		flags.set(PF_RECURSE);
+		return findFile(fileStr, caseInsensitive, flags);
+	}
+
+	public FileInfo findFile(final String imageFileStr, final boolean caseInsensitive, final BitSet flags)
+	{
+		final List<FileInfo> files = this.getFiles(flags);
+		if(imageFileStr.length()>0)
+		{
+			if(caseInsensitive)
+			{
+				for(final FileInfo f : files)
+				{
+					if(f.filePath.equalsIgnoreCase(imageFileStr))
+						return f;
+				}
+			}
+			else
+			{
+				for(final FileInfo f : files)
+				{
+					if(f.filePath.equals(imageFileStr))
+						return f;
+				}
+			}
+		}
+		return null;
+	}
+
 }

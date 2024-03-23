@@ -36,30 +36,6 @@ public class D64Mod extends D64Base
 	}
 
 
-	public static FileInfo findFile(final String imageFileStr, final List<FileInfo> files, final boolean caseInsensitive)
-	{
-		if(imageFileStr.length()>0)
-		{
-			if(caseInsensitive)
-			{
-				for(final FileInfo f : files)
-				{
-					if(f.filePath.equalsIgnoreCase(imageFileStr))
-						return f;
-				}
-			}
-			else
-			{
-				for(final FileInfo f : files)
-				{
-					if(f.filePath.equals(imageFileStr))
-						return f;
-				}
-			}
-		}
-		return null;
-	}
-
 	public static void imageError(final String msg, final boolean cont)
 	{
 		System.err.println(msg);
@@ -419,9 +395,9 @@ public class D64Mod extends D64Base
 			final CBMDiskImage disk = new CBMDiskImage(imageF);
 			final byte[][][] diskBytes = disk.getDiskBytes();
 			final List<FileInfo> files = disk.getFiles(parseFlags);
-			FileInfo file = findFile(imageFileStr,files,false);
+			FileInfo file = disk.findFile(imageFileStr,false,parseFlags);
 			if(file == null)
-				file = findFile(imageFileStr,files,true);
+				file = disk.findFile(imageFileStr,true,parseFlags);
 			if((action == Action.LIST)
 			||(action == Action.DIR)
 			||(action == Action.LYNX))
@@ -433,7 +409,7 @@ public class D64Mod extends D64Base
 				}
 			}
 			else
-			if((action == Action.INSERT) && (file != null))
+			if(action == Action.INSERT)
 			{
 				// that's ok.. anything is OK for insert, really.
 			}
@@ -453,7 +429,8 @@ public class D64Mod extends D64Base
 				continue;
 			}
 			final LinkedList<FileInfo> fileList=new LinkedList<FileInfo>();
-			if((file != null)&&(action != Action.INSERT))
+			if((file != null)
+			&&(action != Action.INSERT))
 			{
 				fileList.add(file);
 				if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
@@ -473,7 +450,6 @@ public class D64Mod extends D64Base
 							}
 						}
 					}
-
 				}
 			}
 
@@ -802,7 +778,7 @@ public class D64Mod extends D64Base
 					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
 				}
-				FileInfo targetDir = findFile("/",files,false);
+				FileInfo targetDir = disk.findFile("/",false,parseFlags);
 				String targetFileName = null;
 				if((file != null)
 				&&((file.fileType==FileType.DIR)||(file.fileType==FileType.CBM)))
@@ -835,9 +811,9 @@ public class D64Mod extends D64Base
 					x=imageFileStr.lastIndexOf('/');
 					while(x>=0)
 					{
-						FileInfo f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+						FileInfo f=disk.findFile(imageFileStr.substring(0, x), false, parseFlags);
 						if(f==null)
-							f=D64Mod.findFile(imageFileStr.substring(0, x), files, false);
+							f=disk.findFile(imageFileStr.substring(0, x), true, parseFlags);
 						if((f!=null)
 						&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
 						{
@@ -856,7 +832,11 @@ public class D64Mod extends D64Base
 						x=imageFileStr.lastIndexOf('/',x-1);
 					}
 					if(targetFileName == null)
-						targetFileName=imageFileStr.substring(0,16).trim();
+					{
+						targetFileName=imageFileStr;
+						if(targetFileName.length()>16)
+							targetFileName = targetFileName.substring(0,16).trim();
+					}
 					if(targetFileName.length()==0)
 						targetFileName = localFileF.getName().substring(0,16);
 				}
