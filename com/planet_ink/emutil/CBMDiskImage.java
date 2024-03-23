@@ -1954,7 +1954,6 @@ public class CBMDiskImage extends D64Base
 					final BAMInfo curBAM, final short bamByteOffset,
 					final short sumBamByteOffset, final short bamMask)
 			{
-//if(!set) System.out.println(t+","+s+","+bamByteOffset+","+sumBamByteOffset+","+bamMask);
 				if(!set)
 					numAllocated[0]++;
 				else
@@ -2237,10 +2236,7 @@ public class CBMDiskImage extends D64Base
 						{
 						}
 					}
-final int b4 = (bamSector[bamByteOffset] & 0xff);
 					bamSector[bamByteOffset] = (byte)(bamSector[bamByteOffset] & (255-bamMask));
-final int af = (bamSector[bamByteOffset] & 0xff);
-System.out.println(t+"("+curBAM.track+"), "+s+"("+curBAM.sector+"),"+bamByteOffset+", "+bamMask+", "+b4+"="+af);
 				}
 				return false;
 			}
