@@ -197,7 +197,7 @@ public class CBMDiskImage extends D64Base
 		{
 			if(bytes[t] == null)
 				continue;
-			for(int s=0;s<bytes.length;s++)
+			for(int s=0;s<bytes[t].length;s++)
 			{
 				if(bytes[t][s] == null)
 					continue;
@@ -653,11 +653,12 @@ public class CBMDiskImage extends D64Base
 	private byte[][][] parseImageDiskMap(final byte[] buf, final int fileLength)
 	{
 		final int numTS=getImageNumTracks(fileLength);
-		final byte[][][] tsmap=new byte[numTS+1][getImageSecsPerTrack(1)][256];
+		final byte[][][] tsmap=new byte[numTS+1][][];
 		int index=0;
 		for(int t=1;t<=numTS;t++)
 		{
 			final int secs=getImageSecsPerTrack(t);
+			tsmap[t] = new byte[secs][256];
 			for(int s=0;s<secs;s++)
 			{
 				for(int i=0;i<256;i++)
@@ -1777,16 +1778,24 @@ public class CBMDiskImage extends D64Base
 			{
 				final short interleave=getImageInterleave();
 				final int secsOnTrack=getImageSecsPerTrack(track);
-				for(short s1=0;s1<interleave;s1++)
-					for(short s=s1;s<secsOnTrack;s+=interleave)
+				final Set<Integer> doneThisTrack = new TreeSet<Integer>();
+				short s = 0;
+				while(doneThisTrack.size()<secsOnTrack)
+				{
+					Integer sint = Integer.valueOf((track<<8)+s);
+					while(doneThisTrack.contains(sint))
 					{
-						final Integer sint = Integer.valueOf((track<<8)+s);
-						if((skip==null)||(!skip.contains(sint)))
-						{
-							if(!isSectorAllocated(track,s))
-								return new short[]{track,s};
-						}
+						s = (short)((s + 1) % secsOnTrack);
+						sint = Integer.valueOf((track<<8)+s);
 					}
+					if((skip==null)||(!skip.contains(sint)))
+					{
+						if(!isSectorAllocated(track,s))
+							return new short[]{track,s};
+					}
+					doneThisTrack.add(sint);
+					s = (short)((s + interleave) % secsOnTrack);
+				}
 			}
 			track+=dir;
 		}
