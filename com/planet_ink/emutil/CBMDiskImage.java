@@ -2170,8 +2170,9 @@ public class CBMDiskImage extends D64Base
 						sec[0]=(byte)(track & 0xff);
 						sec[1]=(byte)(s & 0xff);
 						final byte[] newSec = diskBytes[track][s];
-						for(int i=2;i<256;i+=32)
+						for(int i=0;i<256;i++)
 							newSec[i]=0;
+						newSec[1]=(byte)0xff;
 						final List<short[]> allocs=new ArrayList<short[]>();
 						allocs.add(new short[]{track,s});
 						allocateSectors(allocs);
