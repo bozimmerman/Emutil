@@ -344,8 +344,8 @@ public class D64Mod extends D64Base
 				System.err.println("Missing target file");
 				System.exit(-1);
 			}
-			System.err.println("Not implemented");
-			System.exit(-1);
+			//System.err.println("Not implemented");
+			//System.exit(-1);
 			localFileStr = largs.get(2);
 			imageFileStr = largs.get(3);
 			break;
@@ -819,13 +819,21 @@ public class D64Mod extends D64Base
 						&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
 						{
 							targetDir=f;
-							targetFileName=imageFileStr.substring(x+1).substring(0, 16).trim();
+							targetFileName=imageFileStr.substring(x+1);
+							if(targetFileName.length()>16)
+								targetFileName=targetFileName.trim();
+							if(targetFileName.length()>16)
+								targetFileName=targetFileName.substring(0,16).trim();
 							break;
 						}
 						else
 						if(f!=null)
 						{
-							targetFileName=imageFileStr.substring(0,16).trim();
+							targetFileName=imageFileStr;
+							if(targetFileName.length()>16)
+								targetFileName=targetFileName.trim();
+							if(targetFileName.length()>16)
+								targetFileName=targetFileName.substring(0,16).trim();
 							break;
 						}
 						if(x<1)
@@ -836,10 +844,18 @@ public class D64Mod extends D64Base
 					{
 						targetFileName=imageFileStr;
 						if(targetFileName.length()>16)
+							targetFileName=targetFileName.trim();
+						if(targetFileName.length()>16)
 							targetFileName = targetFileName.substring(0,16).trim();
 					}
 					if(targetFileName.length()==0)
-						targetFileName = localFileF.getName().substring(0,16);
+					{
+						targetFileName = localFileF.getName();
+						if(targetFileName.length()>16)
+							targetFileName=targetFileName.trim();
+						if(targetFileName.length()>16)
+							targetFileName = targetFileName.substring(0,16).trim();
+					}
 				}
 				try
 				{

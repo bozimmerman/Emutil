@@ -219,18 +219,18 @@ public class CBMDiskImage extends D64Base
 		short	sector		= 0;
 		short	firstByte	= 0;
 		short	lastByte	= 0;
-		short	byteOffset	= 0;
+		short	freeOffset	= 0;
 		short	trackOffset	= 0;
 		BAMInfo next		= null;
 		public BAMInfo(final int track, final int sector, final int firstByte,
-					   final int lastByte, final int byteOffset, final int trackOffset,
+					   final int lastByte, final int freeOffset, final int trackOffset,
 					   final BAMInfo next)
 		{
 			this.track = (short)track;
 			this.sector = (short)sector;
 			this.firstByte = (short)firstByte;
 			this.lastByte = (short)lastByte;
-			this.byteOffset = (short)byteOffset;
+			this.freeOffset = (short)freeOffset;
 			this.trackOffset = (short)trackOffset;
 			this.next = next;
 		}
@@ -253,7 +253,7 @@ public class CBMDiskImage extends D64Base
 					new BAMInfo(38,6,6,255,0,5,new BAMInfo(38,9,6,255,0,5,null)))),
 					new TrackSecs(39,0,null),29,154,10,
 					new int[] {40,29,54,27,65,25,78,23,117,29,131,27,142,25,155,23,256,23}),
-		DNP(".DNP", new BAMInfo(1,2,32,255,0,32,null),new TrackSecs(1,0,null),34,-1,1,
+		DNP(".DNP", new BAMInfo(1,2,31,255,0,32,null),new TrackSecs(1,0,null),35,-1,1,
 					new int[] {256,256}),
 		T64(".T64", null, null, -1, -1, -1, new int[] {256, -1}),
 		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1})
@@ -1090,6 +1090,8 @@ public class CBMDiskImage extends D64Base
 		BAMInfo currBAM = type.bamHead;
 		if((currBAM == null) || (cpmOs != CPMType.NOT))
 			throw new IOException("Illegal image type.");
+		if(call == null)
+			return;
 		final byte[][][] bytes=getDiskBytes();
 		final long imageSize=getLength();
 		byte[] bam=bytes[currBAM.track][currBAM.sector];
@@ -1106,11 +1108,10 @@ public class CBMDiskImage extends D64Base
 				bamOffset = currBAM.firstByte;
 			}
 			final int secsPerTrack = type.sectors(t, cpmOs);
-			final int skipByte = currBAM.byteOffset;
+			final int skipByte = currBAM.freeOffset;
 			final short skipOffset = (short)((skipByte < 0)?0:1);
 			for(int s=0;s<secsPerTrack;s++)
 			{
-				//System.out.println(t+","+s+"=>"+currBAM.track+","+currBAM.sector+":"+bamOffset);
 				final short sumBamByteOffset = (short)((skipByte < 0) ? -1 : (bamOffset + skipByte));
 				final short bamByteOffset = (short)(bamOffset + skipOffset + (int)Math.round(Math.floor(s/8.0)));
 				final short bamByte = (short)(bam[bamByteOffset] & 0xff);
@@ -1119,8 +1120,9 @@ public class CBMDiskImage extends D64Base
 					mask = (short)Math.round(Math.pow(2.0,7-(s%8)));
 				else
 					mask = (short)Math.round(Math.pow(2.0,s%8));
+				//System.out.println(t+","+s+"=>"+currBAM.track+","+currBAM.sector+":"+bamByteOffset+"&"+mask);
 				final boolean set = (bamByte & mask) == mask;
-				if((call != null)&&(call.call((short)t, (short)s, set, currBAM, bamByteOffset, sumBamByteOffset, mask)))
+				if(call.call((short)t, (short)s, set, currBAM, bamByteOffset, sumBamByteOffset, mask))
 					return;
 			}
 			if(currBAM.trackOffset != 0)
@@ -1429,8 +1431,8 @@ public class CBMDiskImage extends D64Base
 			currBAM = type.bamHead;
 			currBAM = currBAM.next;
 			// sometimes a d80 is formatted like an 8250 if user fail.
-			t=39;//unsigned(tsmap[currBAM[0]][currBAM[1]][0]);
-			s=1;//unsigned(tsmap[currBAM[0]][currBAM[1]][1]);
+			t=type.dirHead.track;
+			s=1;
 			break;
 		case D82:
 			currBAM = type.bamHead;
@@ -1439,6 +1441,10 @@ public class CBMDiskImage extends D64Base
 			currBAM = currBAM.next;
 			t=unsigned(tsmap[currBAM.track][currBAM.sector][0]);
 			s=unsigned(tsmap[currBAM.track][currBAM.sector][1]);
+			break;
+		case DNP:
+			t=type.dirHead.track;
+			s=1; // first dir block
 			break;
 		default:
 			break;
@@ -1707,12 +1713,16 @@ public class CBMDiskImage extends D64Base
 		{
 			short dir=1;
 			short stopTrack=(short)(lastTrack+1);
+			short searchTrack = dirTrack;
+			if(dirTrack < 0)
+				searchTrack = 0;
+			else
 			if(startTrack<dirTrack)
 			{
 				dir=-1;
 				stopTrack=firstTrack;
 			}
-			return findFreeSector((short)(dirTrack+dir),stopTrack,dir,skip);
+			return findFreeSector((short)(searchTrack+dir),stopTrack,dir,skip);
 		}
 	}
 
@@ -1737,12 +1747,15 @@ public class CBMDiskImage extends D64Base
 			return sector;
 		}
 		else
+		if(type == ImageType.DNP)
+			return nextFreeSectorInDirection((short)-1,dirTrack,(short)0,lastTrack,skip);
+		else
 		{
 			return nextFreeSectorInDirection(dirTrack,dirTrack,(short)0,lastTrack,skip);
 		}
 	}
 
-	private List<short[]> getFreeSectors(final int numSectors) throws IOException
+	private List<short[]> getFreeSectors(final int numSectors, final short[] skipDirSec) throws IOException
 	{
 		if((type == ImageType.LNX)
 		||(type == ImageType.T64)
@@ -1756,6 +1769,8 @@ public class CBMDiskImage extends D64Base
 		final short lastTrack=(short)type.numTracks(imageFLen);
 		final short dirTrack=type.dirHead.track;
 		final Set<Integer> skip=new HashSet<Integer>();
+		if(skipDirSec != null)
+			skip.add(Integer.valueOf((skipDirSec[0]<<8)+skipDirSec[1]));
 		TrackSecs ks = type.dirHead;
 		while(ks != null)
 		{
@@ -1798,6 +1813,9 @@ public class CBMDiskImage extends D64Base
 					else
 						ts = nextFreeSectorInDirection((short)116,prevTrack,(short)0,lastTrack,skip);
 				}
+				else
+				if(type == ImageType.DNP)
+					ts = nextFreeSectorInDirection((short)-1,dirTrack,(short)0,lastTrack,skip);
 				else
 					ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)0,lastTrack,skip);
 			}
@@ -1857,7 +1875,8 @@ public class CBMDiskImage extends D64Base
 					TrackSecs head = type.dirHead;
 					while(head != null)
 					{
-						if(t == head.track)
+						if((t == head.track)
+						&&(s<type.dirSecs))
 							break;
 						head = head.next;
 					}
@@ -2111,12 +2130,13 @@ public class CBMDiskImage extends D64Base
 			if(ts == null)
 				ts= findFreeSector((short)1,(short)(type.numTracks(imageFLen)+1),(short)1,null);
 			if(ts == null)
-				throw new IOException("No sectors found for dir entry.");
+				throw new IOException("No free sectors found for dir entry.");
 			sec[0]=(byte)(ts[0] & 0xff);
 			sec[1]=(byte)(ts[1] & 0xff);
 			final byte[] newSec = diskBytes[ts[0]][ts[1]];
-			for(int i=2;i<256;i+=32)
+			for(int i=0;i<256;i++)
 				newSec[i]=0;
+			newSec[1] = (byte)0xff;
 			final List<short[]> allocs=new ArrayList<short[]>();
 			allocs.add(new short[]{ts[0],ts[1]});
 			allocateSectors(allocs);
@@ -2169,7 +2189,7 @@ public class CBMDiskImage extends D64Base
 							final int totalSectors=type.sectors(t, cpmOs);
 							final int sectorsFree=sectorsFreeOnTrack(t);
 							final int specialOffset = 185+t;
-//System.out.println(specialOffset+", "+t+":"+(numFreeBytes[specialOffset]&0xff)+"/"+sectorsFree+"/"+totalSectors);
+							//System.out.println(specialOffset+", "+t+":"+(numFreeBytes[specialOffset]&0xff)+"/"+sectorsFree+"/"+totalSectors);
 							if((sectorsFree<=totalSectors)
 							&&(((numFreeBytes[specialOffset]&0xff)==sectorsFree)))
 								numFreeBytes[specialOffset] = (byte)((numFreeBytes[specialOffset]&0xff)-1);
@@ -2400,12 +2420,14 @@ public class CBMDiskImage extends D64Base
 		if(getType() == ImageType.T64) // tape crap is done above
 			return insertT64File(targetFileName, fileData, cbmtype);
 
+		final short[] dirSlot = findDirectorySlot(targetDir);
+		if(dirSlot == null)
+			throw new IOException("No directory space for "+F.getAbsolutePath());
 		//** NOW we can insert into a real Disk Image
 		final int sectorsNeeded = (int)Math.round(Math.ceil(fileData.length / 254.0));
-		final List<short[]> sectorsToUse = getFreeSectors(sectorsNeeded);
+		final List<short[]> sectorsToUse = getFreeSectors(sectorsNeeded,dirSlot);
 		if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
 			throw new IOException("Not enough space on disk for "+F.getAbsolutePath());
-		final short[] dirSlot = findDirectorySlot(targetDir);
 		int bufDex = 0;
 		int secDex = 0;
 		while(bufDex < fileData.length)
