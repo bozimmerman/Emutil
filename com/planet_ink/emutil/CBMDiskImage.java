@@ -786,7 +786,7 @@ public class CBMDiskImage extends D64Base
 					f.dirLoc=new short[]{(short)t,(short)s,(short)i};
 					final short lb=unsigned(sector[i+28]);
 					final short hb=unsigned(sector[i+29]);
-					final int size=(256*(lb+(256*hb)));
+					final int size=(254*(lb+(256*hb)));
 					if(size<0)
 						System.out.println(lb+","+hb+","+size);
 					f.feblocks = (lb+(256*hb));
@@ -1327,7 +1327,7 @@ public class CBMDiskImage extends D64Base
 				final int fullExNumber = exNumber + (256 * s1Number);
 				int recordsRemaining = ((fullExNumber * 128)-(file.size/128)) + rcNumber;
 				file.size += (recordsRemaining * 128);
-				file.feblocks = file.size / 254;
+				file.feblocks = (int)Math.round(Math.ceil(file.size / 254.0));
 				if(readInside)
 				{
 					final boolean bit16 = getType() == ImageType.D81;

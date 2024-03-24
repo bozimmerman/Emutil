@@ -950,9 +950,8 @@ public class D64Mod extends D64Base
 				{
 					if(f.fileName.equals("*BAM*") || f.fileName.equals("/"))
 						continue;
-					final int blkLen = (int)Math.round(Math.floor(f.size / 254.0));
 					final StringBuilder ln=new StringBuilder("");
-					ln.append(blkLen);
+					ln.append(f.feblocks);
 					while(ln.length()<5)
 						ln.append(" ");
 					ln.append("\"").append(f.fileName).append("\"");
