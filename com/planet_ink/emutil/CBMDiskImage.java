@@ -76,14 +76,14 @@ public class CBMDiskImage extends D64Base
 		if(diskBytes == null)
 		{
 			final int[] imageFLen=new int[1];
+			this.cpmOs = CPMType.NOT;
 			diskBytes = this.getDisk(F, imageFLen);
 			length = imageFLen[0];
 			if(length <= 0)
 				length = 174848;
 			// now, attempt to identify CP/M disks.
-			final int dt = this.getImageDirTrack();
-			final int ds = this.getImageDirSector();
-			this.cpmOs = CPMType.NOT;
+			final int dt = type.dirHead.track;
+			final int ds = type.dirHead.sector;
 			if((dt>0)
 			&&(ds>=0)
 			&&((type == ImageType.D64)||(type == ImageType.D71)||(type == ImageType.D81)))
@@ -102,7 +102,7 @@ public class CBMDiskImage extends D64Base
 					diskId = new String(hdr,162,5);
 				}
 				int firstDirTrack = 1;
-				final int numTracks = this.getImageNumTracks(length);
+				final int numTracks = type.numTracks(length);
 				final Set<TrackSec> skipThese = new TreeSet<TrackSec>();
 				if((type == ImageType.D64)
 				&& diskName.equalsIgnoreCase("CP/M DISK")
@@ -114,7 +114,7 @@ public class CBMDiskImage extends D64Base
 					for(int t=1;t<numTracks;t++)
 					{
 						final int startSec = (t==18)?0:17;
-						final int numSecs = this.getImageSecsPerTrack(t);
+						final int numSecs = type.sectors(t, cpmOs);
 						for(int s=startSec;s<numSecs;s++)
 							skipThese.add(new TrackSec((short)t,(short)s));
 					}
@@ -151,9 +151,9 @@ public class CBMDiskImage extends D64Base
 				}
 				final int allocUnitSize = this.getCPMAllocUnits(diskBytes);
 				final List<TrackSec[]> alloBuilder = new ArrayList<TrackSec[]>();
-				final int interleave = getImageInterleave();
+				final int interleave = type.interleave(cpmOs);
 				final short[] ts = new short[] { (short)firstDirTrack, (short)0};
-				short totalSecs = (short)getImageSecsPerTrack(ts[0]);
+				short totalSecs = type.sectors(ts[0], cpmOs);
 				while(ts[0] <= numTracks)
 				{
 					final List<TrackSec> thisUnit = new ArrayList<TrackSec>(allocUnitSize);
@@ -168,7 +168,7 @@ public class CBMDiskImage extends D64Base
 							ts[0] = (short)(ts[0] + 1);
 							if(ts[0] >= numTracks)
 								break;
-							totalSecs = (short)getImageSecsPerTrack(ts[0]);
+							totalSecs = type.sectors(ts[0], cpmOs);
 						}
 					}
 					if(thisUnit.size() == allocUnitSize)
@@ -223,7 +223,8 @@ public class CBMDiskImage extends D64Base
 		short	trackOffset	= 0;
 		BAMInfo next		= null;
 		public BAMInfo(final int track, final int sector, final int firstByte,
-					   final int lastByte, final int byteOffset, final int trackOffset)
+					   final int lastByte, final int byteOffset, final int trackOffset,
+					   final BAMInfo next)
 		{
 			this.track = (short)track;
 			this.sector = (short)sector;
@@ -231,96 +232,100 @@ public class CBMDiskImage extends D64Base
 			this.lastByte = (short)lastByte;
 			this.byteOffset = (short)byteOffset;
 			this.trackOffset = (short)trackOffset;
+			this.next = next;
 		}
 	}
 
 	// todo: add file masks to options
 	public enum ImageType
 	{
-		D64('6'){
-			public String toString() {
-				return ".D64";
-			}
-		},
-		D71('7'){
-			public String toString() {
-				return ".D71";
-			}
-		},
-		D81('1'){
-			public String toString() {
-				return ".D81";
-			}
-		},
-		D80('8'){
-			public String toString() {
-				return ".D80";
-			}
-		},
-		D82('2'){
-			public String toString() {
-				return ".D82";
-			}
-		},
-		DNP('0'){
-			public String toString() {
-				return ".DNP";
-			}
-		},
-		T64('\0'){
-			public String toString() {
-				return ".T64";
-			}
-		},
-		LNX('\0'){
-			public String toString() {
-				return ".LNX";
-			}
-		}
+		D64(".D64", new BAMInfo(18,0,4,143,0,0,null),new TrackSecs(18,0,null),19,35,10,
+					new int[] {18,21,25,19,31,18,256,17}),
+		D71(".D71", new BAMInfo(18,0,4,143,0,0, new BAMInfo(53,0,0,104,-1,3, null)),
+					new TrackSecs(18,0,new TrackSecs(53,0,null)),19,70,5,
+					new int[] {18,21,25,19,31,18,36,17,53,21,60,19,66,18,256,17}),
+		D81(".D81", new BAMInfo(40,1,16,255,0,0, new BAMInfo(40,2,16,255,0,0, null)),
+					new TrackSecs(40,0,null),80,80,1,new int[] {256,40}),
+		D80(".D80", new BAMInfo(38,0,6,255,0,0, new BAMInfo(38,3,6,140,0,5, null)),
+					new TrackSecs(39,0,null),29,77,10,
+					new int[] {40,29,54,27,65,25,78,23,117,29,131,27,142,25,155,23,256,23}),
+		D82(".D82", new BAMInfo(38,0,6,255,0,0,new BAMInfo(38,3,6,255,0,5,
+					new BAMInfo(38,6,6,255,0,5,new BAMInfo(38,9,6,255,0,5,null)))),
+					new TrackSecs(39,0,null),29,154,10,
+					new int[] {40,29,54,27,65,25,78,23,117,29,131,27,142,25,155,23,256,23}),
+		DNP(".DNP", new BAMInfo(1,2,32,255,0,32,null),new TrackSecs(1,0,null),34,-1,1,
+					new int[] {256,256}),
+		T64(".T64", null, null, -1, -1, -1, new int[] {256, -1}),
+		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1})
 		;
-		final BAMInfo bamHead;
-		private ImageType(final char bamCode)
+
+		public final BAMInfo	bamHead;
+		public final String		ext;
+		public final TrackSecs	dirHead;
+		public final short		dirSecs;
+		private final int		numTracks;
+		private final short		interleave;
+		private final short[]	secMap;
+
+		private ImageType(final String ext, final BAMInfo bam, final TrackSecs head, final int dirSecs,
+						  final int numTracks, final int interleave, final int[] secMap)
 		{
-			switch(bamCode)
+			this.ext=ext;
+			this.bamHead = bam;
+			this.dirHead = head;
+			this.numTracks = numTracks;
+			this.interleave = (short)interleave;
+			this.dirSecs = (short)dirSecs;
+			if(ext.equals(".DNP"))
 			{
-			case '6': //d64
-				bamHead = new BAMInfo(18,0,4,143,0,0);
-				break;
-			case '7': //d71
-				bamHead = new BAMInfo(18,0,4,143,0,0);
-				bamHead.next = new BAMInfo(53,0,0,104,-1,3);
-				break;
-			case '1': //d81
-				bamHead = new BAMInfo(40,1,16,255,0,0);
-				bamHead.next = new BAMInfo(40,2,16,255,0,0);
-				break;
-			case '8': //d80
-				bamHead = new BAMInfo(38,0,6,255,0,0);
-				bamHead.next = new BAMInfo(38,3,6,140,0,5);
-				break;
-			case '2': //d82
-				bamHead = new BAMInfo(38,0,6,255,0,0);
-				bamHead.next = new BAMInfo(38,3,6,255,0,5);
-				bamHead.next.next = new BAMInfo(38,6,6,255,0,5);
-				bamHead.next.next.next = new BAMInfo(38,9,6,255,0,5);
-				break;
-			case '0': //dnp
-			{
-				bamHead = new BAMInfo(1,2,32,255,0,32);
 				BAMInfo curr = bamHead;
 				for(int i=2;i<33;i++)
 				{
-					curr.next = new BAMInfo(1,i+1,0,255,0,32);
+					curr.next = new BAMInfo(1,i+1,0,255,0,32,null);
 					curr = curr.next;
 				}
-				break;
 			}
-			case '\0': // lnx, t64, etc
-			default:
-				bamHead = null;
-				break;
+			this.secMap = new short[256];
+			int start=0;
+			for(int i=0;i<secMap.length;i+=2)
+			{
+				for(int x=start;x<secMap[i];x++)
+					this.secMap[x]=(short)secMap[i+1];
+				start=secMap[i];
 			}
 		}
+
+		private short sectors(final int track, final CPMType cpm)
+		{
+			if(cpm == CPMType.C64)
+				return 17;
+			if((track<0)||(track>255))
+				return 0;
+			return secMap[track];
+		}
+
+		private int numTracks(final long fileSize)
+		{
+			if(this.numTracks < 0)
+				return (int)(fileSize / 256 / 256);
+			if((this.numTracks == 35) && (fileSize >= 349696))
+				return 70;
+			return this.numTracks;
+		}
+
+		private short interleave(final CPMType cpm)
+		{
+			if(cpm == CPMType.C64)
+				return (short)1;
+			else
+			if(cpm == CPMType.NORMAL)
+				return (short)5;
+			return this.interleave;
+		}
+
+		public String toString() {
+			return ext;
+		};
 	};
 
 	public enum CPMType
@@ -329,7 +334,6 @@ public class CBMDiskImage extends D64Base
 		NORMAL,
 		C64
 	}
-
 
 	public enum FileType
 	{
@@ -396,6 +400,16 @@ public class CBMDiskImage extends D64Base
 			return (track << 16) + sector;
 		}
 
+	}
+
+	public static class TrackSecs extends TrackSec
+	{
+		final TrackSecs next;
+		private TrackSecs(final int t, final int s, final TrackSecs next)
+		{
+			super((short)t,(short)s);
+			this.next = next;
+		}
 	}
 
 	public static class FileInfo
@@ -559,170 +573,26 @@ public class CBMDiskImage extends D64Base
 		return getImageTypeAndGZipped(F.getName());
 	}
 
-	private int getImageSecsPerTrack(final int t)
-	{
-		switch(type)
-		{
-		case D64:
-		{
-			if(cpmOs == CPMType.C64)
-				return 17;
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			return 17;
-		}
-		case D71:
-		{
-			if(t<18) return 21;
-			if(t<25) return 19;
-			if(t<31) return 18;
-			if(t<36) return 17;
-			if(t<53) return 21;
-			if(t<60) return 19;
-			if(t<66) return 18;
-			return 17;
-		}
-		case D81:
-			return 40;
-		case DNP:
-			return 256;
-		case D80:
-		case D82:
-		{
-			if(t<40) return 29;
-			if(t<54) return 27;
-			if(t<65) return 25;
-			if(t<78) return 23;
-			if(t<117) return 29;
-			if(t<131) return 27;
-			if(t<142) return 25;
-			if(t<155) return 23;
-			return 23;
-		}
-		case T64:
-		case LNX:
-			return 1;
-		}
-		return -1;
-	}
-
 	private int getImageTotalBytes(final int fileSize)
 	{
 		if((type == ImageType.T64)
 		||(type == ImageType.LNX))
 			return fileSize;
-		final int ts=getImageNumTracks(fileSize);
+		final int ts=type.numTracks(fileSize);
 		int total=0;
 		for(int t=1;t<=ts;t++)
-			total+=(256*getImageSecsPerTrack(t));
+			total+=(256*type.sectors(t, cpmOs));
 		return total;
-	}
-
-	private int getImageDirTrack()
-	{
-		switch(type)
-		{
-		case D64:
-			return 18;
-		case D71:
-			return 18;
-		case D81:
-			return 40;
-		case D80:
-		case D82:
-			return 39;
-		case DNP:
-			return 1;
-		case T64:
-		case LNX:
-			return -1;
-		}
-		return -1;
-	}
-
-	private short getImageInterleave()
-	{
-		switch(type)
-		{
-		case D64:
-			if(cpmOs == CPMType.C64)
-				return 1;
-			else
-			if(cpmOs == CPMType.NORMAL)
-				return 5;
-			return 10;
-		case D71:
-			return 5;
-		case D81:
-			return 1;
-		case D80:
-		case D82:
-			return 10;
-		case DNP:
-			return 1;
-		case T64:
-		case LNX:
-			return -1;
-		}
-		return -1;
-	}
-
-	private int getImageDirSector()
-	{
-		switch(type)
-		{
-		case D64:
-			return 0;
-		case D71:
-			return 0;
-		case D81:
-			return 0;
-		case D80:
-		case D82:
-			return 0;
-		case DNP:
-			return 1;
-		case T64:
-		case LNX:
-			return -1;
-		}
-		return -1;
-	}
-
-	private int getImageNumTracks(final long fileSize)
-	{
-		switch(type)
-		{
-		case D64:
-			if(fileSize >= 349696)
-				return 70;
-			return 35;
-		case D71:
-			return 70;
-		case D81:
-			return 80;
-		case D80:
-			return 77;
-		case D82:
-			return 2*77;
-		case DNP:
-			return (int)(fileSize / 256 / 256);
-		case T64:
-		case LNX:
-			return 1;
-		}
-		return -1;
 	}
 
 	private byte[][][] parseImageDiskMap(final byte[] buf, final int fileLength)
 	{
-		final int numTS=getImageNumTracks(fileLength);
+		final int numTS=type.numTracks(fileLength);
 		final byte[][][] tsmap=new byte[numTS+1][][];
 		int index=0;
 		for(int t=1;t<=numTS;t++)
 		{
-			final int secs=getImageSecsPerTrack(t);
+			final int secs=type.sectors(t, cpmOs);
 			tsmap[t] = new byte[secs][256];
 			for(int s=0;s<secs;s++)
 			{
@@ -745,7 +615,7 @@ public class CBMDiskImage extends D64Base
 		catch(final IOException e)
 		{
 			e.printStackTrace(System.err);
-			return new byte[getImageNumTracks((int)F.length())][255][256];
+			return new byte[type.numTracks((int)F.length())][255][256];
 		}
 		finally
 		{
@@ -786,7 +656,7 @@ public class CBMDiskImage extends D64Base
 			if(len == 0)
 			{
 				errMsg("?: Error: Failed to read '"+fileName+"' at ALL!");
-				return new byte[getImageNumTracks(len)][255][256];
+				return new byte[type.numTracks(len)][255][256];
 			}
 			final byte[] buf=new byte[getImageTotalBytes(len)];
 			if(is == null)
@@ -812,7 +682,7 @@ public class CBMDiskImage extends D64Base
 		catch(final java.io.IOException e)
 		{
 			e.printStackTrace(System.err);
-			return new byte[getImageNumTracks(len)][255][256];
+			return new byte[type.numTracks(len)][255][256];
 		}
 	}
 
@@ -857,7 +727,10 @@ public class CBMDiskImage extends D64Base
 		final byte[][][] tsmap = this.getDiskBytes();
 		final boolean readInside = parseFlags.get(PF_READINSIDE);
 		byte[] sector;
-		while((t!=0)&&(t<tsmap.length)&&(s<tsmap[t].length)&&(!doneBefore.contains(tsmap[t][s]))&&(t<=maxT))
+		while((t!=0)&&(t<tsmap.length)
+		&&(s<tsmap[t].length)
+		&&(!doneBefore.contains(tsmap[t][s]))
+		&&(t<=maxT))
 		{
 			sector=tsmap[t][s];
 			dirInfo.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
@@ -1192,6 +1065,7 @@ public class CBMDiskImage extends D64Base
 			final short possDSector = unsigned(sector[160+12]);
 			if((possDTrack!=0)
 			&&(possDTrack<tsmap.length)
+			&&((possDTrack!=1)||(type==ImageType.DNP)) // exception for special d71 creations
 			&&(f.fileType==FileType.DIR)
 			&&(isSectorAllocated(possDTrack, possDSector)
 				||(possDTrack==t))
@@ -1220,7 +1094,8 @@ public class CBMDiskImage extends D64Base
 		final long imageSize=getLength();
 		byte[] bam=bytes[currBAM.track][currBAM.sector];
 		short bamOffset = currBAM.firstByte;
-		for(int t=1;t<=getImageNumTracks(imageSize);t++)
+		final int numTracks = type.numTracks(imageSize);
+		for(int t=1;t<=numTracks;t++)
 		{
 			if(bamOffset > currBAM.lastByte)
 			{
@@ -1230,11 +1105,12 @@ public class CBMDiskImage extends D64Base
 				bam=bytes[currBAM.track][currBAM.sector];
 				bamOffset = currBAM.firstByte;
 			}
-			final int secsPerTrack = getImageSecsPerTrack(t);
-			final int skipByte = currBAM.byteOffset; //wtf? on 1541, this is the sum of first track!
+			final int secsPerTrack = type.sectors(t, cpmOs);
+			final int skipByte = currBAM.byteOffset;
 			final short skipOffset = (short)((skipByte < 0)?0:1);
 			for(int s=0;s<secsPerTrack;s++)
 			{
+				//System.out.println(t+","+s+"=>"+currBAM.track+","+currBAM.sector+":"+bamOffset);
 				final short sumBamByteOffset = (short)((skipByte < 0) ? -1 : (bamOffset + skipByte));
 				final short bamByteOffset = (short)(bamOffset + skipOffset + (int)Math.round(Math.floor(s/8.0)));
 				final short bamByte = (short)(bam[bamByteOffset] & 0xff);
@@ -1526,9 +1402,9 @@ public class CBMDiskImage extends D64Base
 		else
 		if(cpmOs != CPMType.NOT)
 			return getCPMFiles(parseFlags);
-		int t=getImageDirTrack();
-		final int maxT=getImageNumTracks( fileSize);
-		int s=getImageDirSector();
+		int t=type.dirHead.track;
+		final int maxT=type.numTracks( fileSize);
+		int s=type.dirHead.sector;
 		final List<FileInfo> finalData=new Vector<FileInfo>();
 		BAMInfo currBAM = type.bamHead;
 		FileInfo f=new FileInfo();
@@ -1589,7 +1465,9 @@ public class CBMDiskImage extends D64Base
 		switch(type)
 		{
 		case D71:
-			for(int sec=1;sec<getImageSecsPerTrack(53);sec++)
+		{
+			final int numSectors = type.sectors(53, cpmOs);
+			for(int sec=1;sec<numSectors;sec++)
 			{
 				boolean found=false;
 				for(final TrackSec chk : f.tracksNSecs)
@@ -1601,6 +1479,7 @@ public class CBMDiskImage extends D64Base
 					f.tracksNSecs.add(TrackSec.valueOf((short)53,(short)sec));
 			}
 			break;
+		}
 		default:
 			break;
 		}
@@ -1772,13 +1651,13 @@ public class CBMDiskImage extends D64Base
 	{
 		short track=startTrack;
 		short numFree=0;
+		final short interleave=type.interleave(cpmOs);
 		while(track!=stopTrack)
 		{
 			numFree=sectorsFreeOnTrack( track);
 			if(numFree > 0)
 			{
-				final short interleave=getImageInterleave();
-				final int secsOnTrack=getImageSecsPerTrack(track);
+				final int secsOnTrack=type.sectors(track, cpmOs);
 				final Set<Integer> doneThisTrack = new TreeSet<Integer>();
 				short s = 0;
 				while(doneThisTrack.size()<secsOnTrack)
@@ -1803,12 +1682,14 @@ public class CBMDiskImage extends D64Base
 		return null;
 	}
 
-	private short[] nextFreeSectorInDirection(final short dirTrack, final short startTrack, final short lastTrack, final Set<Integer> skip) throws IOException
+	private short[] nextFreeSectorInDirection(final short dirTrack, final short startTrack,
+											  final short firstTrack, final short lastTrack,
+											  final Set<Integer> skip) throws IOException
 	{
 		if(startTrack == dirTrack)
 		{
-			final short[] tryBelow = nextFreeSectorInDirection(dirTrack,(short)(dirTrack-1),lastTrack,skip);
-			final short[] tryAbove = nextFreeSectorInDirection(dirTrack,(short)(dirTrack+1),lastTrack,skip);
+			final short[] tryBelow = nextFreeSectorInDirection(dirTrack,(short)(dirTrack-1),firstTrack,lastTrack,skip);
+			final short[] tryAbove = nextFreeSectorInDirection(dirTrack,(short)(dirTrack+1),firstTrack,lastTrack,skip);
 			if((tryAbove==null)&&(tryBelow==null))
 				return null;
 			if((tryAbove==null)&&(tryBelow != null))
@@ -1829,7 +1710,7 @@ public class CBMDiskImage extends D64Base
 			if(startTrack<dirTrack)
 			{
 				dir=-1;
-				stopTrack=0;
+				stopTrack=firstTrack;
 			}
 			return findFreeSector((short)(dirTrack+dir),stopTrack,dir,skip);
 		}
@@ -1838,26 +1719,26 @@ public class CBMDiskImage extends D64Base
 	private short[] firstFreeSector(final Set<Integer> skip) throws IOException
 	{
 		final int imageFLen = getLength();
-		final short dirTrack=(short)getImageDirTrack();
-		final short lastTrack=(short)getImageNumTracks(imageFLen);
+		final short dirTrack=type.dirHead.track;
+		final short lastTrack=(short)type.numTracks(imageFLen);
 		if(type == ImageType.D71)
 		{
-			short[] sector = nextFreeSectorInDirection(dirTrack,dirTrack,(short)35,skip);
+			short[] sector = nextFreeSectorInDirection(dirTrack,dirTrack,(short)0,(short)35,skip);
 			if(sector == null)
-				sector = nextFreeSectorInDirection((short)53,(short)53,lastTrack,skip);
+				sector = nextFreeSectorInDirection((short)53,(short)53,(short)35,lastTrack,skip);
 			return sector;
 		}
 		else
 		if(type == ImageType.D82)
 		{
-			short[] sector = nextFreeSectorInDirection(dirTrack,dirTrack,(short)77,skip);
+			short[] sector = nextFreeSectorInDirection(dirTrack,dirTrack,(short)0,(short)77,skip);
 			if(sector == null)
-				sector = nextFreeSectorInDirection((short)116,(short)116,lastTrack,skip);
+				sector = nextFreeSectorInDirection((short)116,(short)116,(short)77,lastTrack,skip);
 			return sector;
 		}
 		else
 		{
-			return nextFreeSectorInDirection(dirTrack,dirTrack,lastTrack,skip);
+			return nextFreeSectorInDirection(dirTrack,dirTrack,(short)0,lastTrack,skip);
 		}
 	}
 
@@ -1872,10 +1753,24 @@ public class CBMDiskImage extends D64Base
 		if(totalSectorsFree()<numSectors)
 			throw new IOException("Not enough free space.");
 		short[] ts=null;
-		final short lastTrack=(short)getImageNumTracks(imageFLen);
-		final short dirTrack=(short)getImageDirTrack();
-		final HashSet<Integer> skip=new HashSet<Integer>();
-		while(list.size()<numSectors)
+		final short lastTrack=(short)type.numTracks(imageFLen);
+		final short dirTrack=type.dirHead.track;
+		final Set<Integer> skip=new HashSet<Integer>();
+		TrackSecs ks = type.dirHead;
+		while(ks != null)
+		{
+			for(int i=0;i<type.dirSecs;i++)
+				skip.add(Integer.valueOf((ks.track<<8)+i));
+			ks=ks.next;
+		}
+		BAMInfo bs = type.bamHead;
+		while(bs != null)
+		{
+			skip.add(Integer.valueOf((bs.track<<8)+bs.sector));
+			bs=bs.next;
+		}
+		int tries = numSectors*10;
+		while((list.size()<numSectors)&&(--tries>0))
 		{
 			if(ts != null)
 			{
@@ -1883,36 +1778,38 @@ public class CBMDiskImage extends D64Base
 				if(type == ImageType.D71)
 				{
 					if(prevTrack<=35)
-						ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)35,skip);
+					{
+						ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)0,(short)35,skip);
+						if(ts == null)
+							ts = nextFreeSectorInDirection((short)53,(short)53,(short)35,lastTrack,skip);
+					}
 					else
-						ts = nextFreeSectorInDirection((short)53,prevTrack,lastTrack,skip);
-					if((ts == null)&&(prevTrack<=35))
-						ts = nextFreeSectorInDirection((short)53,(short)53,lastTrack,skip);
+						ts = nextFreeSectorInDirection((short)53,prevTrack,(short)0,lastTrack,skip);
 				}
 				else
 				if(type == ImageType.D82)
 				{
-					if(prevTrack<=35)
-						ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)77,skip);
+					if(prevTrack<=77) // 35 can't be right, can it?  thats a 4040 disk!
+					{
+						ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)0,(short)77,skip);
+						if(ts == null)
+							ts = nextFreeSectorInDirection((short)116,(short)116,(short)77,lastTrack,skip);
+					}
 					else
-						ts = nextFreeSectorInDirection((short)116,prevTrack,lastTrack,skip);
-					if((ts == null)&&(prevTrack<=35))
-						ts = nextFreeSectorInDirection((short)116,(short)116,lastTrack,skip);
+						ts = nextFreeSectorInDirection((short)116,prevTrack,(short)0,lastTrack,skip);
 				}
 				else
-					ts = nextFreeSectorInDirection(dirTrack,prevTrack,lastTrack,skip);
+					ts = nextFreeSectorInDirection(dirTrack,prevTrack,(short)0,lastTrack,skip);
 			}
 			if(ts == null)
 				ts=firstFreeSector(skip);
 			if(ts != null)
 			{
-
 				final Integer sint = Integer.valueOf((ts[0]<<8)+ts[1]);
 				skip.add(sint);
 				list.add(ts);
 			}
 		}
-
 		return list;
 	}
 
@@ -1939,14 +1836,13 @@ public class CBMDiskImage extends D64Base
 				return false;
 			}
 		});
-		return (short)(getImageSecsPerTrack(track) - numAllocated[0]);
+		return (short)(type.sectors(track, cpmOs) - numAllocated[0]);
 	}
 
 	private int totalSectorsFree() throws IOException
 	{
 		final int[] numAllocated = new int[]{0};
 		final int[] numFree = new int[]{0};
-		final int noTrack = getImageDirTrack();
 		bamPeruse(new BAMBack()
 		{
 			@Override
@@ -1957,8 +1853,17 @@ public class CBMDiskImage extends D64Base
 				if(!set)
 					numAllocated[0]++;
 				else
-				if(t != noTrack)
-					numFree[0]++;
+				{
+					TrackSecs head = type.dirHead;
+					while(head != null)
+					{
+						if(t == head.track)
+							break;
+						head = head.next;
+					}
+					if(head == null)
+						numFree[0]++;
+				}
 				return false;
 			}
 		});
@@ -2089,11 +1994,28 @@ public class CBMDiskImage extends D64Base
 					{
 						try
 						{
-							final int totalSectors=getImageSecsPerTrack(t);
+							final int totalSectors=type.sectors(t, cpmOs);
 							final int sectorsFree=sectorsFreeOnTrack(t);
 							if((sectorsFree<=totalSectors)
 							&&(((bamSector[sumBamByteOffset]&0xff)==sectorsFree)))
 								bamSector[sumBamByteOffset] = (byte)((bamSector[sumBamByteOffset]&0xff)-1);
+						}
+						catch(final Exception e)
+						{
+						}
+					}
+					else
+					if(type == ImageType.D71) // the very special very messed up exception
+					{
+						try
+						{
+							final byte[] numFreeBytes = diskBytes[type.bamHead.track][type.bamHead.sector];
+							final int totalSectors=type.sectors(t, cpmOs);
+							final int sectorsFree=sectorsFreeOnTrack(t);
+							final int specialOffset = 185+t;
+							if((sectorsFree<=totalSectors)
+							&&(((numFreeBytes[specialOffset]&0xff)==sectorsFree)))
+								numFreeBytes[specialOffset] = (byte)((numFreeBytes[specialOffset]&0xff)+1);
 						}
 						catch(final Exception e)
 						{
@@ -2160,7 +2082,7 @@ public class CBMDiskImage extends D64Base
 			if(numFree < 0)
 				throw new IOException("No root dir sectors free?!");
 			final short interleave=3;
-			final int secsOnTrack=getImageSecsPerTrack(track);
+			final int secsOnTrack=type.sectors(track, cpmOs);
 			for(short s1=0;s1<interleave;s1++)
 			{
 				for(short s=s1;s<secsOnTrack;s+=interleave)
@@ -2185,9 +2107,9 @@ public class CBMDiskImage extends D64Base
 		else
 		{
 			final short track=dirts.track;
-			short[] ts= findFreeSector(track,(short)(getImageNumTracks(imageFLen)+1),(short)1,null);
+			short[] ts= findFreeSector(track,(short)(type.numTracks(imageFLen)+1),(short)1,null);
 			if(ts == null)
-				ts= findFreeSector((short)1,(short)(getImageNumTracks(imageFLen)+1),(short)1,null);
+				ts= findFreeSector((short)1,(short)(type.numTracks(imageFLen)+1),(short)1,null);
 			if(ts == null)
 				throw new IOException("No sectors found for dir entry.");
 			sec[0]=(byte)(ts[0] & 0xff);
@@ -2223,15 +2145,34 @@ public class CBMDiskImage extends D64Base
 				if(secsToDo.contains(tsInt)&&(set))
 				{
 					final byte[] bamSector = diskBytes[curBAM.track][curBAM.sector];
+					//System.out.println(t+","+s+" => "+curBAM.track+","+curBAM.sector+","+bamByteOffset+","+bamMask);
 					if(sumBamByteOffset>=0)
 					{
 						try
 						{
-							final int totalSectors=getImageSecsPerTrack(t);
+							final int totalSectors=type.sectors(t, cpmOs);
 							final int sectorsFree=sectorsFreeOnTrack(t);
 							if((sectorsFree<=totalSectors)
 							&&(((bamSector[sumBamByteOffset]&0xff)==sectorsFree)))
 								bamSector[sumBamByteOffset] = (byte)((bamSector[sumBamByteOffset]&0xff)-1);
+						}
+						catch(final Exception e)
+						{
+						}
+					}
+					else
+					if(type == ImageType.D71) // the very special very messed up exception
+					{
+						try
+						{
+							final byte[] numFreeBytes = diskBytes[type.bamHead.track][type.bamHead.sector];
+							final int totalSectors=type.sectors(t, cpmOs);
+							final int sectorsFree=sectorsFreeOnTrack(t);
+							final int specialOffset = 185+t;
+//System.out.println(specialOffset+", "+t+":"+(numFreeBytes[specialOffset]&0xff)+"/"+sectorsFree+"/"+totalSectors);
+							if((sectorsFree<=totalSectors)
+							&&(((numFreeBytes[specialOffset]&0xff)==sectorsFree)))
+								numFreeBytes[specialOffset] = (byte)((numFreeBytes[specialOffset]&0xff)-1);
 						}
 						catch(final Exception e)
 						{
