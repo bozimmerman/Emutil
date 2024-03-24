@@ -1,4 +1,4 @@
-Emutils V2.5 (C)2006-2024 Bo Zimmerman
+Emutils V3.0 (C)2006-2024 Bo Zimmerman
 Please read the LICENSE file for license information
 Please read the NOTICE file for credits information
 
@@ -8,8 +8,11 @@ formats most commonly used by Commodore 64 emulators.
 These formats include:
 
   *.D64 - 170k image of a normal formatted 5.25" Commodore 1541 disk 
+        - 170k image of a C64 or C128 CP/M formatted 5.25" Commodore 1541 disk
   *.D71 - 340k image of a normal formatted 5.25" Commodore 1571 disk 
+        - 340k image of a C128 CP/M formatted 5.25" Commodore 1571 disk
   *.D81 - 800k image of a normal formatted 3.5" Commodore 1581 disk
+        - 800k image of a C128 CP/M formatted 3.5" Commodore 1581 disk
   *.D80 - 520k image of a normal formatted 5.25" Commodore 8050 disk
   *.D82 - 1040k image of a normal formatted 5.25" Commodore 8250 or SFD-1001 disk
   *.DNP - image of a normal formatted CMD (HD or RL) Native Partition, up to 16mb
