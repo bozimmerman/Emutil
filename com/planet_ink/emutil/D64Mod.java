@@ -294,6 +294,9 @@ public class D64Mod extends D64Base
 							imageFiles.add(F);
 					}
 				}
+			}
+			for(final IOFile dirF : dirs)
+			{
 				try
 				{
 					dirF.close();

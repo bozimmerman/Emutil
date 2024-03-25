@@ -19,7 +19,8 @@ public class IOFile
 	public IOFile(final File F)
 	{
 		this.F = F;
-		if(F.getParentFile() == this.F)
+		if((F.getParentFile() == this.F)
+		||(F.getParentFile() == null))
 			this.parentF = this;
 		else
 			this.parentF = new IOFile(this.F.getParentFile(),true);

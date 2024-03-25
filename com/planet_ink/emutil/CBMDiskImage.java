@@ -318,7 +318,8 @@ public class CBMDiskImage extends D64Base
 			if(cpm == CPMType.C64)
 				return (short)1;
 			else
-			if(cpm == CPMType.NORMAL)
+			if((cpm == CPMType.NORMAL)
+			&&(this != ImageType.D81))
 				return (short)5;
 			return this.interleave;
 		}
