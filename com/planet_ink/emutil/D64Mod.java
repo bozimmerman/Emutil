@@ -340,6 +340,7 @@ public class D64Mod extends D64Base
 				System.exit(-1);
 			}
 			imageFileStr = largs.get(2);
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case INSERT:
 			if(largs.size()<4)
@@ -351,6 +352,7 @@ public class D64Mod extends D64Base
 			//System.exit(-1);
 			localFileStr = largs.get(2);
 			imageFileStr = largs.get(3);
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case EXTRACT:
 			if(args.length<4)
@@ -359,6 +361,7 @@ public class D64Mod extends D64Base
 				System.exit(-1);
 			}
 			localFileStr = largs.get(3);
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case LYNX:
 			if(args.length<4)
@@ -367,6 +370,7 @@ public class D64Mod extends D64Base
 				System.exit(-1);
 			}
 			localFileStr = largs.get(3);
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case BAM:
 			try
@@ -378,9 +382,11 @@ public class D64Mod extends D64Base
 				System.err.println("Invalid sub-command");
 				System.exit(-1);
 			}
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case CHECK:
 		case FIX:
+			parseFlags.set(PF_READINSIDE);
 			break;
 		case DIR:
 		case LIST:
