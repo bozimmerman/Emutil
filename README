@@ -40,7 +40,7 @@ or
 java com.planet_ink.emutil.D64Search
 
 USAGE:
-  D64Search <options> <path> <expression>
+  D64Search [options] [path] [expression]
 OPTIONS:
   -R recursive search
   -V verbose
@@ -50,9 +50,9 @@ OPTIONS:
   -Q suppress parse errors
   -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)
   -I search inside files (substring search)
-  -D db export of disk info data (-Du<user>,
-     -Dp<password>, -Dc<java class>,
-     -Ds<service> -Dt<tablename>)
+  -D db export of disk info data (-Du[user],
+     -Dp[password], -Dc[java class],
+     -Ds[service] -Dt[tablename])
      (Columns: string imagepath,
                string filename, int filenum,
                long size, string md5,
@@ -77,14 +77,14 @@ or
 java com.planet_ink.emutil.D64Compare
 
 USAGE:
-  D64Compare <file1> <file2>
+  D64Compare [file1] [file2]
 
 -----------------------------------------------------------------------------
 D64FileMatcher
 --------------
 
 USAGE:
-  D64FileMatcher <file/path1> <file/path2>
+  D64FileMatcher [file/path1] [file/path2]
 OPTIONS:
   -R recursive search inside DNP
   -A X approx matching min X% (slower)
@@ -108,15 +108,15 @@ or
 java com.planet_ink.emutil.D64Mod
 
 USAGE:
-  D64Mod <options> <image file> <action> <action arguments>
+  D64Mod [options] [image file] [action] [action arguments]
 ACTIONS:
-  SCRATCH <file>/ALL
-  EXTRACT (-p) <file>/ALL <target path>
-  INSERT <source path> <file>
+  SCRATCH [file]/ALL
+  EXTRACT (-p) [file]/ALL [target path]
+  INSERT [source path] [file]
   BAM CHECK
   BAM ALLOC (Checks for sectors that need bam alloc)
   BAM FREE (Checks for sectors that need bam free)
-  LIST/DIR <PATH>
+  LIST/DIR [PATH]
   LIST/DIR ALL
 OPTIONS:
   -r Recurse into subdirectories
@@ -140,11 +140,11 @@ or
 java com.planet_ink.emutil.CMDHDParser
 
 USAGE:
-  CMDHDParser LIST <CMDHD_RAWIMAGE>
-  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH_OR_FILENAME> <CMDHD_PARTITION_NUMBER>
-  CMDHDParser EXTRACT <CMDHD_RAWIMAGE> <EXTRACT_PATH> ALL
-  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGE_FILE> <CMDHD_PARTITION_NUMBER>
-  CMDHDParser REPLACE <CMDHD_RAWIMAGE> <NEW_PART_IMAGES_PATH> ALL
+  CMDHDParser LIST [CMDHD_RAWIMAGE]
+  CMDHDParser EXTRACT [CMDHD_RAWIMAGE] [EXTRACT_PATH_OR_FILENAME] [CMDHD_PARTITION_NUMBER]
+  CMDHDParser EXTRACT [CMDHD_RAWIMAGE] [EXTRACT_PATH] ALL
+  CMDHDParser REPLACE [CMDHD_RAWIMAGE] [NEW_PART_IMAGE_FILE] [CMDHD_PARTITION_NUMBER]
+  CMDHDParser REPLACE [CMDHD_RAWIMAGE] [NEW_PART_IMAGES_PATH] ALL
 
 -----------------------------------------------------------------------------
 D64Duplifind
@@ -164,7 +164,7 @@ or
 java -cp ".;commons-compress-1.12.jar" com.planet_ink.emutil.D64Duplifind
 
 USAGE:
-  D64Duplifind <options>
+  D64Duplifind [options]
 OPTIONS:
   -R recursive search
   -V verbose
