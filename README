@@ -105,8 +105,8 @@ java com.planet_ink.emutil.D64Mod
 USAGE:
   D64Mod <options> <image file> <action> <action arguments>
 ACTIONS:
-  SCRATCH <file>
-  EXTRACT <file> <target path>
+  SCRATCH <file>/ALL
+  EXTRACT (-p) <file>/ALL <target path>
   INSERT <source path> <file>
   BAM CHECK
   BAM ALLOC (Checks for sectors that need bam alloc)
@@ -116,6 +116,7 @@ ACTIONS:
 OPTIONS:
   -r Recurse into subdirectories
   -q suppress parsing errors
+  -p extract files with .prg/.seq extensions
 
 -----------------------------------------------------------------------------
 CMDHDParser
