@@ -166,7 +166,7 @@ public class CBMDiskImage extends D64Base
 				&& diskId.startsWith("86")
 				&& diskId.endsWith("2C"))
 				{
-					this.cpmOs = CPMType.NORMAL;
+					this.cpmOs = CPMType.CBM;
 					firstDirTrack = 3;
 					for(int t=1;t<firstDirTrack;t++)
 					{
@@ -333,12 +333,17 @@ public class CBMDiskImage extends D64Base
 		{
 			if((track<0)||(track>255))
 				return 0;
-			if(cpm == CPMType.C64)
+			switch(cpm)
+			{
+			case C64:
 				return 17;
-			if((cpm == CPMType.NORMAL)
-			&&((this == D80)||(this==D82)))
+			case CBM:
 				return 23;
-			return secMap[track];
+			case NORMAL:
+			case NOT:
+			default:
+				return secMap[track];
+			}
 		}
 
 		private int numTracks(final long fileSize)
@@ -352,15 +357,17 @@ public class CBMDiskImage extends D64Base
 
 		private short interleave(final CPMType cpm)
 		{
-			if(cpm == CPMType.C64)
-				return (short)1;
-			else
-			if(cpm == CPMType.NORMAL)
+			switch(cpm)
 			{
-				if(this == ImageType.D80)
-					return 1;
+			case C64:
+			case CBM:
+				return (short)1;
+			case NORMAL:
 				if(this != ImageType.D81)
 					return (short)5;
+			//$FALL-THROUGH$
+			case NOT:
+				return this.interleave;
 			}
 			return this.interleave;
 		}
@@ -374,7 +381,8 @@ public class CBMDiskImage extends D64Base
 	{
 		NOT,
 		NORMAL,
-		C64
+		C64,
+		CBM
 	}
 
 	public enum FileType
@@ -2338,15 +2346,21 @@ public class CBMDiskImage extends D64Base
 
 	private int getCPMAllocUnits(final byte[][][] diskBytes)
 	{
-		if(cpmOs == CPMType.C64)
-			return 4;
-		if((cpmOs == CPMType.NORMAL)
-		&&(getType()==ImageType.D64))
+		switch(cpmOs)
 		{
-			if(diskBytes[1][0][255] != (byte)0xff)
-				return 4;
+		case C64:
+			return 4;
+		case NORMAL:
+			if(getType()==ImageType.D64)
+			{
+				if(diskBytes[1][0][255] != (byte)0xff)
+					return 4;
+			}
+		default:
+		case CBM:
+		case NOT:
+			return 8;
 		}
-		return 8;
 	}
 
 	private boolean insertCPMFile(String targetFileName, final byte[] fileData)
