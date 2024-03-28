@@ -86,11 +86,22 @@ public class CBMDiskImage extends D64Base
 			final int ds = type.dirHead.sector;
 			if((dt>0)
 			&&(ds>=0)
-			&&((type == ImageType.D64)||(type == ImageType.D71)||(type == ImageType.D81)))
+			&&((type == ImageType.D64)
+				||(type == ImageType.D71)
+				||(type == ImageType.D81)
+				||(type == ImageType.D80)
+				||(type == ImageType.D82)))
 			{
 				final byte[] hdr = diskBytes[dt][ds];
 				final String diskName;
 				final String diskId;
+				if((type == ImageType.D80)
+				||(type == ImageType.D82))
+				{
+					diskName = new String(hdr,6,5);
+					diskId = new String(hdr,24,5);
+				}
+				else
 				if(type == ImageType.D81)
 				{
 					diskName = new String(hdr,4,9);
@@ -148,6 +159,29 @@ public class CBMDiskImage extends D64Base
 					this.cpmOs = CPMType.NORMAL;
 					for(int s=0;s<20;s++)
 						skipThese.add(new TrackSec((short)40,(short)s));
+				}
+				else
+				if(((type == ImageType.D80)||(type == ImageType.D81))
+				&&diskName.equalsIgnoreCase("CPM86")
+				&& diskId.startsWith("86")
+				&& diskId.endsWith("2C"))
+				{
+					this.cpmOs = CPMType.NORMAL;
+					firstDirTrack = 3;
+					for(int t=1;t<firstDirTrack;t++)
+					{
+						final int startSec = 0;
+						final int numSecs = type.sectors(t, cpmOs);
+						for(int s=startSec;s<numSecs;s++)
+							skipThese.add(new TrackSec((short)t,(short)s));
+					}
+					for(int t=38;t<=39;t++)
+					{
+						final int startSec = 0;
+						final int numSecs = type.sectors(t, cpmOs);
+						for(int s=startSec;s<numSecs;s++)
+							skipThese.add(new TrackSec((short)t,(short)s));
+					}
 				}
 				final int allocUnitSize = this.getCPMAllocUnits(diskBytes);
 				final List<TrackSec[]> alloBuilder = new ArrayList<TrackSec[]>();
@@ -297,10 +331,13 @@ public class CBMDiskImage extends D64Base
 
 		private short sectors(final int track, final CPMType cpm)
 		{
-			if(cpm == CPMType.C64)
-				return 17;
 			if((track<0)||(track>255))
 				return 0;
+			if(cpm == CPMType.C64)
+				return 17;
+			if((cpm == CPMType.NORMAL)
+			&&((this == D80)||(this==D82)))
+				return 23;
 			return secMap[track];
 		}
 
@@ -318,9 +355,13 @@ public class CBMDiskImage extends D64Base
 			if(cpm == CPMType.C64)
 				return (short)1;
 			else
-			if((cpm == CPMType.NORMAL)
-			&&(this != ImageType.D81))
-				return (short)5;
+			if(cpm == CPMType.NORMAL)
+			{
+				if(this == ImageType.D80)
+					return 1;
+				if(this != ImageType.D81)
+					return (short)5;
+			}
 			return this.interleave;
 		}
 
