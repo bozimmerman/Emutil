@@ -115,24 +115,8 @@ public class CBMDiskImage extends D64Base
 				int firstDirTrack = 1;
 				final int numTracks = type.numTracks(length);
 				final Set<TrackSec> skipThese = new TreeSet<TrackSec>();
-				if((type == ImageType.D64)
-				&& diskName.equalsIgnoreCase("CP/M DISK")
-				&& diskId.startsWith("65")
-				&& diskId.endsWith("2A"))
-				{
-					this.cpmOs = CPMType.C64;
-					firstDirTrack = 3;
-					for(int t=1;t<numTracks;t++)
-					{
-						final int startSec = (t==18)?0:17;
-						final int numSecs = type.sectors(t, cpmOs);
-						for(int s=startSec;s<numSecs;s++)
-							skipThese.add(new TrackSec((short)t,(short)s));
-					}
-				}
-				else
 				if(((type == ImageType.D64)||(type == ImageType.D71))
-				&&diskName.equalsIgnoreCase("CP/M PLUS")
+				&& diskName.equalsIgnoreCase("CP/M PLUS")
 				&& diskId.startsWith("65")
 				&& diskId.endsWith("2A")
 				&& new String(diskBytes[1][0],0,3).equals("CBM"))
@@ -146,6 +130,23 @@ public class CBMDiskImage extends D64Base
 						skipThese.add(new TrackSec((short)36,(short)0));
 						skipThese.add(new TrackSec((short)36,(short)5));
 						skipThese.add(new TrackSec((short)53,(short)0));
+					}
+				}
+				else
+				if((type == ImageType.D64)
+				&& (diskName.equalsIgnoreCase("CP/M DISK")||diskName.equalsIgnoreCase("CP/M PLUS"))
+				&& diskId.startsWith("65")
+				&& diskId.endsWith("2A")
+				&& (!new String(diskBytes[1][0],0,3).equals("CBM")))
+				{
+					this.cpmOs = CPMType.C64;
+					firstDirTrack = 3;
+					for(int t=1;t<numTracks;t++)
+					{
+						final int startSec = (t==18)?0:17;
+						final int numSecs = type.sectors(t, cpmOs);
+						for(int s=startSec;s<numSecs;s++)
+							skipThese.add(new TrackSec((short)t,(short)s));
 					}
 				}
 				else

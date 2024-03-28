@@ -357,7 +357,7 @@ public class D64Mod extends D64Base
 		case EXTRACT:
 			if(args.length<4)
 			{
-				System.err.println("Missing target file");
+				System.err.println("Missing target file/dir");
 				System.exit(-1);
 			}
 			localFileStr = largs.get(3);
@@ -408,6 +408,12 @@ public class D64Mod extends D64Base
 			FileInfo file = disk.findFile(imageFileStr,false,parseFlags);
 			if(file == null)
 				file = disk.findFile(imageFileStr,true,parseFlags);
+			if((file == null)
+			&&(imageFileStr.equalsIgnoreCase("all"))
+			&&((action == Action.EXTRACT)||(action == Action.SCRATCH))
+			&&(files.size()>0))
+				file = files.get(0);
+
 			if((action == Action.LIST)
 			||(action == Action.DIR)
 			||(action == Action.LYNX))
@@ -442,21 +448,26 @@ public class D64Mod extends D64Base
 			if((file != null)
 			&&(action != Action.INSERT))
 			{
-				fileList.add(file);
-				if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
+				if(imageFileStr.equalsIgnoreCase("all"))
+					fileList.addAll(files);
+				else
 				{
-					final LinkedList<FileInfo> notdone=new LinkedList<FileInfo>();
-					notdone.add(file);
-					while(notdone.size()>0)
+					fileList.add(file);
+					if((file.fileType == FileType.DIR)||(file.fileType == FileType.CBM))
 					{
-						final FileInfo dir = notdone.removeFirst();
-						for(final FileInfo i : files)
+						final LinkedList<FileInfo> notdone=new LinkedList<FileInfo>();
+						notdone.add(file);
+						while(notdone.size()>0)
 						{
-							if(i.parentF == dir)
+							final FileInfo dir = notdone.removeFirst();
+							for(final FileInfo i : files)
 							{
-								if((i.fileType == FileType.DIR)||(i.fileType == FileType.CBM))
-									notdone.add(i);
-								fileList.add(i);
+								if(i.parentF == dir)
+								{
+									if((i.fileType == FileType.DIR)||(i.fileType == FileType.CBM))
+										notdone.add(i);
+									fileList.add(i);
+								}
 							}
 						}
 					}
@@ -489,7 +500,7 @@ public class D64Mod extends D64Base
 			}
 			case EXTRACT:
 			{
-				final String finalDirName = localFileStr.replaceAll("\\*", imageF.getName());
+				final String finalDirName = localFileStr.replaceAll("\\*", imageF.getName()); //TODO: this looks kinda dumb
 				final int x=localFileStr.lastIndexOf(File.separator);
 				File localFileF;
 				if(x>0)
