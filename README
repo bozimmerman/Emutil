@@ -7,15 +7,20 @@ formats most commonly used by Commodore 64 emulators.
 
 These formats include:
 
-  *.D64 - 170k image of a normal formatted 5.25" Commodore 1541 disk 
+-  *.D64 - 170k image of a normal formatted 5.25" Commodore 1541 disk 
         - 170k image of a C64 or C128 CP/M formatted 5.25" Commodore 1541 disk
-  *.D71 - 340k image of a normal formatted 5.25" Commodore 1571 disk 
+-  *.D71 - 340k image of a normal formatted 5.25" Commodore 1571 disk 
         - 340k image of a C128 CP/M formatted 5.25" Commodore 1571 disk
-  *.D81 - 800k image of a normal formatted 3.5" Commodore 1581 disk
+-  *.D81 - 800k image of a normal formatted 3.5" Commodore 1581 disk
         - 800k image of a C128 CP/M formatted 3.5" Commodore 1581 disk
-  *.D80 - 520k image of a normal formatted 5.25" Commodore 8050 disk
-  *.D82 - 1040k image of a normal formatted 5.25" Commodore 8250 or SFD-1001 disk
-  *.DNP - image of a normal formatted CMD (HD or RL) Native Partition, up to 16mb
+-  *.D80 - 520k image of a normal formatted 5.25" Commodore 8050 disk
+        - 512k image of a CPM-86 CP/M formatted 5.25" Commodore 1571 disk
+-  *.D82 - 1040k image of a normal formatted 5.25" Commodore 8250 or SFD-1001 disk
+        - 1024k image of a CPM-86 CP/M formatted 5.25" Commodore 1571 disk
+-  *.DNP - image of a normal formatted CMD (HD or RL) Native Partition, up to 16mb
+-  *.DHD - image of raw CMD FD/HD disk image with partition table
+-  *.LNX - file archiver image from the LYNX utility
+-  *.T64 - Digital tape image / file archive 
 
 The following utilities exist in this project:
 
