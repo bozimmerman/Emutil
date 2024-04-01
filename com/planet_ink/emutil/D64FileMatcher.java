@@ -191,9 +191,12 @@ public class D64FileMatcher extends D64Mod
 	public static List<FileInfo> getFileList(final File F, final boolean normalizeForCompare, final BitSet parseFlags)
 	{
 		List<FileInfo> fileData = null;
-		final CBMDiskImage disk = new CBMDiskImage(F);
-		if(disk.getType() != null)
+		final CBMDiskImage.ImageType type = CBMDiskImage.getImageTypeAndGZipped(F);
+		if(type != null)
+		{
+			final CBMDiskImage disk = new CBMDiskImage(F);
 			fileData=disk.getFiles(parseFlags);
+		}
 		else
 		if(getLooseImageTypeAndGZipped(F) != null)
 		{
@@ -329,7 +332,7 @@ public class D64FileMatcher extends D64Mod
 			System.out.println("  -C use memory cache of all comparison files");
 			System.out.println("  -D X Recursive depth X");
 			System.out.println("  -Q Suppress parsing errors");
-			System.out.println("  -E X exclude files matching mask 'X'");
+			System.out.println("  -En X exclude files matching mask 'X' in path 'n'");
 			System.out.println("  -N No sorting of source filenames");
 			System.out.println("");
 			return;
@@ -342,7 +345,8 @@ public class D64FileMatcher extends D64Mod
 		int deeper = -1;
 		double pct=100.0;
 		final BitSet parseFlags = new BitSet();
-		final List<Pattern> excludeMasks = new LinkedList<Pattern>();
+		final List<Pattern> excludeMasks1 = new LinkedList<Pattern>();
+		final List<Pattern> excludeMasks2 = new LinkedList<Pattern>();
 		for(int i=0;i<args.length;i++)
 		{
 			final int argLen = args[i].length();
@@ -377,8 +381,14 @@ public class D64FileMatcher extends D64Mod
 					case 'E':
 						if(i<args.length-1)
 						{
+							List<Pattern> which = excludeMasks2;
+							if(c<args[i].length()-1)
+							{
+								if(args[i].charAt(c+1)=='1')
+									which = excludeMasks1;
+							}
 							final Pattern P=Pattern.compile(args[i+1]);
-							excludeMasks.add(P);
+							which.add(P);
 							i++;
 							c=argLen;
 						}
@@ -430,8 +440,8 @@ public class D64FileMatcher extends D64Mod
 		List<File> F1s=new ArrayList<File>(1);
 		List<File> F2s=new ArrayList<File>(1);
 		try {
-			F1s = getAllFiles(path,depth,excludeMasks);
-			F2s = getAllFiles(expr,depth,excludeMasks);
+			F1s = getAllFiles(path,depth,excludeMasks1);
+			F2s = getAllFiles(expr,depth,excludeMasks2);
 		} catch (final IOException e) {
 			System.err.println(e.getMessage());
 			System.exit(-1);

@@ -89,10 +89,12 @@ OPTIONS:
   -R recursive search inside DNP
   -A X approx matching min X% (slower)
   -V verbose
-  -Q suppress parse errors
   -P X verbose on disks with X percent matches
   -C use memory cache of all comparison files
   -D X Recursive depth X
+  -Q Suppress parsing errors
+  -En X exclude files matching mask 'X' in path 'n'
+  -N No sorting of source filenames
 
 -----------------------------------------------------------------------------
 D64Mod

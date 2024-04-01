@@ -79,6 +79,9 @@ public class CBMDiskImage extends D64Base
 			this.cpmOs = CPMType.NOT;
 			diskBytes = this.getDisk(F, imageFLen);
 			length = imageFLen[0];
+			if((type == ImageType.LNX)
+			||(type == ImageType.T64))
+				return diskBytes;
 			if(length <= 0)
 				length = 174848;
 			// now, attempt to identify CP/M disks.
@@ -1435,8 +1438,6 @@ public class CBMDiskImage extends D64Base
 	public List<FileInfo> getFiles(final BitSet parseFlags)
 	{
 		final String imgName = F.getName();
-		final byte[][][] tsmap = this.getDiskBytes();
-		final int fileSize = getLength();
 		if(type == ImageType.T64)
 			return getTapeFiles(imgName,parseFlags);
 		else
@@ -1453,8 +1454,12 @@ public class CBMDiskImage extends D64Base
 			}
 		}
 		else
-		if(cpmOs != CPMType.NOT)
-			return getCPMFiles(parseFlags);
+		{
+			if(cpmOs != CPMType.NOT)
+				return getCPMFiles(parseFlags);
+		}
+		final byte[][][] tsmap = this.getDiskBytes();
+		final int fileSize = getLength();
 		int t=type.dirHead.track;
 		final int maxT=type.numTracks( fileSize);
 		int s=type.dirHead.sector;
@@ -1590,7 +1595,7 @@ public class CBMDiskImage extends D64Base
 	private List<FileInfo> getLNXDeepContents(final String imgName, final BitSet parseFlags) throws IOException
 	{
 		final List<FileInfo> list = new ArrayList<FileInfo>();
-		final byte[] data = getDiskBytes()[0][0];
+		final byte[] data = this.getFlatBytes();
 		final InputStream in = new ByteArrayInputStream(data);
 		final int[] bytesSoFar=new int[1];
 		int zeroes=0;
