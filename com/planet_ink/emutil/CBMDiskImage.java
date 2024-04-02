@@ -1675,6 +1675,7 @@ public class CBMDiskImage extends D64Base
 			file.rawFileName = fout.toByteArray();
 			file.fileType = FileType.fileType(typChar);
 			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue()-1;
+			file.feblocks = Integer.valueOf(numBlockSz).intValue();
 			list.add(file);
 		}
 		for(final FileInfo f : list)
