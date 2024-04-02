@@ -42,7 +42,8 @@ public class D64Search extends D64Mod
 		SHOWMD5,
 		UNZIP,
 		FULLPATH,
-		NOPARSEERRORS;
+		NOPARSEERRORS,
+		LOOSEFILES;
 	};
 
 	public enum FILE_FORMAT {
@@ -127,14 +128,19 @@ public class D64Search extends D64Mod
 	{
 		public String filePath = "";
 		public String fileName = "";
-		public CBMDiskImage diskData = null;
+		public byte[] diskData = null;
+		public List<FileInfo> diskFiles = new ArrayList<FileInfo>();
 	}
 
-	private static List<SearchFile> parseSearchFiles(final File F, final boolean unzip)
+	private static List<SearchFile> parseSearchFiles(final File F, final Set<SEARCH_FLAG> flags)
 	{
 		List<SearchFile> files = null;
+		final boolean unzip = flags.contains(SEARCH_FLAG.UNZIP);
+		final boolean doLoose = flags.contains(SEARCH_FLAG.LOOSEFILES);
 		final IOFile zF = new IOFile(F);
-		if((zF.isDirectory()||(F.getName().toUpperCase().endsWith(".GZ")))
+		if((zF.isDirectory()
+			||(F.getName().toUpperCase().endsWith(".GZ"))
+			||(F.getName().toUpperCase().endsWith(".ZIP")))
 		&&(!unzip))
 			return null;
 		Iterable<IOFile> vF;
@@ -151,21 +157,49 @@ public class D64Search extends D64Mod
 				if(zE.length()>83361792)
 					break;
 				final ImageType img = CBMDiskImage.getImageTypeAndGZipped(zE.getName());
-				if (img == null)
-					continue;
-				final String prefix = (zE == zF) ? "" : F.getName()+"@";
-				final SearchFile sF = new SearchFile();
-				final CBMDiskImage disk = new CBMDiskImage(zE);
-				disk.getLength(); // necessary to cache data before zipFile is closed
-				sF.diskData = disk;
-				sF.fileName = prefix+zE.getName();
-				if(zE == zF)
-					sF.filePath = F.getAbsolutePath();
+				if (img != null)
+				{
+					final String prefix = (zE == zF) ? "" : F.getName()+"@";
+					final SearchFile sF = new SearchFile();
+					final CBMDiskImage disk = new CBMDiskImage(zE);
+					disk.getLength(); // necessary to cache data before zipFile is closed
+					final BitSet parseFlags = new BitSet();
+					parseFlags.set(PF_RECURSE, flags.contains(SEARCH_FLAG.RECURSE));
+					parseFlags.set(PF_NOERRORS, flags.contains(SEARCH_FLAG.NOPARSEERRORS));
+					parseFlags.set(D64Base.PF_READINSIDE, true);
+					sF.diskFiles.addAll(disk.getFiles(parseFlags));
+					sF.diskData = disk.getFlatBytes();
+					sF.fileName = prefix+zE.getName();
+					if(zE == zF)
+						sF.filePath = F.getAbsolutePath();
+					else
+						sF.filePath = F.getAbsolutePath()+"@"+zE.getName();
+					if(files == null)
+						files = new ArrayList<SearchFile>();
+					files.add(sF);
+				}
 				else
-					sF.filePath = F.getAbsolutePath()+"@"+zE.getName();
-				if(files == null)
-					files = new ArrayList<SearchFile>();
-				files.add(sF);
+				if(doLoose)
+				{
+					final D64Base.LooseCBMFileType looseType = D64Base.getLooseImageTypeAndGZipped(zE);
+					if(looseType == null)
+						continue;
+					final String prefix = (zE == zF) ? "" : F.getName()+"@";
+					final SearchFile sF = new SearchFile();
+					final FileInfo lF = D64Base.getLooseFile(zE.F);
+					if(lF == null)
+						continue;
+					sF.diskData = lF.data;;
+					sF.diskFiles.add(lF);
+					sF.fileName = prefix+zE.getName();
+					if(zE == zF)
+						sF.filePath = F.getAbsolutePath();
+					else
+						sF.filePath = F.getAbsolutePath()+"@"+zE.getName();
+					if(files == null)
+						files = new ArrayList<SearchFile>();
+					files.add(sF);
+				}
 			}
 			zF.close();
 		}
@@ -188,7 +222,6 @@ public class D64Search extends D64Mod
 		for(final SearchFile F : files)
 		{
 			final String fileName = fullPath?F.filePath:F.fileName;
-			final CBMDiskImage disk = F.diskData;
 			if(dbInfo!=null)
 			{
 				try
@@ -196,7 +229,7 @@ public class D64Search extends D64Mod
 					dbInfo.stmt.clearParameters();
 					MD.reset();
 					//ByteArrayOutputStream bout = new ByteArrayOutputStream();
-					final byte[] flatBytes = disk.getFlatBytes();
+					final byte[] flatBytes = F.diskData;
 					MD.update(flatBytes);
 					final byte[] md5 = MD.digest();
 					dbInfo.stmt.setString(1, fileName);
@@ -213,10 +246,7 @@ public class D64Search extends D64Mod
 					System.err.println("Stupid preparedStatement error: "+e.getMessage());
 				}
 			}
-			final BitSet parseFlags = new BitSet();
-			parseFlags.set(PF_RECURSE, flags.contains(SEARCH_FLAG.RECURSE));
-			parseFlags.set(PF_NOERRORS, flags.contains(SEARCH_FLAG.NOPARSEERRORS));
-			final List<FileInfo> fileData=disk.getFiles(parseFlags);
+			final List<FileInfo> fileData=F.diskFiles;
 			if((fmt==FILE_FORMAT.PETSCII)||inside)
 			{
 				for(final FileInfo info : fileData)
@@ -362,8 +392,7 @@ public class D64Search extends D64Mod
 			{
 				try{MD=MessageDigest.getInstance("MD5");}catch(final Exception e){e.printStackTrace(System.err);}
 			}
-			final boolean unzip = flags.contains(SEARCH_FLAG.UNZIP);
-			final List<SearchFile> files = parseSearchFiles(F,unzip);
+			final List<SearchFile> files = parseSearchFiles(F,flags);
 			if(files != null)
 			{
 				if(searchDiskFiles(files,expr,flags,fmt,dbInfo,MD))
@@ -396,6 +425,7 @@ public class D64Search extends D64Mod
 			System.out.println("  -C case sensitive");
 			System.out.println("  -Z unzip archives");
 			System.out.println("  -F full absolute paths");
+			System.out.println("  -L include 'loose' files");
 			System.out.println("  -Q suppress parse errors");
 			System.out.println("  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)");
 			System.out.println("  -I search inside files (substring search)");
@@ -436,6 +466,10 @@ public class D64Search extends D64Mod
 					case 'c':
 					case 'C':
 						flags.add(SEARCH_FLAG.CASESENSITIVE);
+						break;
+					case 'l':
+					case 'L':
+						flags.add(SEARCH_FLAG.LOOSEFILES);
 						break;
 					case 'v':
 					case 'V':
