@@ -179,6 +179,12 @@ public class D64FileMatcher extends D64Mod
 				filesToDo.add(baseF);
 		}
 		else
+		if(CBMDiskImage.getLooseImageTypeAndGZipped(baseF)!=null)
+		{
+			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))
+				filesToDo.add(baseF);
+		}
+		else
 		if(baseF.getName().toUpperCase().endsWith(".ZIP"))
 		{
 			if((P==null)||(P.matcher(baseF.getName().subSequence(0, baseF.getName().length())).matches()))

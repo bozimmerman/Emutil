@@ -32,7 +32,7 @@ limitations under the License.
 */
 public class D64Base
 {
-	final static String EMUTIL_VERSION = "3.04";
+	final static String EMUTIL_VERSION = "3.05";
 	final static String EMUTIL_AUTHOR = "2024 Bo Zimmerman";
 
 	final static String spaces="                                                        "
