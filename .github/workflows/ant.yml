@@ -37,7 +37,7 @@ jobs:
         solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
         console_version: '6.1.2.84'
-        scripts_version: '3.7.31'
+        scripts_version: '3.9.3'
         action_type: update
         object_type: product
         description: 'Happy new Emutil Description'
