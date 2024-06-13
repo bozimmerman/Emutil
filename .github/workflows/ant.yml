@@ -38,10 +38,10 @@ jobs:
         solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
         console_version: '7.2.49'
         scripts_version: '3.9.6'
-        action_type: update
-        object_type: repository
+        action_type: delete
+        object_type: environment
         description: 'Happy new Emutil Description'
         target_product: 'Emutil'
-        target_environment: 'Java'
+        target_environment: 'EnvTestDelMe1'
         target_repository: 'Bin'
         optional: false
