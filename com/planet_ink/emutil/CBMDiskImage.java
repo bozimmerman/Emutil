@@ -854,7 +854,7 @@ public class CBMDiskImage extends D64Base
 						switch(sector[i] & 0x0f)
 						{
 						case (byte) 0:
-							if(readInside)
+							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
@@ -865,7 +865,7 @@ public class CBMDiskImage extends D64Base
 								f.size=fileData.length;
 							break;
 						case (byte) 1:
-							if(readInside)
+							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
@@ -874,7 +874,7 @@ public class CBMDiskImage extends D64Base
 							f.fileType = FileType.SEQ;
 							break;
 						case (byte) 2:
-							if(readInside)
+							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
@@ -976,7 +976,7 @@ public class CBMDiskImage extends D64Base
 								}
 							}
 							else
-							if(readInside)
+							if(readInside && fileT != 0)
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 							break;
 						case (byte) 4:
@@ -1046,7 +1046,7 @@ public class CBMDiskImage extends D64Base
 							break;
 						default:
 							f.fileType = FileType.PRG;
-							if(readInside)
+							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
@@ -1206,7 +1206,7 @@ public class CBMDiskImage extends D64Base
 
 		// first must do a pre-scan, because some T64s are Wrong.
 		final TreeSet<Integer> fileStarts = new TreeSet<Integer>();
-		for(int start = 64; start<64+(32*numEntries); start+=32)
+		for(int start = 64; start < (64+(32*numEntries)) && (start < data.length); start+=32)
 		{
 			if(data[start]!=1)
 				continue;
@@ -1214,7 +1214,7 @@ public class CBMDiskImage extends D64Base
 			fileStarts.add(Integer.valueOf(startAddress));
 		}
 
-		for(int start = 64; start<64+(32*numEntries); start+=32)
+		for(int start = 64; start < (64+(32*numEntries)) && (start < data.length); start+=32)
 		{
 			if(data[start]!=1)
 				continue;
