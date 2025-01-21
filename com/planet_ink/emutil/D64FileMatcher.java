@@ -75,7 +75,8 @@ public class D64FileMatcher extends D64Mod
 				}
 				catch(final IOException e)
 				{
-					System.err.println(ioF.getName()+": "+e.getMessage());
+					if(!parseFlags.get(PF_NOERRORS))
+						System.err.println(ioF.getName()+": "+e.getMessage());
 					continue;
 				}
 				list.addAll(fileData1);
@@ -286,7 +287,7 @@ public class D64FileMatcher extends D64Mod
 			return true;
 		if(isCvt(f1)
 		&& isCvt(f2)
-		&&(Math.abs(f1.data.length - f2.data.length) < 257)
+		&&(Math.abs(f1.data.length - f2.data.length) < 257) // almost same size
 		&&(equalRange(f1.data,f2.data,254,254)))
 		{
 			final byte[] oldData1 = f1.data;
@@ -670,7 +671,6 @@ public class D64FileMatcher extends D64Mod
 				if(flags.contains(D64FileMatcher.CompFlag.VERBOSE)
 					||((highestPercent > pct)&&((pct < 100.0))))
 				{
-
 					for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 					{
 						final File diskF=f.next();
@@ -713,8 +713,10 @@ public class D64FileMatcher extends D64Mod
 			{
 				subStr.append(numMatchedAnywhere+"/"+numFiles+" files matched somewhere.\n");
 				for(final File f : reverseMatches.keySet())
+				{
 					if(reverseMatches.get(f)[0] >= numFiles)
 						subStr.append(reverseMatches.get(f)[0]+"/"+numFiles+" matched in "+f.getAbsolutePath()+"\n");
+				}
 			}
 			if(subStr.length()==0)
 				str.append("No Matches!\n");
