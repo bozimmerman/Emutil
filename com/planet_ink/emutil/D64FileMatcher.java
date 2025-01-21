@@ -671,6 +671,7 @@ public class D64FileMatcher extends D64Mod
 				if(flags.contains(D64FileMatcher.CompFlag.VERBOSE)
 					||((highestPercent > pct)&&((pct < 100.0))))
 				{
+					Set<String> prev = new TreeSet<String>();
 					for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 					{
 						final File diskF=f.next();
@@ -702,7 +703,12 @@ public class D64FileMatcher extends D64Mod
 								matchStr=(""+r.approx+"%     ").substring(0,5);
 							else
 								matchStr="DIFF";
-							subStr.append("    "+matchStr+":").append(fs1).append(spaces.substring(0,len-fs1.length())).append(fs2).append("  ("+r.diskF.getName()+")").append("\n");
+							final String lin = "    "+matchStr+":"+fs1+spaces.substring(0,len-fs1.length())+fs2+"  ("+r.diskF.getName()+")";
+							if(!prev.contains(lin))
+							{
+								prev.add(lin);
+								subStr.append(lin).append("\n");
+							}
 						}
 					}
 				}
