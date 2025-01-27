@@ -552,6 +552,7 @@ public class D64Search extends D64Mod
 							pfilter.add(PLATFORM.C65);
 							break;
 						}
+						c++;
 						break;
 					}
 					case 'x':
