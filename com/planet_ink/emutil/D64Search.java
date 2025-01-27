@@ -52,6 +52,21 @@ public class D64Search extends D64Mod
 		HEX;
 	};
 
+	public enum PLATFORM {
+		PET((byte)0x01, (byte)0x04),
+		VIC((byte)0x01, (byte)0x12),
+		C64((byte)0x01, (byte)0x08),
+		CBM2((byte)0x03, (byte)0x00),
+		C128((byte)0x01, (byte)0x1c),
+		C65((byte)0x01, (byte)0x20),
+		;
+		public byte[] bytes;
+		private PLATFORM(final byte b1, final byte b2)
+		{
+			bytes = new byte[] {b1, b2};
+		}
+	}
+
 	private static boolean check(final String name, final char[] expr, final boolean caseSensitive)
 	{
 		int n=0;
@@ -82,6 +97,18 @@ public class D64Search extends D64Mod
 				break;
 			}
 		return name.length()-n==expr.length-ee;
+	}
+
+	private static boolean checkFilterOut(final byte[] buf, final Set<PLATFORM> pfilter)
+	{
+		if((pfilter==null)||(pfilter.size()==0))
+			return true;
+		if((buf==null)||(buf.length<3))
+			return false;
+		for(final PLATFORM P : pfilter)
+			if((P.bytes[0]==buf[0])&&(P.bytes[1]==buf[1]))
+				return true;
+		return false;
 	}
 
 	private static boolean checkInside(byte[] buf, final char[] expr, final Set<SEARCH_FLAG> flags, final FILE_FORMAT fmt, final boolean caseSensitive)
@@ -213,7 +240,7 @@ public class D64Search extends D64Mod
 
 	private static boolean searchDiskFiles(final List<SearchFile> files, final char[] expr,
 			final Set<SEARCH_FLAG> flags, final FILE_FORMAT  fmt, final DatabaseInfo dbInfo,
-			final MessageDigest MD)
+			final Set<PLATFORM> pfilter, final MessageDigest MD)
 	{
 		final boolean caseSensitive=flags.contains(SEARCH_FLAG.CASESENSITIVE);
 		final boolean inside=flags.contains(SEARCH_FLAG.INSIDE);
@@ -304,8 +331,9 @@ public class D64Search extends D64Mod
 				final FileInfo f = fileData.get(n);
 				if(f.data==null)
 					continue;
-				if((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
-				||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
+				if(((inside&&(checkInside(f.data,expr,flags,fmt,caseSensitive)))
+					||check(caseSensitive?f.fileName:f.fileName.toUpperCase(),expr,caseSensitive))
+				&&(D64Search.checkFilterOut(f.data, pfilter)))
 				{
 					if(!announced)
 					{
@@ -372,7 +400,7 @@ public class D64Search extends D64Mod
 	}
 
 	private static void searchFilesystem(final File F, final char[] expr, final Set<SEARCH_FLAG> flags,
-			final FILE_FORMAT  fmt, final DatabaseInfo dbInfo, final TreeSet<File> pathsDone)
+			final FILE_FORMAT  fmt, final DatabaseInfo dbInfo, final Set<PLATFORM> pfil, final Set<File> pathsDone)
 	{
 		if(F.isDirectory())
 		{
@@ -382,7 +410,7 @@ public class D64Search extends D64Mod
 				pathsDone.add(F);
 				final File[] files=F.listFiles();
 				for(int f=0;f<files.length;f++)
-					searchFilesystem(files[f],expr,flags,fmt, dbInfo,pathsDone);
+					searchFilesystem(files[f],expr,flags,fmt, dbInfo,pfil,pathsDone);
 			}
 		}
 		else
@@ -395,7 +423,7 @@ public class D64Search extends D64Mod
 			final List<SearchFile> files = parseSearchFiles(F,flags);
 			if(files != null)
 			{
-				if(searchDiskFiles(files,expr,flags,fmt,dbInfo,MD))
+				if(searchDiskFiles(files,expr,flags,fmt,dbInfo,pfil,MD))
 				{
 					try
 					{
@@ -425,6 +453,8 @@ public class D64Search extends D64Mod
 			System.out.println("  -C case sensitive");
 			System.out.println("  -Z unzip archives");
 			System.out.println("  -F full absolute paths");
+			System.out.println("  -P platform filter (-Pp, -Pv, -P6, etc)");
+			System.out.println("     (p)et, (v)ic, c(6)4, c12(8), cbm(2), c6(5)");
 			System.out.println("  -L include 'loose' files");
 			System.out.println("  -Q suppress parse errors");
 			System.out.println("  -X expr fmt (-Xp=petscii, Xa=ascii, Xh=hex)");
@@ -447,6 +477,7 @@ public class D64Search extends D64Mod
 		String path=null;
 		String expr="";
 		DatabaseInfo dbInfo = null;
+		final Set<PLATFORM> pfilter = new HashSet<PLATFORM>();
 		for(int i=0;i<args.length;i++)
 		{
 			if((args[i].startsWith("-")&&(path==null)))
@@ -491,6 +522,38 @@ public class D64Search extends D64Mod
 					case 'F':
 						flags.add(SEARCH_FLAG.FULLPATH);
 						break;
+					case 'p':
+					case 'P':
+					{
+						final int x=(c<args[i].length()-1)?"PV6825".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
+						if(x<0)
+						{
+							System.err.println("Error: -x  must be followed by p, v, 6, 8, 2, or 5");
+							return;
+						}
+						switch(Character.toUpperCase(args[i].charAt(c+1)))
+						{
+						case 'P':
+							pfilter.add(PLATFORM.PET);
+							break;
+						case 'V':
+							pfilter.add(PLATFORM.VIC);
+							break;
+						case '6':
+							pfilter.add(PLATFORM.C64);
+							break;
+						case '8':
+							pfilter.add(PLATFORM.C128);
+							break;
+						case '2':
+							pfilter.add(PLATFORM.CBM2);
+							break;
+						case '5':
+							pfilter.add(PLATFORM.C65);
+							break;
+						}
+						break;
+					}
 					case 'x':
 					case 'X':
 					{
@@ -601,9 +664,9 @@ public class D64Search extends D64Mod
 		{
 			final File[] files=F.listFiles();
 			for(int f=0;f<files.length;f++)
-				searchFilesystem(files[f],exprCom,flags,fmt,dbInfo, pathsDone);
+				searchFilesystem(files[f],exprCom,flags,fmt,dbInfo,pfilter,pathsDone);
 		}
 		else
-			searchFilesystem(F,exprCom,flags,fmt, dbInfo, pathsDone);
+			searchFilesystem(F,exprCom,flags,fmt, dbInfo,pfilter,pathsDone);
 	}
 }
