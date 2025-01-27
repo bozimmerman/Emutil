@@ -528,7 +528,7 @@ public class D64Search extends D64Mod
 						final int x=(c<args[i].length()-1)?"PV6825".indexOf(Character.toUpperCase(args[i].charAt(c+1))):-1;
 						if(x<0)
 						{
-							System.err.println("Error: -x  must be followed by p, v, 6, 8, 2, or 5");
+							System.err.println("Error: -P  must be followed by p, v, 6, 8, 2, or 5");
 							return;
 						}
 						switch(Character.toUpperCase(args[i].charAt(c+1)))
