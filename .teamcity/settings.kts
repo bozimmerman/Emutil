@@ -1,6 +1,6 @@
 import jetbrains.buildServer.configs.kotlin.*
 import jetbrains.buildServer.configs.kotlin.buildFeatures.perfmon
-import jetbrains.buildServer.configs.kotlin.buildSteps.ant
+import jetbrains.buildServer.configs.kotlin.buildSteps.*
 import jetbrains.buildServer.configs.kotlin.triggers.vcs
 import jetbrains.buildServer.configs.kotlin.v2019_2.*
 
@@ -45,10 +45,11 @@ object Build : BuildType({
         root(DslContext.settingsRoot)
     }
 
-        params {
-            param("env.MY_SECRET_ID", "%env.MY_SECRET_ID%")
-            param("env.MY_SECRET_TOKEN", "%env.MY_SECRET_TOKEN%")
-        }
+    params {
+        param("env.MY_SECRET_ID", "%env.MY_SECRET_ID%")
+        param("env.MY_SECRET_TOKEN", "%env.MY_SECRET_TOKEN%")
+    }
+    steps {
         ant {
             id = "Ant"
             mode = antFile {
@@ -84,6 +85,7 @@ object Build : BuildType({
 				param("argument.hidden_files_json", makeSolstaArgument(hidden))
 			}
 		}    
+    }
 
     triggers {
         vcs {
