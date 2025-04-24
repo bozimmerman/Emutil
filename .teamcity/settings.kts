@@ -32,6 +32,7 @@ project {
     buildType(Build)
 
     params {
+        param("env.MY_SECRET_ID", "C6n0yoOrg7xpgLiL0miLi6O5N4OGpM0k")
         param("env.MY_SECRET_TOKEN", "EXZtuna-aZvfr3s7Xna3XP7yHW6nJuvVQtGwPU8K63uwbPUn8Sd_xaUu7419x7r-")
     }
 }
