@@ -65,24 +65,24 @@ object Build : BuildType({
 			param("argument.cons_env", "Java")
 			param("argument.cons_repo", "Bin")
 			param("argument.auto_create", "false")
-			param("teamcity.build.version", buildVersion)
-			param("teamcity.build.workingDir", buildDir)
+			param("teamcity.build.version", "1.1")
+			param("teamcity.build.workingDir", ".")
 
 			val includes = listOf("*")
 			val exes = listOf("*.exe")
 			val excludes = emptyList<String>()
 			val hidden = emptyList<String>()
 			if (includes.isNotEmpty()) {
-				param("argument.included_files_json", makeSolstaArgument(includes))
+				param("argument.included_files_json", "")
 			}
 			if (excludes.isNotEmpty()) {
-				param("argument.excluded_files_json", makeSolstaArgument(excludes))
+				param("argument.excluded_files_json", "")
 			}
 			if (exes.isNotEmpty()) {
-				param("argument.executable_files_json", makeSolstaArgument(exes))
+				param("argument.executable_files_json", "")
 			}
 			if (hidden.isNotEmpty()) {
-				param("argument.hidden_files_json", makeSolstaArgument(hidden))
+				param("argument.hidden_files_json", "")
 			}
 		}    
     }
