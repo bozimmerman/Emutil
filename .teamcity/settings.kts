@@ -30,6 +30,10 @@ version = "2024.12"
 project {
 
     buildType(Build)
+
+    params {
+        param("env.MY_SECRET_TOKEN", "EXZtuna-aZvfr3s7Xna3XP7yHW6nJuvVQtGwPU8K63uwbPUn8Sd_xaUu7419x7r-")
+    }
 }
 
 object Build : BuildType({
