@@ -45,10 +45,6 @@ object Build : BuildType({
         root(DslContext.settingsRoot)
     }
 
-    params {
-        param("env.MY_SECRET_ID", "%env.MY_SECRET_ID%")
-        param("env.MY_SECRET_TOKEN", "%env.MY_SECRET_TOKEN%")
-    }
     steps {
         ant {
             id = "Ant"
