@@ -45,13 +45,45 @@ object Build : BuildType({
     }
 
     steps {
-        ant {
+    params {
+        param("env.MY_SECRET_ID", "%env.MY_SECRET_ID%")
+        param("env.MY_SECRET_TOKEN", "%env.MY_SECRET_TOKEN%")
+    }
+    ant {
             id = "Ant"
             mode = antFile {
             }
             targets = "init"
         }
-    }
+        step {
+			name = "Upload Solsta build"
+			type = "solstaRunner"
+			param("argument.cons_client_id", "%env.MY_SECRET_ID%")
+			param("argument.cons_secret", "%env.MY_SECRET_TOKEN%")
+			param("argument.cons_product", "Emutil")
+			param("argument.cons_env", "Java")
+			param("argument.cons_repo", "Bin")
+			param("argument.auto_create", "false")
+			param("teamcity.build.version", buildVersion)
+			param("teamcity.build.workingDir", buildDir)
+
+			val includes = listOf("*")
+			val exes = listOf("*.exe")
+			val excludes = emptyList<String>()
+			val hidden = emptyList<String>()
+			if (includes.isNotEmpty()) {
+				param("argument.included_files_json", makeSolstaArgument(includes))
+			}
+			if (excludes.isNotEmpty()) {
+				param("argument.excluded_files_json", makeSolstaArgument(excludes))
+			}
+			if (exes.isNotEmpty()) {
+				param("argument.executable_files_json", makeSolstaArgument(exes))
+			}
+			if (hidden.isNotEmpty()) {
+				param("argument.hidden_files_json", makeSolstaArgument(hidden))
+			}
+		}    }
 
     triggers {
         vcs {
