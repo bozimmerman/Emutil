@@ -2,6 +2,7 @@ import jetbrains.buildServer.configs.kotlin.*
 import jetbrains.buildServer.configs.kotlin.buildFeatures.perfmon
 import jetbrains.buildServer.configs.kotlin.buildSteps.ant
 import jetbrains.buildServer.configs.kotlin.triggers.vcs
+import jetbrains.buildServer.configs.kotlin.v2019_2.*
 
 /*
 The settings script is an entry point for defining a TeamCity
