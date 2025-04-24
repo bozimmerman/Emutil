@@ -45,15 +45,14 @@ object Build : BuildType({
         root(DslContext.settingsRoot)
     }
 
-    script {
-        name = "Check Environment Variables"
-        scriptContent = """
-            echo "MY_SECRET_ID: %env.MY_SECRET_ID%"
-            echo "MY_SECRET_TOKEN: %env.MY_SECRET_TOKEN%"
-        """.trimIndent()
-    }
-
     steps {
+        script {
+            name = "Check Environment Variables"
+            scriptContent = """
+                echo "MY_SECRET_ID: %env.MY_SECRET_ID%"
+                echo "MY_SECRET_TOKEN: %env.MY_SECRET_TOKEN%"
+            """.trimIndent()
+        }
         ant {
             id = "Ant"
             mode = antFile {
