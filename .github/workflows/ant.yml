@@ -1,0 +1,51 @@
+# This workflow will build a Java project with Ant
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-ant
+# Without a Run Workflow button, this is my only option, for 74 times now.
+
+name: Build EMUTIL
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  page_build:
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+    - name: Build with Ant
+      run: ant clean compile
+    - name: check env vars
+      shell: bash
+      run: | 
+        echo 1-$PATH
+        echo 2-$PYTHONPATH
+        echo 3-$PYTHONHOME      
+    - name: Deploy elsewhere
+      uses: snxd/deploy-github-deploy-action@v5
+      with:
+        solsta_client_id:  ${{ secrets.SNXD_CLIENT_ID }}
+        solsta_client_secret:  ${{ secrets.SNXD_CLIENT_SECRET }}
+        working_directory: 'bin/'
+        console_version: '7.2.49'
+        scripts_version: '3.11.0'
+        release_version: '1.0'
+        notes_location: 'https://release.notes.com/notes1.0.html'
+        target_product: 'Emutil'
+        target_environment: 'Java'
+        target_repository: 'Bin'
+        hidden_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
+        sync_attributes: 'False'
+        executable_files: '( "bin/D64Search.jar" "bin/D64Mod.jar" )'
+        included_files: 'bin/*.jar'
+        excluded_files: 'bin/*.txt'
