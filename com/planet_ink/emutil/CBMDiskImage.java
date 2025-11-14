@@ -1357,7 +1357,15 @@ public class CBMDiskImage extends D64Base
 		else
 		if(type == ImageType.LBR)
 		{
-			return new ArrayList<FileInfo>();//TODO:
+			try
+			{
+				return Library.getLNXDeepContents(getFlatBytes());
+			}
+			catch(final IOException e)
+			{
+				errMsg(e.getMessage());
+				return new ArrayList<FileInfo>();
+			}
 		}
 		else
 		if((type == ImageType.ARC)||(type == ImageType.SDA))

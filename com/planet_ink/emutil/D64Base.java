@@ -32,7 +32,7 @@ limitations under the License.
 */
 public class D64Base
 {
-	final static String EMUTIL_VERSION = "3.1.1";
+	final static String EMUTIL_VERSION = "3.2";
 	final static String EMUTIL_AUTHOR = "2025 Bo Zimmerman";
 
 	final static String spaces="                                                        "
@@ -148,6 +148,11 @@ public class D64Base
 		ARC {
 			public String toString() {
 				return ".ARC";
+			}
+		},
+		LBR {
+			public String toString() {
+				return ".LBR";
 			}
 		}
 	}
@@ -313,6 +318,10 @@ public class D64Base
 		case CVT:
 			file.fileName = fileName;
 			file.fileType = FileType.USR;
+			break;
+		case LBR:
+			file.fileName = fileName;
+			file.fileType = FileType.SEQ;
 			break;
 		case SDA:
 		case SFX:
