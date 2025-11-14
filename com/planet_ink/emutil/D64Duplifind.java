@@ -110,7 +110,7 @@ public class D64Duplifind
 		|| name.endsWith(".iso") || name.endsWith(".adf")
 		|| name.endsWith(".dms") || name.endsWith(".lha")
 		|| name.endsWith(".sid") || name.endsWith(".prg")
-		|| name.endsWith(".ipf")
+		|| name.endsWith(".ipf") || name.endsWith(".sda")
 		)
 			return true;
 		return false;

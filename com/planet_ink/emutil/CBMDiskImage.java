@@ -68,6 +68,7 @@ public class CBMDiskImage extends D64Base
 			if((type == ImageType.LNX)
 			||(type == ImageType.LBR)
 			||(type == ImageType.ARC)
+			||(type == ImageType.SDA)
 			||(type == ImageType.T64))
 				return diskBytes;
 			if(length <= 0)
@@ -218,6 +219,7 @@ public class CBMDiskImage extends D64Base
 		if((type == ImageType.T64)
 		||(type == ImageType.LBR)
 		||(type == ImageType.ARC)
+		||(type == ImageType.SDA)
 		||(type == ImageType.LNX))
 			return bytes[0][0];
 		final ByteArrayOutputStream bout=new ByteArrayOutputStream();
@@ -286,7 +288,8 @@ public class CBMDiskImage extends D64Base
 		T64(".T64", null, null, -1, -1, -1, new int[] {256, -1}),
 		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1}),
 		LBR(".LBR", null, null, -1, -1, -1, new int[] {256, -1}),
-		ARC(".ARC", null, null, -1, -1, -1, new int[] {256, -1})
+		ARC(".ARC", null, null, -1, -1, -1, new int[] {256, -1}),
+		SDA(".SDA", null, null, -1, -1, -1, new int[] {256, -1})
 		;
 
 		public final BAMInfo	bamHead;
@@ -624,6 +627,7 @@ public class CBMDiskImage extends D64Base
 		if((type == ImageType.T64)
 		||(type == ImageType.LBR)
 		||(type == ImageType.ARC)
+		||(type == ImageType.SDA)
 		||(type == ImageType.LNX))
 			return fileSize;
 		final int ts=type.numTracks(fileSize);
@@ -721,6 +725,7 @@ public class CBMDiskImage extends D64Base
 			if((type == ImageType.T64)
 			||(type == ImageType.LBR)
 			||(type == ImageType.ARC)
+			||(type == ImageType.SDA)
 			||(type == ImageType.LNX))
 			{
 				final byte[][][] image = new byte[1][1][];
@@ -1355,7 +1360,7 @@ public class CBMDiskImage extends D64Base
 			return new ArrayList<FileInfo>();//TODO:
 		}
 		else
-		if(type == ImageType.ARC)
+		if((type == ImageType.ARC)||(type == ImageType.SDA))
 		{
 			try
 			{
@@ -1587,6 +1592,7 @@ public class CBMDiskImage extends D64Base
 		if((type == ImageType.LNX)
 		||(type == ImageType.LBR)
 		||(type == ImageType.ARC)
+		||(type == ImageType.SDA)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			throw new IOException("Illegal image type.");
@@ -1821,6 +1827,8 @@ public class CBMDiskImage extends D64Base
 			return false; //TODO:
 		if(type == ImageType.ARC)
 			return false; //TODO:
+		if(type == ImageType.SDA)
+			return false; //TODO:
 		if(cpmOs != CPMType.NOT)
 			return scratchCPMFile(file);
 
@@ -1897,6 +1905,7 @@ public class CBMDiskImage extends D64Base
 		if((type == ImageType.LNX)
 		||(type == ImageType.LBR)
 		||(type == ImageType.ARC)
+		||(type == ImageType.SDA)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			return null;
@@ -1984,6 +1993,7 @@ public class CBMDiskImage extends D64Base
 		if((type == ImageType.LNX)
 		||(type == ImageType.LBR)
 		||(type == ImageType.ARC)
+		||(type == ImageType.SDA)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			return false;
@@ -2263,6 +2273,8 @@ public class CBMDiskImage extends D64Base
 		if(getType() == ImageType.LBR)
 			return false; //TODO:
 		if(getType() == ImageType.ARC)
+			return false; //TODO:
+		if(getType() == ImageType.SDA)
 			return false; //TODO:
 		if(getType() == ImageType.T64) // tape crap is done above
 			return insertT64File(targetFileName, fileData, cbmtype);
