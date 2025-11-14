@@ -33,17 +33,18 @@ public class Arc
 
 	static class Decompressor
 	{
+		private int				byteCount	= 0;
 		private final byte[]	data;
 		private int				pos;
 		private int				status;
 		private int				bitBuf;
-	    private long crc;
-	    private int crc2;
+		private long			crc		= 0;
+		private int				crc2	= 0;
 		private final long[]	hc		= new long[256];
 		private final byte[]	hl		= new byte[256];
 		private final byte[]	hv		= new byte[256];
 		private int				hcount;
-		private int				ctrl;
+		private int				ctrl	= 254;
 		private final Entry		entry	= new Entry();
 		private final Lz[]		lztab	= new Lz[4096];
 		private final byte[]	stack	= new byte[512];
@@ -54,6 +55,11 @@ public class Arc
 		private int				wtcl;
 		private int				wttcl;
 		private int				entryStart;
+		private int				lzOldcode	= 0;
+		private int				lzIncode	= 0;
+		private byte			lzKay		= 0;
+		private byte			lzFinchar	= 0;
+		private int				lzNcodes	= 0;
 
 		Decompressor(final byte[] data)
 		{
@@ -163,13 +169,112 @@ public class Arc
 			return 0;
 		}
 
+		private byte unc() throws IOException
+		{
+			while (true)
+			{
+				switch (state)
+				{
+				case 0:
+					lzstack = 0;
+					lzNcodes = 258;
+					wtcl = 256;
+					wttcl = 254;
+					cdlen = 9;
+					lzOldcode = getCode();
+					if (lzOldcode == 256)
+					{
+						status = -1;
+						return 0;
+					}
+					lzKay = (byte) lzOldcode;
+					lzFinchar = lzKay;
+					state = 1;
+					return lzKay;
+
+				case 1:
+					lzIncode = getCode();
+					if (lzIncode == 256)
+					{
+						state = 0;
+						status = -1;
+						return 0;
+					}
+
+					// Handle the KwKwK case in LZW
+					boolean kwkwk = false;
+					if (lzIncode >= lzNcodes)
+					{
+						kwkwk = true;
+						code = lzOldcode;
+						// Will push finchar after decompressing oldcode
+					}
+					else
+					{
+						code = lzIncode;
+					}
+
+					// Decompress the code
+					while (code > 255)
+					{
+						push(lztab[code].ext);
+						code = lztab[code].prefix;
+					}
+
+					// code is now a byte value (0-255)
+					lzKay = (byte) code;
+
+					// In KwKwK case, push the character that starts the string
+					if (kwkwk)
+					{
+						push(lzKay);
+					}
+
+					lzFinchar = lzKay;
+					state = 2;
+					return lzKay;
+
+				case 2:
+					if (lzstack == 0)
+					{
+						// Add new entry to LZW table
+						if (lzNcodes < lztab.length)
+						{
+							lztab[lzNcodes].prefix = lzOldcode;
+							lztab[lzNcodes].ext = lzFinchar;
+							lzNcodes++;
+							if (lzNcodes % 256 == 0) {
+							    System.out.println("LZW table size=" + lzNcodes + ", last incode=" + lzIncode + ", prefix=" + lzOldcode + ", ext=" + (lzFinchar & 0xFF));
+							}
+						}
+						lzOldcode = lzIncode;
+						state = 1;
+						continue;
+					}
+					else
+						return pop();
+				default:
+					status = -1;
+					return 0;
+				}
+			}
+		}
+
+		// CRITICAL FIX: The getHeader() method structure should be:
 		private boolean getHeader() throws IOException
 		{
-			bitBuf = 2;
+			bitBuf = 2;  // Initialize bitBuf first
 			crc = 0;
 			crc2 = 0;
 			state = 0;
 			ctrl = 254;
+
+			// Reset LZ state variables
+			lzOldcode = 0;
+			lzIncode = 0;
+			lzKay = 0;
+			lzFinchar = 0;
+			lzNcodes = 0;
 
 			entry.version = getByte();
 			entry.mode = getByte();
@@ -184,6 +289,13 @@ public class Arc
 
 			for (int w = 0; w < entry.fnlen; w++)
 				entry.name[w] = getByte();
+
+			// Read ctrl byte for RLE modes BEFORE setting up bit reading
+			if (entry.mode == 1 || entry.mode == 4 || entry.mode == 5)
+			{
+			    ctrl = getByte() & 0xFF;
+			    System.out.println("Read ctrl=" + ctrl + " at pos=" + (pos-1));
+			}
 
 			if (entry.version > 1)
 			{
@@ -203,9 +315,7 @@ public class Arc
 			if (entry.mode > 5)
 				return false;
 
-			if (entry.mode == 1)
-				ctrl = getByte() & 0xFF;
-
+			// For Huffman modes, set up the Huffman tables (uses bit reading)
 			if (entry.mode == 2 || entry.mode == 4)
 			{
 				hcount = 255;
@@ -240,6 +350,11 @@ public class Arc
 				}
 				ssort();
 			}
+
+			// CRITICAL: Reset bitBuf AFTER reading ctrl for LZW modes
+			// Use standard initialization
+			if (entry.mode == 3 || entry.mode == 5)
+				bitBuf = 2;  // Standard LSB-first marker
 
 			final String legalTypes = "SPUR";
 			return legalTypes.indexOf((char) (entry.type & 0xFF)) != -1
@@ -282,6 +397,7 @@ public class Arc
 
 		private int getCode() throws IOException
 		{
+			//System.out.println("getCode: cdlen=" + cdlen + ", pos=" + pos + ", bitBuf=" + Integer.toHexString(bitBuf));
 			code = 0;
 			int i = cdlen;
 			while (i-- > 0)
@@ -318,83 +434,10 @@ public class Arc
 					wttcl = wtcl;
 				}
 			}
-
+			System.out.println("getCode result: " + code);
 			return code;
 		}
 
-		private byte unc() throws IOException
-		{
-			int oldcode = 0, incode = 0;
-			byte kay = 0;
-			byte finchar = 0;
-			int omega = 0;
-			int ncodes = 0;
-
-			switch (state)
-			{
-			case 0:
-				lzstack = 0;
-				ncodes = 258;
-				wtcl = 256;
-				wttcl = 254;
-				cdlen = 9;
-				oldcode = getCode();
-				if (oldcode == 256)
-				{
-					status = -1;
-					return 0;
-				}
-				kay = (byte) oldcode;
-				finchar = kay;
-				state = 1;
-				return kay;
-
-			case 1:
-				incode = getCode();
-				if (incode == 256)
-				{
-					state = 0;
-					status = -1;
-					return 0;
-				}
-				omega = oldcode;
-				if (incode >= ncodes)
-				{
-					kay = finchar;
-					push(kay);
-					code = oldcode;
-					omega = oldcode;
-					incode = ncodes;
-				}
-				while (code > 255)
-				{
-					push(lztab[code].ext);
-					code = lztab[code].prefix;
-				}
-				finchar = kay = (byte) code;
-				state = 2;
-				return kay;
-
-			case 2:
-				if (lzstack == 0)
-				{
-					if (ncodes < lztab.length)
-					{
-						lztab[ncodes].prefix = omega;
-						lztab[ncodes].ext = kay;
-						ncodes++;
-					}
-					oldcode = incode;
-					state = 1;
-					return unc(); // Recursive call
-				}
-				else
-					return pop();
-			default:
-				status = -1;
-				return 0;
-			}
-		}
 
 		private void push(final byte c)
 		{
@@ -424,11 +467,11 @@ public class Arc
 				add = val;
 			else
 			{
-				++crc2;
-				final int xor = crc2 & 0xFF;
+				crc2 = (crc2 + 1) & 0xFF;
+				final int xor = crc2;
 				add = val ^ xor;
 			}
-			crc += add;
+			crc = (crc + add) & 0xFFFFL;
 		}
 
 		private byte unpack() throws IOException
@@ -467,13 +510,19 @@ public class Arc
 				long length = entry.size;
 				if (entry.mode == 5)
 					length = 0xFFFFFFL;
+				//TODO:BZ:DELME
+				System.out.println("Starting decompression at pos=" + pos + ", expected length=" + length);
 				final ByteArrayOutputStream baos = new ByteArrayOutputStream((int) length);
 				while (baos.size() < length)
 				{
+					byteCount++;
+					if (byteCount % 1024 == 0) {
+					    System.out.println("Processed " + byteCount + " bytes, current crc=" + (crc & 0xFFFF));
+					}
 					byte c = unpack();
 					if (status == -1)
 						break;
-					if ((entry.mode != 0 && entry.mode != 2) && c == (byte) ctrl)
+					if ((entry.mode == 1 || entry.mode == 4 || entry.mode == 5) && c == (byte) ctrl)
 					{
 						int count = unpack() & 0xFF;
 						c = unpack();
@@ -494,6 +543,14 @@ public class Arc
 				}
 
 				final byte[] fileData = baos.toByteArray();
+				//TODO:BZ:DELME
+				System.out.println("Decompression done: actual length=" + baos.size() + ", final pos=" + pos +
+				                   ", calculated crc=" + (crc & 0xFFFF) + ", expected=" + entry.check);
+				// Hex dump first 16 bytes of decompressed data
+				System.out.print("First 16 decompressed bytes (hex): ");
+				for (int i = 0; i < Math.min(16, fileData.length); i++) {
+				    System.out.printf("%02X ", fileData[i] & 0xFF);
+				}; System.out.println();
 				final FileInfo file = new FileInfo();
 				file.fileName = new String(entry.name, 0, entry.fnlen);
 				file.filePath = new String(entry.name, 0, entry.fnlen);
