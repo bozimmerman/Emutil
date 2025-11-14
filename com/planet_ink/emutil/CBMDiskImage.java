@@ -1,25 +1,11 @@
 package com.planet_ink.emutil;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.Vector;
+import java.io.*;
+import java.util.*;
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+
+import com.planet_ink.emutil.archives.*;
 
 /*
 Copyright 2016-2024 Bo Zimmerman
@@ -80,6 +66,8 @@ public class CBMDiskImage extends D64Base
 			diskBytes = this.getDisk(F, imageFLen);
 			length = imageFLen[0];
 			if((type == ImageType.LNX)
+			||(type == ImageType.LBR)
+			||(type == ImageType.ARC)
 			||(type == ImageType.T64))
 				return diskBytes;
 			if(length <= 0)
@@ -228,6 +216,8 @@ public class CBMDiskImage extends D64Base
 	{
 		final byte[][][] bytes = getDiskBytes();
 		if((type == ImageType.T64)
+		||(type == ImageType.LBR)
+		||(type == ImageType.ARC)
 		||(type == ImageType.LNX))
 			return bytes[0][0];
 		final ByteArrayOutputStream bout=new ByteArrayOutputStream();
@@ -294,7 +284,9 @@ public class CBMDiskImage extends D64Base
 		DNP(".DNP", new BAMInfo(1,2,31,255,0,32,null),new TrackSecs(1,0,null),35,-1,1,
 					new int[] {256,256}),
 		T64(".T64", null, null, -1, -1, -1, new int[] {256, -1}),
-		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1})
+		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1}),
+		LBR(".LBR", null, null, -1, -1, -1, new int[] {256, -1}),
+		ARC(".ARC", null, null, -1, -1, -1, new int[] {256, -1})
 		;
 
 		public final BAMInfo	bamHead;
@@ -468,20 +460,20 @@ public class CBMDiskImage extends D64Base
 
 	public static class FileInfo
 	{
-		FileInfo		parentF			= null;
-		String			fileName		= "";
-		byte[]			rawFileName		= new byte[0];
-		String			filePath		= "";
-		FileType		fileType		= null;
-		int				feblocks		= 0;
-		int				size			= 0;
-		byte[]			data			= null;
-		Set<Long>		rollingHashes	= null;
-		Set<Long>		fixedHashes		= null;
-		byte[]			header			= null;
-		short[]			dirLoc			= new short[3];
-		List<TrackSec>	tracksNSecs		= new ArrayList<TrackSec>();
-		private long	hash			= -1;
+		public FileInfo			parentF			= null;
+		public String			fileName		= "";
+		public byte[]			rawFileName		= new byte[0];
+		public String			filePath		= "";
+		public FileType			fileType		= null;
+		public int				feblocks		= 0;
+		public int				size			= 0;
+		public byte[]			data			= null;
+		public Set<Long>		rollingHashes	= null;
+		public Set<Long>		fixedHashes		= null;
+		public byte[]			header			= null;
+		public short[]			dirLoc			= new short[3];
+		public List<TrackSec>	tracksNSecs		= new ArrayList<TrackSec>();
+		private long			hash			= -1;
 
 		public String toString()
 		{
@@ -630,6 +622,8 @@ public class CBMDiskImage extends D64Base
 	private int getImageTotalBytes(final int fileSize)
 	{
 		if((type == ImageType.T64)
+		||(type == ImageType.LBR)
+		||(type == ImageType.ARC)
 		||(type == ImageType.LNX))
 			return fileSize;
 		final int ts=type.numTracks(fileSize);
@@ -725,6 +719,8 @@ public class CBMDiskImage extends D64Base
 			if((fileLen != null)&&(fileLen.length>0))
 				fileLen[0]=len;
 			if((type == ImageType.T64)
+			||(type == ImageType.LBR)
+			||(type == ImageType.ARC)
 			||(type == ImageType.LNX))
 			{
 				final byte[][][] image = new byte[1][1][];
@@ -1186,110 +1182,6 @@ public class CBMDiskImage extends D64Base
 		}
 	}
 
-	private List<FileInfo> getTapeFiles(final String imgName, final BitSet parseFlags)
-	{
-		final byte[][][] tsmap = this.getDiskBytes();
-		final int fileSize = getLength();
-		final List<FileInfo> finalData=new Vector<FileInfo>();
-		final byte[] data = tsmap[0][0];
-		final String marker = new String(data,0,32);
-		if(!marker.startsWith("C64"))
-		{
-			if(!parseFlags.get(PF_NOERRORS))
-				errMsg(imgName+": tape header error.");
-			return finalData;
-		}
-		//final int tapeVersionNumber = (data[32] & 0xff) + (data[33] & 0xff);
-		final int numEntries = (data[34] & 0xff) + (256 * (data[35] & 0xff));
-		//final int usedEntries = (data[36] & 0xff)+ (256 * (data[37] & 0xff)); // might be gaps, so dont use this!
-		// we skip the tape/disk name. :(
-
-		// first must do a pre-scan, because some T64s are Wrong.
-		final TreeSet<Integer> fileStarts = new TreeSet<Integer>();
-		for(int start = 64; start < (64+(32*numEntries)) && (start < data.length); start+=32)
-		{
-			if(data[start]!=1)
-				continue;
-			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
-			fileStarts.add(Integer.valueOf(startAddress));
-		}
-
-		for(int start = 64; start < (64+(32*numEntries)) && (start < data.length); start+=32)
-		{
-			if(data[start]!=1)
-				continue;
-			final int startAddress = (data[start+2] & 0xff) + (256*(data[start+3] & 0xff));
-			int endAddress = (data[start+4]& 0xff) + (256*(data[start+5]& 0xff));
-			if(endAddress == 50118) // this means it's wrong.
-			{
-				for(final Iterator<Integer> i = fileStarts.iterator();i.hasNext();)
-				{
-					final Integer startI = i.next();
-					if(startI.intValue() == startAddress)
-					{
-						if(i.hasNext())
-							endAddress = i.next().intValue()-1;
-						else
-							endAddress = fileSize-1;
-						break;
-					}
-				}
-			}
-			final int dataOffset = (data[start+8] & 0xff)
-									+ (256*(data[start+9] & 0xff))
-									+ (65536 * (data[start+10] & 0xff)); // nothing higher is Good.
-			final int fileLength = endAddress-startAddress+1;
-			final FileInfo f = new FileInfo();
-			finalData.add(f);
-			f.header = Arrays.copyOfRange(data, start, start+32);
-			final StringBuffer file=new StringBuffer("");
-			int fn=start+32-1;
-			for(;fn>=start+16;fn--)
-			{
-				if((data[fn]!=-96)
-				&&(data[fn]!=0)
-				&&(data[fn]!=32))
-					break;
-			}
-			final byte[] rawFilename = new byte[fn-start-16+1];
-			for(int x=start+16;x<=fn;x++)
-			{
-				file.append((char)data[x]);
-				rawFilename[x-start-16] = data[x];
-			}
-			for(int ii=0;ii<file.length();ii++)
-				file.setCharAt(ii, convertToPetscii((byte)file.charAt(ii))); // this makes no sense to me
-			f.filePath="/" + file.toString();
-			f.fileName=file.toString();
-			f.rawFileName = rawFilename;
-			f.size=fileLength;
-			{
-				final byte[] bytes = numToBytes(start);
-				f.dirLoc=new short[] {(short)(bytes[0]&0xff),(short)(bytes[1]&0xff),(short)(bytes[2]&0xff)};
-			}
-			f.feblocks = (int)Math.round(Math.floor(f.size / 254));
-			if(data[start+1]!=0) // this is mega lame -- what a messed up format
-				f.fileType = FileType.PRG;
-			else
-				f.fileType = FileType.SEQ;
-			final int fakeStart = (f.fileType == FileType.PRG)?dataOffset-2:dataOffset;
-			if(fakeStart + f.size + 1 > fileSize)
-			{
-				if(!parseFlags.get(PF_NOERRORS))
-					errMsg(imgName+": has bad offsets for file "+f.filePath+", trimming it.");
-				f.data = Arrays.copyOfRange(data, fakeStart, fileSize);
-			}
-			else
-				f.data = Arrays.copyOfRange(data, fakeStart, fakeStart+f.size+1);
-			if(f.fileType == FileType.PRG)
-			{
-				f.data[0] = data[start+2];
-				f.data[1] = data[start+3];
-			}
-		}
-		return finalData;
-	}
-
 	private TrackSec[] getCPMBlock(final int blockNumber)
 	{
 		if(blockNumber >= this.cpmAllocUnits.length)
@@ -1439,13 +1331,35 @@ public class CBMDiskImage extends D64Base
 	{
 		final String imgName = F.getName();
 		if(type == ImageType.T64)
-			return getTapeFiles(imgName,parseFlags);
+		{
+			final byte[][][] tsmap = this.getDiskBytes();
+			final int fileSize = getLength();
+			return T64.getTapeFiles(tsmap,fileSize,imgName,parseFlags);
+		}
 		else
 		if(type == ImageType.LNX)
 		{
 			try
 			{
-				return this.getLNXDeepContents(imgName,parseFlags);
+				return Lynx.getLNXDeepContents(this.getFlatBytes());
+			}
+			catch(final IOException e)
+			{
+				errMsg(e.getMessage());
+				return new ArrayList<FileInfo>();
+			}
+		}
+		else
+		if(type == ImageType.LBR)
+		{
+			return new ArrayList<FileInfo>();//TODO:
+		}
+		else
+		if(type == ImageType.ARC)
+		{
+			try
+			{
+				return Arc.getARCDeepContents(this.getFlatBytes());
 			}
 			catch(final IOException e)
 			{
@@ -1566,150 +1480,6 @@ public class CBMDiskImage extends D64Base
 		}
 	}
 
-	private static String getNextLYNXLineFromInputStream(final InputStream in, final int[] bytesRead, final OutputStream bout) throws IOException
-	{
-		final StringBuilder line=new StringBuilder("");
-		while(in.available()>0)
-		{
-			int b=in.read();
-			if(b<0)
-				throw new IOException("Unexpected EOF");
-			if(bytesRead != null)
-				bytesRead[0]++;
-			if(b==13)
-			{
-				if(line.length()>0)
-					break;
-			}
-			if(bout != null)
-				bout.write(b);
-			if(b == 160)
-				continue;
-			b = D64Base.convertToAscii(b);
-			if(b != 0)
-				line.append((char)b);
-		}
-		return line.toString();
-	}
-
-	private List<FileInfo> getLNXDeepContents(final String imgName, final BitSet parseFlags) throws IOException
-	{
-		final List<FileInfo> list = new ArrayList<FileInfo>();
-		final byte[] data = this.getFlatBytes();
-		final InputStream in = new ByteArrayInputStream(data);
-		final int[] bytesSoFar=new int[1];
-		int zeroes=0;
-		while(in.available()>0)
-		{
-			final int b = in.read();
-			if(b<0)
-				break;
-			bytesSoFar[0]++;
-			if(b == 0)
-			{
-				zeroes++;
-				if(zeroes==3)
-					break;
-			}
-			else
-				zeroes=0;
-		}
-		if(zeroes != 3)
-			throw new IOException("Illegal LNX format: missing 0 0 0");
-		final String sigLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
-		int headerSize = 0;
-		final String[] splitSig = sigLine.split(" ");
-		final String sz = splitSig[0].trim();
-		if((sz.length()>0)
-		&&(Character.isDigit(sz.charAt(0)))
-		&&(sz.length()<20))
-			headerSize = Integer.parseInt(sz);
-		if((sigLine.length()==0)
-		||(headerSize <= 0)
-		||(sigLine.indexOf("LYNX")<0))
-			throw new IOException("Illegal signature: "+sigLine);
-		final int numEntries;
-		if(isInteger(splitSig[splitSig.length-1])
-		&&(Integer.parseInt(splitSig[splitSig.length-1])<1000))
-		{
-			numEntries = Integer.parseInt(splitSig[splitSig.length-1]);
-		}
-		else
-		{
-			final String numEntryLine = getNextLYNXLineFromInputStream(in, bytesSoFar, null).toUpperCase().trim();
-			if((numEntryLine.length()==0)
-			||(!Character.isDigit(numEntryLine.charAt(0))))
-				throw new IOException("Illegal numEntries: "+numEntryLine);
-			numEntries = Integer.parseInt(numEntryLine);
-		}
-		final byte[] rawDirBlock = new byte[(254 - bytesSoFar[0]) + ((headerSize-1) * 254)];
-		int bytesRead = 0;
-		while((in.available()>0) && (bytesRead < rawDirBlock.length))
-		{
-			final int justRead = in.read(rawDirBlock, bytesRead, rawDirBlock.length-bytesRead);
-			if(justRead < 0)
-				break;
-			if(justRead > 0)
-				bytesRead += justRead;
-		}
-		if(bytesRead < rawDirBlock.length)
-			throw new IOException("Incomplete Directory Block");
-		final ByteArrayInputStream bin=new ByteArrayInputStream(rawDirBlock);
-		for(int i=0;i<numEntries;i++)
-		{
-			final ByteArrayOutputStream fout = new ByteArrayOutputStream();
-			final String fileName =  getNextLYNXLineFromInputStream(bin, null, fout); // don't trim, cuz spaces are valid.
-			final String numBlockSz= getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			final String typChar =   getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			String lastBlockSz=getNextLYNXLineFromInputStream(bin, null, null).toUpperCase().trim();
-			if((lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
-				lastBlockSz="0";
-
-			if((fileName.length()==0)
-			||(numBlockSz.length()==0)||(!Character.isDigit(numBlockSz.charAt(0)))
-			||(typChar.length()==0)||(typChar.length()>3)
-			||(lastBlockSz.length()==0)||(!Character.isDigit(lastBlockSz.charAt(0))))
-				throw new IOException("Bad directory entry "+(i+1)+": "+fileName+"."+typChar+": "+numBlockSz+"("+lastBlockSz+")");
-			final FileInfo file = new FileInfo();
-			file.fileName = fileName;
-			file.rawFileName = fout.toByteArray();
-			file.fileType = FileType.fileType(typChar);
-			file.size = ((Integer.valueOf(numBlockSz).intValue()-1) * 254) + Integer.valueOf(lastBlockSz).intValue()-1;
-			file.feblocks = Integer.valueOf(numBlockSz).intValue();
-			list.add(file);
-		}
-		for(final FileInfo f : list)
-		{
-			int fbytesRead = 0;
-			int numBlocks = (int)Math.round(Math.floor(f.size / 254.0));
-			if((f.size % 254) > 0)
-				numBlocks++;
-			final int allBlocksSize = numBlocks * 254;
-			final byte[] fileSubBytes = new byte[allBlocksSize];
-			while((in.available()>0) && (fbytesRead < allBlocksSize))
-			{
-				final int justRead = in.read(fileSubBytes, fbytesRead, allBlocksSize-fbytesRead);
-				if(justRead < 0)
-					break;
-				if(justRead > 0)
-					fbytesRead += justRead;
-			}
-			if(fbytesRead < allBlocksSize)
-			{
-				if((list.get(list.size()-1)!=f)
-				||(fbytesRead < f.size-1024))
-				{
-					System.err.println("Incomplete data for "+f.fileName+" in LYNX file.");
-					if(f == list.get(0))
-						throw new IOException("Incomplete data for "+f.fileName);
-					return list;
-				}
-			}
-			f.data = Arrays.copyOf(fileSubBytes, f.size);
-		}
-		return list;
-	}
-
 	private short[] findFreeSector(final short startTrack, final short stopTrack, final short dir, final Set<Integer> skip) throws IOException
 	{
 		short track=startTrack;
@@ -1815,6 +1585,8 @@ public class CBMDiskImage extends D64Base
 	private List<short[]> getFreeSectors(final int numSectors, final short[] skipDirSec) throws IOException
 	{
 		if((type == ImageType.LNX)
+		||(type == ImageType.LBR)
+		||(type == ImageType.ARC)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			throw new IOException("Illegal image type.");
@@ -2045,6 +1817,10 @@ public class CBMDiskImage extends D64Base
 			return scratchTapeFile(file);
 		if(type == ImageType.LNX)
 			return false; //TODO:
+		if(type == ImageType.LBR)
+			return false; //TODO:
+		if(type == ImageType.ARC)
+			return false; //TODO:
 		if(cpmOs != CPMType.NOT)
 			return scratchCPMFile(file);
 
@@ -2119,6 +1895,8 @@ public class CBMDiskImage extends D64Base
 	private short[] findDirectorySlot(final FileInfo parentDir) throws IOException
 	{
 		if((type == ImageType.LNX)
+		||(type == ImageType.LBR)
+		||(type == ImageType.ARC)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			return null;
@@ -2204,6 +1982,8 @@ public class CBMDiskImage extends D64Base
 	private boolean allocateSectors(final List<short[]> sectors) throws IOException
 	{
 		if((type == ImageType.LNX)
+		||(type == ImageType.LBR)
+		||(type == ImageType.ARC)
 		||(type == ImageType.T64)
 		||(cpmOs != CPMType.NOT))
 			return false;
@@ -2480,6 +2260,10 @@ public class CBMDiskImage extends D64Base
 			return insertCPMFile(targetFileName, fileData);
 		if(getType() == ImageType.LNX)
 			return false;  //TODO:
+		if(getType() == ImageType.LBR)
+			return false; //TODO:
+		if(getType() == ImageType.ARC)
+			return false; //TODO:
 		if(getType() == ImageType.T64) // tape crap is done above
 			return insertT64File(targetFileName, fileData, cbmtype);
 

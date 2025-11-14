@@ -32,7 +32,7 @@ limitations under the License.
 */
 public class D64Base
 {
-	final static String EMUTIL_VERSION = "3.05";
+	final static String EMUTIL_VERSION = "3.1";
 	final static String EMUTIL_AUTHOR = "2024 Bo Zimmerman";
 
 	final static String spaces="                                                        "
@@ -46,7 +46,7 @@ public class D64Base
 
 	protected static TreeSet<String> repeatedErrors = new TreeSet<String>();
 
-	protected static void errMsg(final String errMsg)
+	public static void errMsg(final String errMsg)
 	{
 		if(!repeatedErrors.contains(errMsg))
 		{
@@ -55,7 +55,7 @@ public class D64Base
 		}
 	}
 
-	protected static byte[] numToBytes(final int x)
+	public static byte[] numToBytes(final int x)
 	{
 		final byte[] result = new byte[4];
 		result[3] = (byte) (x >> 24);
@@ -152,7 +152,7 @@ public class D64Base
 		}
 	}
 
-	protected static char convertToPetscii(final byte b)
+	public static char convertToPetscii(final byte b)
 	{
 		if(b<65) return (char)b;
 		if(b<91) return Character.toLowerCase((char)b);
@@ -161,7 +161,7 @@ public class D64Base
 		return (char)(b-128);
 	}
 
-	protected static char convertToAscii(int b)
+	public static char convertToAscii(int b)
 	{
 		if((b<0)||(b>256))
 			b = (byte)(Math.round(Math.abs(b)) & 0xff);
