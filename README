@@ -37,7 +37,7 @@ names ofimage files containing matches, and the names of the internal Commodore
 files which were matched.  Supports recursing directories of image files.  It also
 supports  
 
-Java version requires Java 1.6 or better.
+Java version requires Java 1.8 or better.
 
 To execute from the command line (and get further help):
 java -jar bin/D64Search.jar 
@@ -74,7 +74,7 @@ each other, noting files that are in one image but not another,
 and any files with different content.  This tool supports CMD
 HD subdirectories as well, and will recurse into them. 
 
-Java version requires Java 1.6 or better.
+Java version requires Java 1.8 or better.
 
 To execute from the command line (and get further help):
 java -jar bin/D64Compare.jar 
@@ -107,7 +107,7 @@ D64Mod
 A tool for viewing, extracting from, or modifying the contents of an
 image file.  
 
-Java version requires Java 1.6 or better.
+Java version requires Java 1.8 or better.
 
 To execute from the command line (and get further help):
 java -jar bin/D64Mod.jar 
@@ -139,7 +139,7 @@ such as might be created with the *NIX "dd" utility.  This is not the
 same as a DNP (native partition) image.  A CMD HD image may contain
 D64, D81, DNP, and other kinds of images inside it.
 
-Java version requires Java 1.6 or better.
+Java version requires Java 1.8 or better.
 
 To execute from the command line (and get further help):
 java -jar bin/CMDHDParser.jar 
@@ -161,7 +161,7 @@ Although not strictly for Commodore disk images, it does cater to them by restri
 to common disk image extensions.  It will also automatically parse gzipped (.gz) and zipped (.zip)
 files to find images.
 
-Java version requires Java 1.6 or better.
+Java version requires Java 1.8 or better.
 
 To execute from the command line (and get further help):
 java -jar bin/D64Duplifind.jar 

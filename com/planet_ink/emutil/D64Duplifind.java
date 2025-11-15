@@ -81,7 +81,7 @@ public class D64Duplifind
 			for(int h2=0;h2<16;h2++)
 			{
 				HEX[(h*16)+h2]=""+HEX_DIG.charAt(h)+HEX_DIG.charAt(h2);
-				ANTI_HEX.put(HEX[(h*16)+h2],new Short((short)((h*16)+h2)));
+				ANTI_HEX.put(HEX[(h*16)+h2],Short.valueOf((short)((h*16)+h2)));
 			}
 	}
 	public static String toHex(final byte b){ return HEX[unsigned(b)];}
