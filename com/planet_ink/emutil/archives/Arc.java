@@ -501,7 +501,7 @@ public class Arc
 		}
 	}
 
-	public List<Entry> readArc(final byte[] data) throws IOException
+	private List<Entry> readArc(final byte[] data, final BitSet parseFlags) throws IOException
 	{
 		final List<Entry> files = new ArrayList<Entry>();
 		this.data = data;
@@ -553,7 +553,8 @@ public class Arc
 				}
 			}
 
-			if(((crc ^ entry.check) & 0xFFFFL) != 0)
+			if((((crc ^ entry.check) & 0xFFFFL) != 0)
+			&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 				throw new IOException(entry.name+": Checksum error!");
 
 			entry.buffer = buffer;
@@ -565,10 +566,10 @@ public class Arc
 		return files;
 	}
 
-	public static List<FileInfo> getARCDeepContents(final byte[] data) throws IOException
+	public static List<FileInfo> getARCDeepContents(final byte[] data, final BitSet parseFlags) throws IOException
 	{
 		final Arc decompressor = new Arc();
-		final List<Entry> entries = decompressor.readArc(data);
+		final List<Entry> entries = decompressor.readArc(data, parseFlags);
 		final List<FileInfo> files = new Vector<FileInfo>();
 		for(final Entry entry : entries)
 		{

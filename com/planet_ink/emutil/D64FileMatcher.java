@@ -51,6 +51,7 @@ public class D64FileMatcher extends D64Mod
 		{
 			final List<FileInfo> fileData1;
 			final CBMDiskImage diskF1 = new CBMDiskImage(ioF);
+			diskF1.parseFlags = parseFlags;
 			if(diskF1.getType() != null)
 			{
 				fileData1=diskF1.getFiles(parseFlags);
@@ -202,6 +203,7 @@ public class D64FileMatcher extends D64Mod
 		if(type != null)
 		{
 			final CBMDiskImage disk = new CBMDiskImage(F);
+			disk.parseFlags = parseFlags;
 			fileData=disk.getFiles(parseFlags);
 		}
 		else
@@ -671,7 +673,7 @@ public class D64FileMatcher extends D64Mod
 				if(flags.contains(D64FileMatcher.CompFlag.VERBOSE)
 					||((highestPercent > pct)&&((pct < 100.0))))
 				{
-					Set<String> prev = new TreeSet<String>();
+					final Set<String> prev = new TreeSet<String>();
 					for(final Iterator<File> f=F2s.iterator();f.hasNext();)
 					{
 						final File diskF=f.next();

@@ -33,12 +33,13 @@ limitations under the License.
  */
 public class CBMDiskImage extends D64Base
 {
-	private final ImageType type;
-	private final IOFile F;
-	private int length = -1;
-	private CPMType cpmOs = CPMType.NOT;
-	private byte[][][] diskBytes = null;
-	private TrackSec[][] cpmAllocUnits = null;
+	private final ImageType	type;
+	private final IOFile	F;
+	private int				length			= -1;
+	private CPMType			cpmOs			= CPMType.NOT;
+	private byte[][][]		diskBytes		= null;
+	private TrackSec[][]	cpmAllocUnits	= null;
+	public BitSet			parseFlags		= new BitSet();
 
 	public CBMDiskImage(final IOFile F)
 	{
@@ -63,7 +64,7 @@ public class CBMDiskImage extends D64Base
 		{
 			final int[] imageFLen=new int[1];
 			this.cpmOs = CPMType.NOT;
-			diskBytes = this.getDisk(F, imageFLen);
+			diskBytes = this.initializeImage(F, imageFLen);
 			length = imageFLen[0];
 			if((type == ImageType.LNX)
 			||(type == ImageType.LBR)
@@ -82,7 +83,9 @@ public class CBMDiskImage extends D64Base
 				||(type == ImageType.D71)
 				||(type == ImageType.D81)
 				||(type == ImageType.D80)
-				||(type == ImageType.D82)))
+				||(type == ImageType.D82)
+				||(type == ImageType.ZC4)
+				||(type == ImageType.ZC6)))
 			{
 				final byte[] hdr = diskBytes[dt][ds];
 				final String diskName;
@@ -107,7 +110,10 @@ public class CBMDiskImage extends D64Base
 				int firstDirTrack = 1;
 				final int numTracks = type.numTracks(length);
 				final Set<TrackSec> skipThese = new TreeSet<TrackSec>();
-				if(((type == ImageType.D64)||(type == ImageType.D71))
+				if(((type == ImageType.D64)
+					||(type == ImageType.ZC6)
+					||(type == ImageType.ZC4)
+					||(type == ImageType.D71))
 				&& diskName.equalsIgnoreCase("CP/M PLUS")
 				&& diskId.startsWith("65")
 				&& diskId.endsWith("2A")
@@ -125,7 +131,7 @@ public class CBMDiskImage extends D64Base
 					}
 				}
 				else
-				if((type == ImageType.D64)
+				if(((type == ImageType.D64)||(type == ImageType.ZC4)||(type == ImageType.ZC6))
 				&& (diskName.equalsIgnoreCase("CP/M DISK")||diskName.equalsIgnoreCase("CP/M PLUS"))
 				&& diskId.startsWith("65")
 				&& diskId.endsWith("2A")
@@ -289,7 +295,11 @@ public class CBMDiskImage extends D64Base
 		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1}),
 		LBR(".LBR", null, null, -1, -1, -1, new int[] {256, -1}),
 		ARC(".ARC", null, null, -1, -1, -1, new int[] {256, -1}),
-		SDA(".SDA", null, null, -1, -1, -1, new int[] {256, -1})
+		SDA(".SDA", null, null, -1, -1, -1, new int[] {256, -1}),
+		ZC4(".ZC4", new BAMInfo(18,0,4,143,0,0,null),new TrackSecs(18,0,null),19,35,10,
+					new int[] {18,21,25,19,31,18,256,17}),
+		ZC6(".ZC6", new BAMInfo(18,0,4,143,0,0,null),new TrackSecs(18,0,null),19,35,10,
+					new int[] {18,21,25,19,31,18,256,17}),
 		;
 
 		public final BAMInfo	bamHead;
@@ -597,6 +607,13 @@ public class CBMDiskImage extends D64Base
 				return type;
 			}
 		}
+		if((fileName.length()>3)&&(fileName.startsWith("1!")))
+		{
+			if(fileName.charAt(2)=='!')
+				return ImageType.ZC6;
+			else
+				return ImageType.ZC4;
+		}
 		return null;
 	}
 
@@ -656,13 +673,63 @@ public class CBMDiskImage extends D64Base
 		return tsmap;
 	}
 
-	private byte[][][] getDisk(final IOFile F, final int[] fileLen)
+	private byte[][][] initializeImage(final IOFile F, final int[] fileLen)
 	{
 		InputStream fi=null;
 		try
 		{
 			fi=F.createInputStream();
-			return getDisk(fi, F.getName(), (int)F.length(), fileLen);
+			int len=(int)F.length();
+			byte[] buf = getRawImageData(fi, F.getName(), (int)F.length(), fileLen);
+			if((type == ImageType.T64)
+			||(type == ImageType.LBR)
+			||(type == ImageType.ARC)
+			||(type == ImageType.SDA)
+			||(type == ImageType.LNX))
+			{
+				final byte[][][] image = new byte[1][1][];
+				image[0][0]=buf;
+				return image;
+			}
+			else
+			if(type == ImageType.ZC4)
+			{
+				final byte[][] blocks = new byte[4][];
+				blocks[0]=Arrays.copyOf(buf,(int)F.length());
+				final String baseName = F.getName().substring(1);
+				for(int i=2;i<=4;i++)
+				{
+					final IOFile nF = new IOFile(F,i+baseName);
+					fi.close();
+					fi=nF.createInputStream();
+					buf = getRawImageData(fi, nF.getName(), (int)nF.length(), fileLen);
+					blocks[i-1]=Arrays.copyOf(buf,(int)nF.length());
+				}
+				buf = ZipCode.convert4PackToD64(blocks, parseFlags);
+				if((fileLen != null)&&(fileLen.length>0))
+					fileLen[0] = buf.length;
+				len=buf.length;
+			}
+			else
+			if(type == ImageType.ZC6)
+			{
+				final byte[][] blocks = new byte[6][];
+				blocks[0]=Arrays.copyOf(buf,(int)F.length());
+				final String baseName = F.getName().substring(1);
+				for(int i=2;i<=6;i++)
+				{
+					final IOFile nF = new IOFile(F,i+baseName);
+					fi.close();
+					fi=nF.createInputStream();
+					buf = getRawImageData(fi, nF.getName(), (int)nF.length(), fileLen);
+					blocks[i-1]=Arrays.copyOf(buf,(int)nF.length());
+				}
+				buf = ZipCode.convert6PackToD64(blocks, parseFlags);
+				if((fileLen != null)&&(fileLen.length>0))
+					fileLen[0] = buf.length;
+				len=buf.length;
+			}
+			return parseImageDiskMap(buf,len);
 		}
 		catch(final IOException e)
 		{
@@ -683,62 +750,41 @@ public class CBMDiskImage extends D64Base
 		}
 	}
 
-	private byte[][][] getDisk(final InputStream fin, final String fileName, final int fLen, final int[] fileLen)
+	private byte[] getRawImageData(final InputStream fin, final String fileName, final int fLen, final int[] fileLen) throws IOException
 	{
 		int len=fLen;
 		InputStream is=null;
-		try
+		if(fileName.toUpperCase().endsWith(".GZ"))
 		{
-			if(fileName.toUpperCase().endsWith(".GZ"))
+			@SuppressWarnings("resource")
+			final GzipCompressorInputStream in = new GzipCompressorInputStream(fin);
+			final byte[] lbuf = new byte[4096];
+			int read=in.read(lbuf);
+			final ByteArrayOutputStream bout=new ByteArrayOutputStream(len*2);
+			while(read >= 0)
 			{
-				@SuppressWarnings("resource")
-				final GzipCompressorInputStream in = new GzipCompressorInputStream(fin);
-				final byte[] lbuf = new byte[4096];
-				int read=in.read(lbuf);
-				final ByteArrayOutputStream bout=new ByteArrayOutputStream(len*2);
-				while(read >= 0)
-				{
-					bout.write(lbuf,0,read);
-					read=in.read(lbuf);
-				}
-				//in.close(); dont do it -- this might be from a zip
-				len=bout.toByteArray().length;
-				is=new ByteArrayInputStream(bout.toByteArray());
+				bout.write(lbuf,0,read);
+				read=in.read(lbuf);
 			}
-			if(len == 0)
-			{
-				errMsg("?: Error: Failed to read '"+fileName+"' at ALL!");
-				return new byte[type.numTracks(len)][255][256];
-			}
-			final byte[] buf=new byte[getImageTotalBytes(len)];
-			if(is == null)
-				is=fin;
-			int totalRead = 0;
-			while((totalRead < len) && (totalRead < buf.length))
-			{
-				final int read = is.read(buf,totalRead,buf.length-totalRead);
-				if(read>=0)
-					totalRead += read;
-			}
-			if((fileLen != null)&&(fileLen.length>0))
-				fileLen[0]=len;
-			if((type == ImageType.T64)
-			||(type == ImageType.LBR)
-			||(type == ImageType.ARC)
-			||(type == ImageType.SDA)
-			||(type == ImageType.LNX))
-			{
-				final byte[][][] image = new byte[1][1][];
-				image[0][0]=buf;
-				return image;
-			}
-			return parseImageDiskMap(buf,len);
+			//in.close(); dont do it -- this might be from a zip
+			len=bout.toByteArray().length;
+			is=new ByteArrayInputStream(bout.toByteArray());
 		}
-		catch(final java.io.IOException e)
+		if(len == 0)
+			throw new IOException("?: Error: Failed to read '"+fileName+"' at ALL!");
+		final byte[] buf=new byte[getImageTotalBytes(len)];
+		if(is == null)
+			is=fin;
+		int totalRead = 0;
+		while((totalRead < len) && (totalRead < buf.length))
 		{
-			e.printStackTrace(System.err);
-			return new byte[type.numTracks(len)][255][256];
+			final int read = is.read(buf,totalRead,buf.length-totalRead);
+			if(read>=0)
+				totalRead += read;
 		}
+		if((fileLen != null)&&(fileLen.length>0))
+			fileLen[0]=len;
+		return buf;
 	}
 
 	private byte[] getFileContent(final String fileName, int t, final int mt, int s, final List<TrackSec> secsUsed) throws IOException
@@ -1350,7 +1396,8 @@ public class CBMDiskImage extends D64Base
 			}
 			catch(final IOException e)
 			{
-				errMsg(e.getMessage());
+				if(!parseFlags.get(PF_NOERRORS))
+					errMsg(e.getMessage());
 				return new ArrayList<FileInfo>();
 			}
 		}
@@ -1359,11 +1406,12 @@ public class CBMDiskImage extends D64Base
 		{
 			try
 			{
-				return Library.getLNXDeepContents(getFlatBytes());
+				return Library.getLNXDeepContents(getFlatBytes(), parseFlags);
 			}
 			catch(final IOException e)
 			{
-				errMsg(e.getMessage());
+				if(!parseFlags.get(PF_NOERRORS))
+					errMsg(e.getMessage());
 				return new ArrayList<FileInfo>();
 			}
 		}
@@ -1372,11 +1420,12 @@ public class CBMDiskImage extends D64Base
 		{
 			try
 			{
-				return Arc.getARCDeepContents(this.getFlatBytes());
+				return Arc.getARCDeepContents(this.getFlatBytes(), parseFlags);
 			}
 			catch(final IOException e)
 			{
-				errMsg(e.getMessage());
+				if(!parseFlags.get(PF_NOERRORS))
+					errMsg(e.getMessage());
 				return new ArrayList<FileInfo>();
 			}
 		}
@@ -2156,7 +2205,9 @@ public class CBMDiskImage extends D64Base
 		case C64:
 			return 4;
 		case NORMAL:
-			if(getType()==ImageType.D64)
+			if((getType()==ImageType.D64)
+			||(getType()==ImageType.ZC4)
+			||(getType()==ImageType.ZC6))
 			{
 				if(diskBytes[1][0][255] != (byte)0xff)
 					return 4;

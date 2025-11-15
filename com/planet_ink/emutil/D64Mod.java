@@ -277,6 +277,7 @@ public class D64Mod extends D64Base
 		for(final IOFile imageF : imageFiles)
 		{
 			final CBMDiskImage disk = new CBMDiskImage(imageF);
+			disk.parseFlags = parseFlags;
 			final byte[][][] diskBytes = disk.getDiskBytes();
 			final List<FileInfo> files = disk.getFiles(parseFlags);
 			FileInfo file = disk.findFile(imageFileStr,false,parseFlags);

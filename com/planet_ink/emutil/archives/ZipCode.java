@@ -1,8 +1,9 @@
 package com.planet_ink.emutil.archives;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.util.*;
+
+import com.planet_ink.emutil.D64Base;
 
 public class ZipCode
 {
@@ -60,7 +61,7 @@ public class ZipCode
 			SECTORS_PER_TRACK[t] = 17;
 	};
 
-	private static final int[] FIRST_TRACK_PER_FILE = { 1, 7, 13, 19, 26, 33 };
+	private static final int[] FIRST_TRACK_PER_FILE = { 1, 7, 13, 19, 26, 33, Integer.MAX_VALUE };
 
 	private static final long[]	CUMULATIVE_OFFSETS	= new long[41];	// Precompute byte offsets in D64
 	static
@@ -94,31 +95,26 @@ public class ZipCode
 		}
 	}
 
-	public static byte[] convert6PackToD64(final File F) throws IOException
+	public static byte[] convert6PackToD64(final byte[][] packs, final BitSet parseFlags) throws IOException
 	{
-		if((F.getName().length()<4)
-		||(F.getName().charAt(1)!='!')
-		||(F.getName().charAt(2)!='!')
-		||(!isInteger(F.getName().substring(0,1))))
+		if(packs.length<6)
 			throw new IOException ("Not a 6Pack");
-		final String base = F.getName().substring(3);
-		final byte[][] packs = new byte[6][];
 		int totalTracks = 35; // Assume 35 tracks; check signature for confirmation
 		for (int i = 0; i < 6; i++)
 		{
-			final String fname = (i + 1) + "!!" + base;
-			packs[i] = Files.readAllBytes(new File(F.getParent(),fname).toPath());
 			// Check signature (assuming all files have the same)
-			if ((packs[i][0] & 0xFF) != 0xFF || (packs[i][1] & 0xFF) != 0x03)
-				throw new IOException("Invalid signature in file " + fname);
+			if(((packs[i][0] & 0xFF) != 0xFF || (packs[i][1] & 0xFF) != 0x03)
+			&&(!parseFlags.get(D64Base.PF_NOERRORS)))
+				throw new IOException("Invalid signature in file " + i);
 			final int sigTracks = (packs[i][2] & 0xFF) - 1;
 			if (i == 0)
 				totalTracks = sigTracks;
-			if (sigTracks != totalTracks)
+			if((sigTracks != totalTracks)
+			&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 				throw new IOException("Mismatched track count in signatures");
 		}
-		if (totalTracks != 35)
-			throw new IOException("Warning: Only 35-track images supported for D64 output.");
+		//if (totalTracks != 35)
+		//	throw new IOException("Warning: Only 35-track images supported for D64 output.");
 
 		final byte[] d64 = new byte[174848];
 		int d64Offset = 0;
@@ -135,7 +131,8 @@ public class ZipCode
 			final byte[] descriptor = new byte[256];
 			System.arraycopy(packData, (int) trackStart, descriptor, 0, 256);
 			final int numSectors = descriptor[255] & 0xFF;
-			if (numSectors != SECTORS_PER_TRACK[t])
+			if((numSectors != SECTORS_PER_TRACK[t])
+			&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 				throw new IOException("Warning: Unexpected sector count on track " + t + ": " + numSectors);
 
 			final int zone = (t <= 17) ? 0 : (t <= 24) ? 1 : (t <= 30) ? 2 : 3;
@@ -147,23 +144,19 @@ public class ZipCode
 				final long secStart = dataStart + (long) idx * 326;
 				final byte[] gcrSector = new byte[326];
 				System.arraycopy(packData, (int) secStart, gcrSector, 0, 326);
-
 				// Reorder: stored as overflow(70) + main(256) -> main(256) + overflow(70)
 				final byte[] originalGcr = new byte[326];
+				final byte[] decoded;
 				System.arraycopy(gcrSector, 70, originalGcr, 0, 256);
 				System.arraycopy(gcrSector, 0, originalGcr, 256, 70);
-
-				// Decode first 325 bytes
-				final byte[] decoded = decodeGcr(originalGcr, 325);
-
-				// Basic validation (optional; assume good for conversion)
-				if ((decoded[0] & 0xFF) != 0x07)
+				decoded = decodeGcr(originalGcr, 325, parseFlags);
+				if(((decoded[0] & 0xFF) != 0x07)&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 					throw new IOException("Warning: Invalid data descriptor on track " + t + ", sector index " + idx);
 				byte checksum = 0;
 				for (int b = 1; b <= 256; b++)
-					checksum ^= decoded[b];
-				if (checksum != decoded[257])
-					throw new IOException("Warning: Checksum error on track " + t + ", sector index " + idx);
+					checksum ^= (byte)(decoded[b] & 0xFF);
+				if((checksum != decoded[257])&&(!parseFlags.get(D64Base.PF_NOERRORS)))
+					System.err.println("Warning: Checksum error on track " + t + ", sector index " + idx);
 
 				final int sectorNum = interleave[idx];
 				final int sectorOffset = d64Offset + sectorNum * 256;
@@ -175,7 +168,7 @@ public class ZipCode
 		return d64;
 	}
 
-	private static byte[] decodeGcr(final byte[] gcr, final int len)
+	private static byte[] decodeGcr(final byte[] gcr, final int len, final BitSet parseFlags)
 	{
 		if (len % 5 != 0)
 			throw new IllegalArgumentException("GCR length must be multiple of 5");
@@ -192,7 +185,11 @@ public class ZipCode
 				final int code = (int) ((bits >> shift) & 0x1F);
 				final int nybble = DECODE[code];
 				if (nybble < 0)
-					throw new IllegalArgumentException("Invalid GCR code: " + code);
+				{
+					if (outPos > 258)
+						break;
+					throw new IllegalArgumentException("Invalid GCR code: " + code +"@"+outPos);
+				}
 				if ((k % 2) == 0)
 					data[outPos] = (byte) (nybble << 4);
 				else
@@ -205,25 +202,21 @@ public class ZipCode
 		return data;
 	}
 
-	public static byte[] convert4PackToD64(final File F) throws IOException
+	public static byte[] convert4PackToD64(final byte[][] pack, final BitSet parseFlags) throws IOException
 	{
-		if((F.getName().length()<3)
-		||(F.getName().charAt(1)!='!')
-		||(!isInteger(F.getName().substring(0,1))))
+		if(pack.length<4)
 			throw new IOException ("Not a 4Pack");
-		final String base = F.getName().substring(2);
 		final byte[] d64 = new byte[174848]; // Standard 35-track D64 size
 		Arrays.fill(d64, (byte) 0); // Optional: initialize to zeros
 
 		for (int i = 0; i < 4; i++)
 		{
-			final String fname = (i + 1) + "!" + base;
-			final byte[] packData = Files.readAllBytes(new File(F.getParent(),fname).toPath());
+			final byte[] packData = pack[i];
 
 			int pos = 0;
-			if ((packData[pos++] & 0xFF) != (i == 0 ? 0xFE : 0x00)
-			|| (packData[pos++] & 0xFF) != (i == 0 ? 0x03 : 0x04))
-				throw new IOException("Invalid load address in file " + fname);
+			if(((packData[pos++] & 0xFF) != (i == 0 ? 0xFE : 0x00) || (packData[pos++] & 0xFF) != (i == 0 ? 0x03 : 0x04))
+			&&(!parseFlags.get(D64Base.PF_NOERRORS)))
+				throw new IOException("Invalid load address in file " + i);
 			if (i == 0)
 				pos += 2;
 			while (pos < packData.length)
@@ -234,7 +227,8 @@ public class ZipCode
 				final int mode = trackByte >> 6;
 				final int track = trackByte & 0x3F;
 				final int sector = packData[pos++] & 0xFF;
-				if (track < TRACK_RANGES[i][0] || track > TRACK_RANGES[i][1])
+				if((track < TRACK_RANGES[i][0] || track > TRACK_RANGES[i][1])
+				&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 					throw new IOException("Warning: Track " + track + " out of range for file " + (i + 1));
 
 				final byte[] sectorData = new byte[256];
@@ -261,7 +255,7 @@ public class ZipCode
 						if (b == repeatChar)
 						{
 							if (j + 2 >= rleLength)
-								throw new IOException("Invalid RLE data in file " + fname);
+								throw new IOException("Invalid RLE data in file " + i);
 							final int count = rleData[++j] & 0xFF;
 							final byte value = rleData[++j];
 							for (int k = 0; k < count; k++)
@@ -282,7 +276,7 @@ public class ZipCode
 						throw new IOException("Sector underflow in RLE decode: " + outPos + " bytes");
 					break;
 				case 3:
-					throw new IOException("Invalid compression mode 3 in file " + fname);
+					throw new IOException("Invalid compression mode 3 in file " + i);
 				default:
 					throw new IOException("Unknown mode " + mode);
 				}

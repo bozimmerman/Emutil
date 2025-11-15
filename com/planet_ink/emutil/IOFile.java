@@ -10,10 +10,10 @@ import org.apache.commons.compress.archivers.zip.*;
 
 public class IOFile
 {
-	final File F;
+	File F;
 	final IOFile parentF;
 	ZipFile zF = null;
-	final ZipArchiveEntry zE;
+	ZipArchiveEntry zE;
 	final List<Closeable> closers = new java.util.Vector<Closeable>(1);
 
 	public IOFile(final File F)
@@ -79,6 +79,66 @@ public class IOFile
 			e.printStackTrace();
 		}
 		this.zE = null;
+	}
+
+	public IOFile(final IOFile parent, final String name)
+	{
+		if(parent.zF != null)
+		{
+			this.parentF = parent.parentF;
+			this.F = parent.F;
+			this.zE = null;
+			try
+			{
+				this.zF = new ZipFile(parent.parentF.F);
+				for(final Enumeration<? extends ZipArchiveEntry> e = zF.getEntries(); e.hasMoreElements(); )
+				{
+					final ZipArchiveEntry E = e.nextElement();
+					if(E.getName().equals(name))
+					{
+						this.zE = E;
+						break;
+					}
+				}
+				if(this.zE == null)
+					this.F = null;
+			}
+			catch(final IOException e)
+			{
+				e.printStackTrace();
+			}
+		}
+		else
+		if(parent.F.isDirectory())
+		{
+			this.F = new File(parent.F,name);
+			this.parentF = new IOFile(parent.F, true);
+			try
+			{
+				if(F.getName().toLowerCase().endsWith(".zip"))
+					this.zF = new ZipFile(F);
+			}
+			catch(final IOException e)
+			{
+				e.printStackTrace();
+			}
+			this.zE = null;
+		}
+		else
+		{
+			this.F = new File(parent.F.getParentFile(), name);
+			this.parentF = new IOFile(this.F.getParentFile(),true);
+			try
+			{
+				if(F.getName().toLowerCase().endsWith(".zip"))
+					this.zF = new ZipFile(F);
+			}
+			catch(final IOException e)
+			{
+				e.printStackTrace();
+			}
+			this.zE = null;
+		}
 	}
 
 	public IOFile(final IOFile parent, final ZipFile F, final ZipArchiveEntry E)

@@ -21,6 +21,11 @@ These formats include:
 -  *.DHD - image of raw CMD FD/HD disk image with partition table
 -  *.LNX - file archiver image from the LYNX utility
 -  *.T64 - Digital tape image / file archive 
+-  *.ARC - ARC file archive
+-  *.SDA - Self Dissolving ARC file archive
+-  *.LBR - Library archive
+-  1!name- ZipCode 4-Pack 170k Disk Image files
+-  1!!nam- ZipCode 6-Pack 170K Disk Image files
 
 The following utilities exist in this project:
 

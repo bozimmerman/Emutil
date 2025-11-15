@@ -113,6 +113,7 @@ public class D64Duplifind
 		|| name.endsWith(".ipf") || name.endsWith(".sda")
 		)
 			return true;
+		//TODO: zipcodes?
 		return false;
 	}
 

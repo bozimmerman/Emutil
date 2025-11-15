@@ -188,12 +188,13 @@ public class D64Search extends D64Mod
 				{
 					final String prefix = (zE == zF) ? "" : F.getName()+"@";
 					final SearchFile sF = new SearchFile();
-					final CBMDiskImage disk = new CBMDiskImage(zE);
-					disk.getLength(); // necessary to cache data before zipFile is closed
 					final BitSet parseFlags = new BitSet();
 					parseFlags.set(PF_RECURSE, flags.contains(SEARCH_FLAG.RECURSE));
 					parseFlags.set(PF_NOERRORS, flags.contains(SEARCH_FLAG.NOPARSEERRORS));
 					parseFlags.set(D64Base.PF_READINSIDE, true);
+					final CBMDiskImage disk = new CBMDiskImage(zE);
+					disk.parseFlags = parseFlags;
+					disk.getLength(); // necessary to cache data before zipFile is closed
 					sF.diskFiles.addAll(disk.getFiles(parseFlags));
 					sF.diskData = disk.getFlatBytes();
 					sF.fileName = prefix+zE.getName();

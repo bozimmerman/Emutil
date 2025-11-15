@@ -19,7 +19,7 @@ public class Library
 		this.dptr = 0;
 	}
 
-	private byte[] readTo(final byte to) throws IOException
+	private byte[] readTo(final byte to, final BitSet parseFlags) throws IOException
 	{
 		if(dptr >= data.length)
 			throw new IOException("No more data");
@@ -42,22 +42,22 @@ public class Library
 		return str;
 	}
 
-	private List<FileInfo> loadFiles() throws IOException
+	private List<FileInfo> loadFiles(final BitSet parseFlags) throws IOException
 	{
 		final List<FileInfo> files = new Vector<FileInfo>();
-		final byte[] sig = readTo((byte)0x20);
+		final byte[] sig = readTo((byte)0x20, parseFlags);
 		if(!new String(sig).startsWith("DWB"))
 			throw new IOException("Not an LBR");
-		final int fct = Integer.parseInt(new String(readTo((byte)0x20)));
-		readTo((byte)0x0d);
+		final int fct = Integer.parseInt(new String(readTo((byte)0x20, parseFlags)));
+		readTo((byte)0x0d, parseFlags);
 		for(int fn = 0;fn<fct;fn++)
 		{
-			final byte[] rawFilename = readTo((byte)0x0d);
+			final byte[] rawFilename = readTo((byte)0x0d, parseFlags);
 			final String filename = convertToAscii(rawFilename);
-			final String type = convertToAscii(readTo((byte)0x0d));
-			readTo((byte)0x20);
-			final int fsize = Integer.parseInt(new String(readTo((byte)0x20)));
-			readTo((byte)0x0d);
+			final String type = convertToAscii(readTo((byte)0x0d, parseFlags));
+			readTo((byte)0x20, parseFlags);
+			final int fsize = Integer.parseInt(new String(readTo((byte)0x20, parseFlags)));
+			readTo((byte)0x0d, parseFlags);
 			final FileInfo F = new FileInfo();
 			F.fileName = filename;
 			F.filePath = filename;
@@ -78,8 +78,8 @@ public class Library
 		return files;
 	}
 
-	public static List<FileInfo> getLNXDeepContents(final byte[] data) throws IOException
+	public static List<FileInfo> getLNXDeepContents(final byte[] data, final BitSet parseFlags) throws IOException
 	{
-		return new Library(data).loadFiles();
+		return new Library(data).loadFiles(parseFlags);
 	}
 }
