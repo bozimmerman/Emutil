@@ -149,7 +149,10 @@ public class ZipCode
 				final byte[] decoded;
 				System.arraycopy(gcrSector, 70, originalGcr, 0, 256);
 				System.arraycopy(gcrSector, 0, originalGcr, 256, 70);
-				decoded = decodeGcr(originalGcr, 325, parseFlags);
+				final int[] errCode = new int[] {0};
+				decoded = decodeGcr(originalGcr, 325, parseFlags, errCode);
+				if(errCode[0]!=0)
+					System.err.println("Error code "+errCode[0]+" on track "+t+", sector "+idx);
 				if(((decoded[0] & 0xFF) != 0x07)&&(!parseFlags.get(D64Base.PF_NOERRORS)))
 					throw new IOException("Warning: Invalid data descriptor on track " + t + ", sector index " + idx);
 				byte checksum = 0;
@@ -168,12 +171,13 @@ public class ZipCode
 		return d64;
 	}
 
-	private static byte[] decodeGcr(final byte[] gcr, final int len, final BitSet parseFlags)
+	private static byte[] decodeGcr(final byte[] gcr, final int len, final BitSet parseFlags, final int[] errCode) throws IOException
 	{
 		if (len % 5 != 0)
-			throw new IllegalArgumentException("GCR length must be multiple of 5");
+			throw new IOException("GCR length must be multiple of 5");
 		final byte[] data = new byte[len * 4 / 5];
 		int outPos = 0;
+		boolean errorDetected = false;
 		for (int inPos = 0; inPos < len; inPos += 5)
 		{
 			long bits = 0;
@@ -183,12 +187,28 @@ public class ZipCode
 			{
 				final int shift = 35 - k * 5;
 				final int code = (int) ((bits >> shift) & 0x1F);
-				final int nybble = DECODE[code];
-				if (nybble < 0)
+				int nybble = code;
+				if(code == 20)
 				{
-					if (outPos > 258)
-						break;
-					throw new IllegalArgumentException("Invalid GCR code: " + code +"@"+outPos);
+					nybble=0x0f;
+					errorDetected = true;
+				}
+				else
+				if(errorDetected)
+				{
+					nybble=0x0f;
+					errCode[0]=code;
+					errorDetected = false; // nybble is ACTUAl error code here
+				}
+				else
+				{
+					nybble = DECODE[code];
+					if (nybble < 0)
+					{
+						if (outPos > 258)
+							break;
+						throw new IOException("Invalid GCR code: " + code +", @position:"+outPos+"."+(((k%2)==0)?"0":"5"));
+					}
 				}
 				if ((k % 2) == 0)
 					data[outPos] = (byte) (nybble << 4);

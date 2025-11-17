@@ -901,33 +901,33 @@ public class CBMDiskImage extends D64Base
 						switch(sector[i] & 0x0f)
 						{
 						case (byte) 0:
-							if(readInside && fileT != 0)
-							{
-								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
-								if((fileData != null)&&(fileData.length>0))
-									f.size=fileData.length;
-							}
 							f.fileType = FileType.DEL;
+						if(readInside && fileT != 0)
+						{
+							fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
+							if((fileData != null)&&(fileData.length>0))
+								f.size=fileData.length;
+						}
 							if((fileData != null)&&(fileData.length>0))
 								f.size=fileData.length;
 							break;
 						case (byte) 1:
+							f.fileType = FileType.SEQ;
 							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
 									f.size=fileData.length;
 							}
-							f.fileType = FileType.SEQ;
 							break;
 						case (byte) 2:
+							f.fileType = FileType.PRG;
 							if(readInside && fileT != 0)
 							{
 								fileData =getFileContent(f.fileName,fileT,maxT,fileS,f.tracksNSecs);
 								if((fileData != null)&&(fileData.length>0))
 									f.size=fileData.length;
 							}
-							f.fileType = FileType.PRG;
 							break;
 						case (byte) 3:
 							f.fileType = FileType.USR;
