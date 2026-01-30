@@ -12,11 +12,11 @@ import com.planet_ink.emutil.D64Base;
  * Derived from Chris Smeets' MS-DOS utility a2l that converts Commodore
  * ARK, ARC and SDA files to LZH using LHARC 1.12. Optimized for speed,
  * converted to standard C and adapted to the cbmconvert package by
- * Marko Mäkelä.  Straight Java port by Bo Zimmerman.
+ * Marko Makela.  Straight Java port by Bo Zimmerman.
  *
  *  Original version: a2l.c       March   1st, 1990   Chris Smeets
- *  Unix port:        unarc.c     August 28th, 1993   Marko Mäkelä
- *  Restructured for cbmconvert 2.0 and 2.1 by Marko Mäkelä
+ *  Unix port:        unarc.c     August 28th, 1993   Marko Makela
+ *  Restructured for cbmconvert 2.0 and 2.1 by Marko Makela
  *  Java port:        Aarc.java   November 24th, 2025   Bo Zimmerman
 */
 public class Arc
