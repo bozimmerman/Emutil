@@ -124,6 +124,7 @@ public class CMDHDParser
 		@SuppressWarnings("unused")
 		int type=-1;
 		String typeName="";
+		String typeExtension="";
 		long startAddr=-1;
 		long len=-1;
 	}
@@ -158,29 +159,43 @@ public class CMDHDParser
 			final PartInfo info = new PartInfo();
 			info.number=part;
 			info.type=partType;
-			if((partType > 5)&&(partType < 255))
+			if((partType > 7)&&(partType < 255))
 			{
 				throw new CMDHDParseException("CMD HD Raw Image Invalid at partition "+part+": (part type "+partType+")!");
 			}
 			switch(partType)
 			{
 			case 1:
-				info.typeName="DNP";
+				info.typeName="NAT";
+				info.typeExtension="DNP";
 				break;
 			case 2:
-				info.typeName="D64";
+				info.typeName="41 ";
+				info.typeExtension="D64";
 				break;
 			case 3:
-				info.typeName="D71";
+				info.typeName="71 ";
+				info.typeExtension="D71";
 				break;
 			case 4:
-				info.typeName="D81";
+				info.typeName="81 ";
+				info.typeExtension="D81";
 				break;
 			case 5:
-				info.typeName="D81";
+				info.typeName="C81";
+				info.typeExtension="D81";
+				break;
+			case 6:
+				info.typeName="PRN";
+				info.typeExtension="PRN";
+				break;
+			case 7:
+				info.typeName="FOR";
+				info.typeExtension="FOR";
 				break;
 			case 255:
 				info.typeName="SYS";
+				info.typeExtension="SYS";
 				break;
 			}
 			if(partEntry[1]!=0)
@@ -290,15 +305,24 @@ public class CMDHDParser
 					if((partNum < 0)||(partNum == info.number))
 					{
 						final byte[] buf=new byte[(int)info.len];
-						hdR.seek(info.startAddr);
-						hdR.readFully(buf);
-						File F=targP;
-						if((partNum<0)||(targP.isDirectory()))
-							F = new File(targP,info.number+"_"+info.name+"."+info.typeName.toLowerCase());
-						final FileOutputStream fout = new FileOutputStream(F);
-						fout.write(buf);
-						fout.close();
-						System.out.println("Wrote "+F.getAbsolutePath());
+						System.out.println("Extracting "+info.number+"_"+info.name+"."+info.typeExtension.toLowerCase()+" from position "+"0x"+padRight(toHex(info.startAddr),8)+" with length 0x"+padRight(toHex(info.len),8));
+						try
+						{
+							hdR.seek(info.startAddr);
+							hdR.readFully(buf);
+							File F=targP;
+							if((partNum<0)||(targP.isDirectory()))
+								F = new File(targP,info.number+"_"+info.name+"."+info.typeExtension.toLowerCase());
+							final FileOutputStream fout = new FileOutputStream(F);
+							fout.write(buf);
+							fout.close();
+							System.out.println("Wrote "+F.getAbsolutePath());
+						}
+						catch(final Exception e)
+						{
+							System.err.println("Error extracting partition "+info.number+"!");
+							continue;
+						}
 					}
 				}
 				System.out.println("Done.");
@@ -363,7 +387,7 @@ public class CMDHDParser
 						final byte[] buf=new byte[(int)info.len];
 						File F=inP;
 						if((partNum<0)||(inP.isDirectory()))
-							F = new File(inP,info.number+"_"+info.name+"."+info.typeName.toLowerCase());
+							F = new File(inP,info.number+"_"+info.name+"."+info.typeExtension.toLowerCase());
 						if((!F.exists())||F.isDirectory())
 						{
 							System.err.println("Partition Input Image '"+F.getAbsolutePath()+"' not found!");
