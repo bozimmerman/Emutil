@@ -486,7 +486,9 @@ public class GeoRWriter
 		System.out.println("  GeoRWriter LIST [file.cvt] [page]");
 		System.out.println("    - Display all pages or one page of text w/ line numbers");
 		System.out.println("  GeoRWriter INSERT [file.cvt] [page] [line] [text]");
+		System.out.println("    - Insert one or more lines of text, rewriting the file.");
 		System.out.println("  GeoRWriter REWRITE [file.cvt] [page] [line] [text]");
+		System.out.println("    - Replace one or more lines of text, rewriting the file.");
 		System.out.println("  GeoRWriter DELETE [file.cvt] [page] [line]-[line]");
 		System.out.println("    - Delete one or more lines of text, rewriting the file.");
 		System.out.println("");
