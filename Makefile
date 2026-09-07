@@ -22,7 +22,8 @@ JARS := \
 	$(BIN_DIR)/D64Duplifind.jar \
 	$(BIN_DIR)/D64FileMatcher.jar \
 	$(BIN_DIR)/D64Search.jar \
-	$(BIN_DIR)/D64Mod.jar
+	$(BIN_DIR)/D64Mod.jar \
+	$(BIN_DIR)/GeoRWriter.jar
 
 all: jars
 
@@ -63,6 +64,9 @@ $(BIN_DIR)/D64Search.jar: $(BIN_DIR)/.compiled
 
 $(BIN_DIR)/D64Mod.jar: $(BIN_DIR)/.compiled
 	$(call build_fat_jar,com.planet_ink.emutil.D64Mod)
+
+$(BIN_DIR)/GeoRWriter.jar: $(BIN_DIR)/.compiled
+	$(call build_fat_jar,com.planet_ink.emutil.GeoRWriter)
 
 clean:
 	find com -name '*.class' -delete

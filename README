@@ -180,6 +180,45 @@ OPTIONS:
   -2 add to path2
 
 -----------------------------------------------------------------------------
+GeoRWriter (java)
+-----------------
+A tool for reading, editing, and comparing GEOS GeoWrite v2.0/v2.1 .CVT
+document files.  GeoWrite documents are up to 61 pages of text, stored in a
+VLIR-structured GEOS file; this tool reads .CVT files directly and can list
+or extract the text, insert/rewrite/delete lines, copy/move blocks of lines
+between pages, search lines with regular expressions, replace text, and diff
+two documents page by page.
+
+Java version requires Java 1.8 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/GeoRWriter.jar
+or
+java com.planet_ink.emutil.GeoRWriter
+
+USAGE:
+  GeoRWriter READ [file.cvt] [page]
+    - Display all pages or one page of text
+  GeoRWriter LIST [file.cvt] [page]
+    - Display all pages or one page of text w/ line numbers
+  GeoRWriter INSERT [file.cvt] [page] [line] [text]
+    - Insert one or more lines of text, rewriting the file.
+  GeoRWriter REWRITE [file.cvt] [page] [line] [text]
+    - Replace one or more lines of text, rewriting the file.
+  GeoRWriter REPLACE [file.cvt] [pattern] [replacement] [page]
+    - Replace all regex matches within matched lines.
+  GeoRWriter DELETE [file.cvt] [page] [line]-[line]
+    - Delete one or more lines of text, rewriting the file.
+  GeoRWriter COPY [file.cvt] [page] [line]-[line] [dstpage] [dstline]
+    - Copy a block of lines to before a line on any page.
+  GeoRWriter MOVE [file.cvt] [page] [line]-[line] [dstpage] [dstline]
+    - Move a block of lines to before a line on any page.
+  GeoRWriter SEARCH [file.cvt] [pattern] [page]
+    - Find lines matching a regex, reporting page:line.
+  GeoRWriter COMPARE [file1.cvt] [file2.cvt]
+    - Diff two documents page by page (exit 0 if identical, 1 if not).
+
+-----------------------------------------------------------------------------
 Emutil.prg (Commodore BASIC/ML)
 -------------------------------
 A disk image archiver for Commodore 64, 128, VIC-20, Plus/4, CBM-II, and CBM/PET
