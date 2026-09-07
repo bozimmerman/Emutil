@@ -48,7 +48,7 @@ public class GeoRWriter
 	private static final int	MAX_PAGES		= 61;
 	// Empirically the median number of text lines per page across real
 	// GeoWrite documents; a page is considered "full" past this many lines.
-	private static final int	MAX_LINES_PER_PAGE	= 25;
+	private static final int	MAX_LINES_PER_PAGE	= 68;
 
 	private static final String CVT_SIGNATURE1		= "PRG formatted GEOS file V1.0";
 	private static final String CVT_SIGNATURE2		= "SEQ formatted GEOS file V1.0";
@@ -1058,6 +1058,52 @@ public class GeoRWriter
 	}
 
 	/**
+	 * Insert a blank page at the given 1-based position, then repair the
+	 * VLIR sector and regenerate the source .CVT file, preserving everything
+	 * else in the document exactly as it was stored.
+	 *
+	 * The new page copies the document's first page header (the initial
+	 * ruler escape and NEWCARDSET), or a default header when the document
+	 * has no pages, followed by an EOP terminator, so it parses as a page
+	 * with no text lines.  Pages after the insertion point shift down by
+	 * one, matching how DELETE shifts pages up.
+	 *
+	 * @param pageNum 1-based position to insert before; page count + 1
+	 *                appends at the end of the document
+	 * @return the 1-based number of the inserted page
+	 * @throws IOException on read/write errors, if this was read from a
+	 *                     stream, or if the document would exceed the VLIR
+	 *                     page limit
+	 */
+	public int insertBlankPage(final int pageNum) throws IOException
+	{
+		if((pageNum < 1) || (pageNum > rawPages.size() + 1))
+			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+(rawPages.size()+1)+")");
+		if(rawPages.size() >= MAX_PAGES)
+			throw new IOException("Document would exceed the "+MAX_PAGES+" page VLIR limit");
+		if(sourceFile == null)
+			throw new IOException("No source file to rewrite");
+
+		final byte[] header;
+		if(rawPages.isEmpty())
+		{
+			// default ruler escape (27 bytes) + NEWCARDSET (4 bytes)
+			header = new byte[31];
+			header[0] = 0x11;
+			header[27] = 0x17;
+		}
+		else
+			header = Arrays.copyOf(rawPages.get(0).raw, rawPages.get(0).textStart);
+		final byte[] blank = new byte[header.length + 1];
+		System.arraycopy(header, 0, blank, 0, header.length);
+		blank[blank.length - 1] = 0x0C; // EOP
+		final List<RawPage> pages = new ArrayList<RawPage>(rawPages);
+		pages.add(pageNum - 1, parsePage(rawPages.size(), blank, blank.length));
+		writePages(pages);
+		return pageNum;
+	}
+
+	/**
 	 * Flow surplus lines forward page by page, splitting any page that was
 	 * small enough to fit but now holds more than {@value #MAX_LINES_PER_PAGE}
 	 * lines onto the following page, and creating a new page when the last
@@ -1357,6 +1403,8 @@ public class GeoRWriter
 		System.out.println("    - Display all pages or one page of text w/ line numbers");
 		System.out.println("  GeoRWriter INSERT [file.cvt] [page] [line] [text]");
 		System.out.println("    - Insert one or more lines of text, rewriting the file.");
+		System.out.println("  GeoRWriter INSERTPAGE [file.cvt] [page]");
+		System.out.println("    - Insert a blank page, rewriting the file.");
 		System.out.println("  GeoRWriter REWRITE [file.cvt] [page] [line] [text]");
 		System.out.println("    - Replace one or more lines of text, rewriting the file.");
 		System.out.println("  GeoRWriter REPLACE [file.cvt] [pattern] [replacement] [page]");
@@ -1478,6 +1526,45 @@ public class GeoRWriter
 					System.out.println("Inserted "+inserted+" line(s) before line "+lineNum+" on page "+pageNum+".");
 				}
 				catch(final IOException e) {
+					System.err.println("Error: " + e.getMessage());
+				}
+			}
+			else
+			if(args[0].equalsIgnoreCase("INSERTPAGE"))
+			{
+				if(args.length < 2)
+				{
+					usage();
+					return;
+				}
+				final GeoRWriter writer = new GeoRWriter(args[1], false);
+				final int pageNum;
+				if(args.length >= 3)
+				{
+					try
+					{
+						pageNum = Integer.parseInt(args[2]);
+					}
+					catch(final NumberFormatException e)
+					{
+						System.err.println("Error: invalid page number '"+args[2]+"'");
+						return;
+					}
+					if((pageNum < 1) || (pageNum > writer.getNumPages() + 1))
+					{
+						System.err.println("Error: page "+pageNum+" out of range (1-"+(writer.getNumPages()+1)+")");
+						return;
+					}
+				}
+				else
+					pageNum = writer.getNumPages() + 1;
+				try
+				{
+					final int inserted = writer.insertBlankPage(pageNum);
+					System.out.println("Inserted blank page "+inserted+".");
+				}
+				catch(final IOException e)
+				{
 					System.err.println("Error: " + e.getMessage());
 				}
 			}

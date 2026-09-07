@@ -203,6 +203,8 @@ USAGE:
     - Display all pages or one page of text w/ line numbers
   GeoRWriter INSERT [file.cvt] [page] [line] [text]
     - Insert one or more lines of text, rewriting the file.
+  GeoRWriter INSERTPAGE [file.cvt] [page]
+    - Insert a blank page, rewriting the file.
   GeoRWriter REWRITE [file.cvt] [page] [line] [text]
     - Replace one or more lines of text, rewriting the file.
   GeoRWriter REPLACE [file.cvt] [pattern] [replacement] [page]
