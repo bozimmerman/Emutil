@@ -28,8 +28,8 @@ public class GeoRWriter
 {
 	// VLIR geometry and signatures are shared with GeoMod (same package); keep a
 	// single source of truth so the two classes stay in lockstep.
-	private static final int	BLOCK_SIZE			= GeoMod.VLIR_SECTOR_OFF * 2; // 254
-	private static final int	VLIR_SECTOR_OFF		= GeoMod.DATA_OFFSET - GeoMod.VLIR_SECTOR_OFF; // 508
+	private static final int	BLOCK_SIZE			= GeoMod.BLOCK_SIZE; // 254
+	private static final int	VLIR_SECTOR_OFF		= GeoMod.VLIR_SECTOR_OFF; // 508
 	public static final int		DATA_OFFSET			= GeoMod.DATA_OFFSET; // 762
 	private static final int	MAX_PAGES			= 61;
 	// Empirically the median number of text lines per page across real
@@ -984,7 +984,18 @@ public class GeoRWriter
 			throw new IOException("No source file to rewrite");
 
 		final int start = page.lineStarts[lineNum - 1];
-		final byte[] replacement = textToLines(text);
+		byte[] replacement = textToLines(text);
+		// When appending after a page whose final line is not CR-terminated
+		// (the raw ends in the line's last text byte, or padding, or a lone
+		// EOP), insert a CR before the replacement so the appended text
+		// begins its own line instead of joining the final line.
+		if((lineNum == numLines + 1)&&(start > page.textStart)&&(page.raw[start - 1] & 0xff) != 0x0D)
+		{
+			final byte[] crText = new byte[replacement.length + 1];
+			crText[0] = 0x0D;
+			System.arraycopy(replacement, 0, crText, 1, replacement.length);
+			replacement = crText;
+		}
 		final int replLen = replacement.length;
 		final int inserted = replacement.length == 0 ? 0 : text.split("\n", -1).length;
 		final byte[] finalRaw = new byte[page.raw.length + replLen];

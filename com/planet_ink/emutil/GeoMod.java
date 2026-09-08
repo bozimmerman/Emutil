@@ -36,7 +36,7 @@ limitations under the License.
  */
 public class GeoMod
 {
-	private static final int	BLOCK_SIZE			= 254;
+	public static final int		BLOCK_SIZE			= 254;
 	public static final int		VLIR_SECTOR_OFF		= BLOCK_SIZE * 2; // 508
 	public static final int		DATA_OFFSET			= BLOCK_SIZE * 3; // 762
 	// A 254-byte VLIR sector holds [numBlocks, extra] pairs: 127 entries max (0..126).
