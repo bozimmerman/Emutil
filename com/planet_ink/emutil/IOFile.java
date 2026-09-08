@@ -309,7 +309,8 @@ public class IOFile
 					zout.putArchiveEntry(E);
 			}
 			zF.close();
-			final OutputStream o = new ByteArrayOutputStream() {
+			final OutputStream o = new ByteArrayOutputStream()
+			{
 				@Override
 				public void close() throws IOException
 				{

@@ -218,7 +218,42 @@ USAGE:
   GeoRWriter SEARCH [file.cvt] [pattern] [page]
     - Find lines matching a regex, reporting page:line.
   GeoRWriter COMPARE [file1.cvt] [file2.cvt]
-    - Diff two documents page by page (exit 0 if identical, 1 if not).
+     - Diff two documents page by page (exit 0 if identical, 1 if not).
+
+-----------------------------------------------------------------------------
+GeoMod (java)
+-------------
+A binary page/record editor for GEOS .CVT files in both VLIR and sequential
+formats.  While GeoRWriter works at the text-line level, GeoMod edits the raw
+records themselves: it lists all records with their sizes, hex-dumps pages or a
+byte range of a page, and performs structural record operations — insert,
+delete, rewrite bytes, copy a page, or move a page.  It is also the binary
+layer that GeoRWriter builds on for VLIR file management.
+
+Java version requires Java 1.8 or better.
+
+To execute from the command line (and get further help):
+java -jar bin/GeoMod.jar
+or
+java com.planet_ink.emutil.GeoMod
+
+USAGE:
+  GeoMod READ [file.cvt] [page/record] [offset] [count]
+    - Hex dump of page or region (digits only)
+    page=0 or 'h' = GEOS header block, omit page = implicit page 1
+  GeoMod LISTPAGES [file.cvt]
+    - List all records/pagination with sizes
+  GeoMod INSERTPAGE [file.cvt] [page]
+    - Insert blank record at position (VLIR files only)
+  GeoMod DELETEPAGE [file.cvt] <page/record>
+    - Delete record from file
+  GeoMod REWRITE [file.cvt] <page> <offset> <hexbytes>
+    - Replace bytes in page starting at offset
+    hexbytes: space-separated or contiguous hex digits, e.g. 'ff 0a' or 'ffa2'
+  GeoMod COPYPAGE [file.cvt] <srcpage> <dstpage>
+    - Copy page to branch position (VLIR files only)
+  GeoMod MOVEPAGE [file.cvt] <srcpage> <dstpage>
+    - Move page to branch position (VLIR files only)
 
 -----------------------------------------------------------------------------
 Emutil.prg (Commodore BASIC/ML)

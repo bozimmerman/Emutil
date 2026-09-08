@@ -448,10 +448,13 @@ public class D64FileMatcher extends D64Mod
 		}
 		List<File> F1s=new ArrayList<File>(1);
 		List<File> F2s=new ArrayList<File>(1);
-		try {
+		try
+		{
 			F1s = getAllFiles(path,depth,excludeMasks1);
 			F2s = getAllFiles(expr,depth,excludeMasks2);
-		} catch (final IOException e) {
+		}
+		catch (final IOException e)
+		{
 			System.err.println(e.getMessage());
 			System.exit(-1);
 		}
@@ -477,7 +480,8 @@ public class D64FileMatcher extends D64Mod
 
 		if(!flags.contains(CompFlag.VERBOSE))
 			System.setErr(new PrintStream(new OutputStream() {public void write(final int b) {}}));
-		Collections.sort(F1s,new Comparator<File>() {
+		Collections.sort(F1s,new Comparator<File>()
+		{
 			@Override
 			public int compare(final File o1, final File o2)
 			{
@@ -614,7 +618,8 @@ public class D64FileMatcher extends D64Mod
 				Collections.sort(sortedKeys,new Comparator<FileInfo>()
 				{
 					@Override
-					public int compare(final FileInfo o1, final FileInfo o2) {
+					public int compare(final FileInfo o1, final FileInfo o2)
+					{
 						return o1.filePath.compareToIgnoreCase(o2.filePath);
 					}
 				});

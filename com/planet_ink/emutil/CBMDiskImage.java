@@ -381,7 +381,8 @@ public class CBMDiskImage extends D64Base
 			return this.interleave;
 		}
 
-		public String toString() {
+		public String toString()
+		{
 			return ext;
 		};
 	};

@@ -218,7 +218,9 @@ public class D64Duplifind
 				throw new FileNotFoundException();
 			}
 			br.close();
-		} catch (final FileNotFoundException e2) {
+		}
+		catch (final FileNotFoundException e2)
+		{
 			fill1PathFiles(path1F,flags,allPathFiles);
 			try {
 				final BufferedWriter bw=new BufferedWriter(new FileWriter(key+"cache.txt"));
@@ -228,10 +230,14 @@ public class D64Duplifind
 					bw.write(F.getAbsolutePath()+"\r\n");
 				}
 				bw.close();
-			} catch (final IOException e) {
+			}
+			catch (final IOException e)
+			{
 				e.printStackTrace();
 			}
-		} catch (final IOException e) {
+		}
+		catch (final IOException e)
+		{
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -300,7 +306,8 @@ public class D64Duplifind
 								System.out.print(".");
 						}
 					}
-					try {
+					try
+					{
 						final BufferedWriter bw=new BufferedWriter(new FileWriter(key+"fullcache.txt"));
 						bw.write(combinedPaths+"\r\n");
 						for(final String hash : pathHashes.keySet())
@@ -316,7 +323,9 @@ public class D64Duplifind
 							}
 						}
 						bw.close();
-					} catch (final IOException e) {
+					}
+					catch (final IOException e)
+					{
 						e.printStackTrace();
 					}
 				}
@@ -324,7 +333,9 @@ public class D64Duplifind
 				{
 					e.printStackTrace();
 				}
-			} catch (final IOException e) {
+			}
+			catch (final IOException e)
+			{
 				e.printStackTrace();
 				System.exit(-1);
 			}

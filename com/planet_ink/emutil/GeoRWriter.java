@@ -21,40 +21,27 @@ limitations under the License.
 */
 /**
  * Reader/Writer for GEOS GeoWrite v2.0/v2.1 .CVT document files.
- *
- * A GeoWrite file is a VLIR structured GEOS file.  The first 61 branches
- * (0-60) hold the (up to 61) pages, branch 61 is the header record, branch
- * 62 the footer, branch 63 reserved, and branches 64-127 hold photo scraps.
- *
- * When stored loose (a .CVT file), the layout is:
- *   block 0 (254 bytes)   synthetic GEOS header w/ "PRG formatted GEOS file V1.0"
- *   block 1 (254 bytes)   GEOS file header from the directory entry
- *   block 2 (254 bytes)   VLIR sector - per branch a [numBlocks, extra] pair
- *   page data             one branch's data after another, each padded out
- *                         to whole 254-byte blocks (last branch truncated)
- *
- * Each page begins with a 27 byte ruler escape ($11 ...), a 4 byte
- * NEWCARDSET ($17, font id, style), and then the text.  The text may also
- * contain inline ruler escapes ($11), NEWCARDSET changes ($17), and
- * graphics escapes ($10).  A page is terminated by an EOP ($0C).
- *
- * @author BZ
+ * Delegates to GeoMod for binary VLIR file management, adding text-level
+ * parsing and editing on top of raw record bytes.
  */
 public class GeoRWriter
 {
-	private static final int	BLOCK_SIZE		= 254;
-	private static final int	VLIR_SECTOR_OFF	= BLOCK_SIZE * 2; // 508
-	private static final int	DATA_OFFSET		= BLOCK_SIZE * 3; // 762
-	private static final int	MAX_PAGES		= 61;
+	// VLIR geometry and signatures are shared with GeoMod (same package); keep a
+	// single source of truth so the two classes stay in lockstep.
+	private static final int	BLOCK_SIZE			= GeoMod.VLIR_SECTOR_OFF * 2; // 254
+	private static final int	VLIR_SECTOR_OFF		= GeoMod.DATA_OFFSET - GeoMod.VLIR_SECTOR_OFF; // 508
+	public static final int		DATA_OFFSET			= GeoMod.DATA_OFFSET; // 762
+	private static final int	MAX_PAGES			= 61;
 	// Empirically the median number of text lines per page across real
 	// GeoWrite documents; a page is considered "full" past this many lines.
 	private static final int	MAX_LINES_PER_PAGE	= 68;
 
-	private static final String CVT_SIGNATURE1		= "PRG formatted GEOS file V1.0";
-	private static final String CVT_SIGNATURE2		= "SEQ formatted GEOS file V1.0";
+	// VLIR null-branch marker: with 0 blocks marks an unused branch slot.
+	public static final int		VLIR_NULL_EXTRA		= GeoMod.VLIR_NULL_EXTRA;
 
-	private static final int VLIR_NULL_EXTRA		= 0xFF; // with 0 blocks: unused branch
-
+	// Delegate to GeoMod for binary VLIR file management (header, raw file, record parsing)
+	protected GeoMod geoMod;
+	
 	private final List<RawPage> rawPages 	= new ArrayList<RawPage>();
 	private final String 		fileName;
 	private final boolean 		prependLineNumbers;
@@ -192,7 +179,7 @@ public class GeoRWriter
 					i++; // skip the paired '+'
 				}
 				else
-				if((dl.kind == '-') || (dl.kind == '+'))
+				if((dl.kind == '-')||(dl.kind == '+'))
 					cost++;
 			}
 			return cost;
@@ -223,6 +210,7 @@ public class GeoRWriter
 		this.prependLineNumbers = prependLineNumbers;
 		this.fileName = file.getName();
 		this.sourceFile = file;
+		this.geoMod = GeoMod.fromFile(file);
 		try(final InputStream in = new FileInputStream(file))
 		{
 			parse(in);
@@ -269,10 +257,42 @@ public class GeoRWriter
 	 */
 	private static boolean isCvt(final byte[] data)
 	{
-		if(data.length < 58)
+		return data.length >= 58 && GeoMod.isCvt(data);
+	}
+
+	private static final String CVT_GEOAUTHOR	= "geoWrite";		// app author/version string in block 1
+	private static final String CVT_GEOIMAGE	= "Write Image";	// app name string in block 1
+
+	/**
+	 * Check whether a GEOS .CVT file actually holds a GeoWrite document
+	 * rather than some other GEOS VLIR/SEQ file masked as a CVT.  GeoWrite
+	 * documents identify themselves in block 1 (the GEOS information sector)
+	 * with the application name/version strings "Write Image" and "geoWrite".
+	 *
+	 * @param data full file bytes
+	 * @return true if this is a GeoWrite document
+	 */
+	private static boolean isGeoWriteDocument(final byte[] data)
+	{
+		if(data.length < (BLOCK_SIZE * 2))
 			return false;
-		return new String(data, 30, CVT_SIGNATURE1.length()).equals(CVT_SIGNATURE1)
-				||new String(data, 30, CVT_SIGNATURE2.length()).equals(CVT_SIGNATURE2);
+		final String block1 = new String(data, BLOCK_SIZE, BLOCK_SIZE, java.nio.charset.StandardCharsets.ISO_8859_1);
+		return block1.contains(CVT_GEOAUTHOR)||block1.contains(CVT_GEOIMAGE);
+	}
+
+	/**
+	 * Check the GEOS file structure byte in block 1 (offset 0x44 within the
+	 * information sector): 1 = VLIR, 0 = sequential.
+	 *
+	 * @param data full file bytes
+	 * @return true if the file is VLIR-structured
+	 */
+	private static boolean isVlirStructure(final byte[] data, final boolean seqFallback)
+	{
+		final int structByte = data.length >= (BLOCK_SIZE + 0x45) ? (data[BLOCK_SIZE + 0x44] & 0xff) : -1;
+		if(structByte == 1) return true;
+		if(structByte == 0) return false;
+		return seqFallback; // malformed/absent header: caller decides
 	}
 
 	/**
@@ -291,7 +311,7 @@ public class GeoRWriter
 		final StringBuilder str = new StringBuilder(raw.length);
 		// find the NEWCARDSET code following the initial ruler escape
 		int i = 1;
-		while((i < 35) && (i < raw.length))
+		while((i < 35)&&(i < raw.length))
 		{
 			if((raw[i] & 0xff) == 0x17) // NEWCARDSET
 			{
@@ -352,7 +372,7 @@ public class GeoRWriter
 				i++;
 			}
 			else
-			if((b >= 0x20) && (b <= 0x7E)) // plain ASCII
+			if((b >= 0x20)&&(b <= 0x7E)) // plain ASCII
 			{
 				str.append((char)b);
 				i++;
@@ -364,7 +384,7 @@ public class GeoRWriter
 				i++;
 			}
 			else
-			if((b >= 0xC1) && (b <= 0xDA)) // PETSCII upper case letters
+			if((b >= 0xC1)&&(b <= 0xDA)) // PETSCII upper case letters
 			{
 				str.append((char)(b - 0xC1 + 'A'));
 				i++;
@@ -374,7 +394,7 @@ public class GeoRWriter
 		}
 		final int eopPos = (eop < 0) ? raw.length : eop;
 		int ce = Math.min(Math.max(declaredLen, 0), raw.length);
-		if((eop >= 0) && (eop + 1 > ce))
+		if((eop >= 0)&&(eop + 1 > ce))
 			ce = eop + 1;
 		starts.add(Integer.valueOf(eopPos));
 		final int[] lineStarts = new int[starts.size()];
@@ -403,6 +423,10 @@ public class GeoRWriter
 			throw new IOException("Not a valid GeoWrite CVT file (too short): "+fileName);
 		if(!isCvt(data))
 			throw new IOException("Not a GeoWrite CVT file (bad signature): "+fileName);
+		if(!isGeoWriteDocument(data))
+			throw new IOException("Not a GeoWrite document (GEOS "+fileName+" is not a GeoWrite file)");
+		if(!isVlirStructure(data, true))
+			throw new IOException("Sequential GEOS file "+fileName+": not a GeoWrite document");
 		this.rawFile = data;
 		this.vlirSector = Arrays.copyOfRange(data, VLIR_SECTOR_OFF, VLIR_SECTOR_OFF + BLOCK_SIZE);
 		this.rawPages.clear();
@@ -411,9 +435,9 @@ public class GeoRWriter
 		{
 			final int numBlocks = vlirSector[branch * 2] & 0xff;
 			final int extra = vlirSector[(branch * 2) + 1] & 0xff;
-			if((numBlocks == 0) && (extra == VLIR_NULL_EXTRA)) // null (unused) branch
+			if((numBlocks == 0)&&(extra == VLIR_NULL_EXTRA)) // null (unused) branch
 				continue;
-			if((numBlocks == 0) && (extra == 0)) // end of VLIR sector
+			if((numBlocks == 0)&&(extra == 0)) // end of VLIR sector
 				break;
 			int branchLen = numBlocks * BLOCK_SIZE;
 			if(offset + branchLen > data.length)
@@ -470,7 +494,7 @@ public class GeoRWriter
 	 */
 	public int getNumLines(final int pageNum)
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		return rawPages.get(pageNum - 1).getNumLines();
 	}
@@ -557,7 +581,7 @@ public class GeoRWriter
 		final List<DiffLine> raw = new ArrayList<DiffLine>(n + m);
 		int i = 0;
 		int j = 0;
-		while((i < n) && (j < m))
+		while((i < n)&&(j < m))
 		{
 			if(a.get(i).equals(b.get(j)))
 			{
@@ -588,10 +612,10 @@ public class GeoRWriter
 				continue;
 			}
 			final int rStart = k;
-			while((k < raw.size()) && (raw.get(k).kind == '-'))
+			while((k < raw.size())&&(raw.get(k).kind == '-'))
 				k++;
 			final int aStart = k;
-			while((k < raw.size()) && (raw.get(k).kind == '+'))
+			while((k < raw.size())&&(raw.get(k).kind == '+'))
 				k++;
 			final int r = aStart - rStart;
 			final int addCount = k - aStart;
@@ -644,7 +668,7 @@ public class GeoRWriter
 	 */
 	public List<LineMatch> search(final String regex, final int pageNum)
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		final Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
 		final List<LineMatch> results = new ArrayList<LineMatch>();
@@ -716,7 +740,7 @@ public class GeoRWriter
 	 */
 	public int replace(final String regex, final String replacement, final int pageNum) throws IOException
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		if(sourceFile == null)
 			throw new IOException("No source file to rewrite");
@@ -811,11 +835,11 @@ public class GeoRWriter
 	 */
 	public boolean deleteLines(final int pageNum, final int lineFrom, final int lineTo) throws IOException
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		final RawPage page = rawPages.get(pageNum - 1);
 		final int numLines = page.getNumLines();
-		if((lineFrom < 1) || (lineTo < lineFrom) || (lineTo > numLines))
+		if((lineFrom < 1)||(lineTo < lineFrom)||(lineTo > numLines))
 			throw new IndexOutOfBoundsException("Lines "+lineFrom+"-"+lineTo+" out of range (1-"+numLines+")");
 		if(sourceFile == null)
 			throw new IOException("No source file to rewrite");
@@ -835,68 +859,32 @@ public class GeoRWriter
 		System.arraycopy(page.raw, 0, newRaw, 0, start);
 		System.arraycopy(page.raw, end, newRaw, start, page.raw.length - end);
 		final RawPage newPage = parsePage(page.branch, newRaw, newContentEnd);
-		final boolean removePage = newPage.isEmptyText() || (newContentEnd <= newPage.textStart);
+		final boolean removePage = newPage.isEmptyText()||(newContentEnd <= newPage.textStart);
 
-		final byte[] newVlir = vlirSector.clone();
-		final ByteArrayOutputStream dataOut = new ByteArrayOutputStream();
-		final boolean lastInFile = (pageNum == rawPages.size()) && (tailOffset >= rawFile.length);
+		// Delegate VLIR repair + file rewrite to shared path in GeoMod via writePages()
+		final List<RawPage> pages = new ArrayList<>(rawPages.size());
 		for(int i = 0; i < rawPages.size(); i++)
 		{
-			final RawPage branchPage = rawPages.get(i);
-			if(i != pageNum - 1)
+			if(i == pageNum - 1)
 			{
-				dataOut.write(branchPage.raw, 0, branchPage.raw.length);
-				continue;
-			}
-			if(removePage)
-			{
-				newVlir[branchPage.branch * 2] = 0;
-				newVlir[(branchPage.branch * 2) + 1] = (byte) VLIR_NULL_EXTRA;
-				continue;
-			}
-			final int numBlocks = (newContentEnd + BLOCK_SIZE - 1) / BLOCK_SIZE;
-			final int rem = newContentEnd % BLOCK_SIZE;
-			final int extra = (rem == 0) ? 1 : (rem + 1);
-			final byte[] stored;
-			if(lastInFile)
-				stored = Arrays.copyOf(newRaw, newContentEnd);
+				if(!removePage) 
+					pages.add(newPage);
+			} 
 			else
-				stored = Arrays.copyOf(newRaw, numBlocks * BLOCK_SIZE);
-			newVlir[branchPage.branch * 2] = (byte) numBlocks;
-			newVlir[(branchPage.branch * 2) + 1] = (byte) extra;
-			dataOut.write(stored, 0, stored.length);
+				pages.add(rawPages.get(i));
 		}
-		dataOut.write(rawFile, tailOffset, rawFile.length - tailOffset);
-
-		final ByteArrayOutputStream fileOut = new ByteArrayOutputStream();
-		fileOut.write(rawFile, 0, VLIR_SECTOR_OFF);
-		fileOut.write(newVlir, 0, newVlir.length);
-		fileOut.write(dataOut.toByteArray(), 0, dataOut.size());
-		final byte[] newFile = fileOut.toByteArray();
-
-		final File temp = new File(sourceFile.getParentFile(), sourceFile.getName() + ".tmp");
-		try(final FileOutputStream fout = new FileOutputStream(temp))
-		{
-			fout.write(newFile);
-		}
-		if((temp.length() != newFile.length) || (!sourceFile.delete()))
-		{
-			temp.delete();
-			throw new IOException("Error replacing "+fileName);
-		}
-		if(!temp.renameTo(sourceFile))
-			throw new IOException("Error renaming "+temp.getName()+" to "+fileName);
-		parse(newFile);
+		
+		writePages(pages);
 		return removePage;
 	}
 
 	public boolean rewriteLine(final int pageNum, final int lineNum, final String text) throws IOException
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		final RawPage page = rawPages.get(pageNum - 1);
 		final int numLines = page.getNumLines();
-		if((lineNum < 1) || (lineNum > numLines))
+		if((lineNum < 1)||(lineNum > numLines))
 			throw new IndexOutOfBoundsException("Line "+lineNum+" out of range (1-"+numLines+")");
 		if(sourceFile == null)
 			throw new IOException("No source file to rewrite");
@@ -918,62 +906,25 @@ public class GeoRWriter
 		System.arraycopy(raw, end, finalRaw, dst, raw.length - end);
 		final int delta = replLen - lineLen;
 		final int newContentEnd = page.contentEnd + delta;
-		if(newContentEnd < page.textStart) {
+		if(newContentEnd < page.textStart)
 			return deleteLines(pageNum, lineNum, lineNum);
-		}
 		final RawPage newPage = parsePage(page.branch, finalRaw, newContentEnd);
-		final boolean removePage = newPage.isEmptyText() || (newContentEnd <= newPage.textStart);
+		final boolean removePage = newPage.isEmptyText()||(newContentEnd <= newPage.textStart);
 
-		final byte[] newVlir = vlirSector.clone();
-		final ByteArrayOutputStream dataOut = new ByteArrayOutputStream();
-		final boolean lastInFile = (pageNum == rawPages.size()) && (tailOffset >= rawFile.length);
-		for(int i = 0; i < rawPages.size(); i++) 
+		// Delegate VLIR repair + file rewrite to shared path in GeoMod via writePages()
+		final List<RawPage> pages = new ArrayList<>(rawPages.size());
+		for(int i = 0; i < rawPages.size(); i++)
 		{
-			final RawPage branchPage = rawPages.get(i);
-			if(i != pageNum - 1) 
+			if(i == pageNum - 1)
 			{
-				dataOut.write(branchPage.raw, 0, branchPage.raw.length);
-				continue;
-			}
-			if(removePage) 
-			{
-				newVlir[branchPage.branch * 2] = 0;
-				newVlir[(branchPage.branch * 2) + 1] = (byte) VLIR_NULL_EXTRA;
-				continue;
-			}
-			final int numBlocks = Math.max(1, (newContentEnd + BLOCK_SIZE - 1) / BLOCK_SIZE);
-			final int rem = newContentEnd % BLOCK_SIZE;
-			final int extra = (rem == 0) ? 1 : (rem + 1);
-			final byte[] stored;
-			if(lastInFile)
-				stored = Arrays.copyOf(finalRaw, newContentEnd);
+				if(!removePage) 
+					pages.add(newPage);
+			} 
 			else
-				stored = Arrays.copyOf(finalRaw, numBlocks * BLOCK_SIZE);
-			newVlir[branchPage.branch * 2] = (byte) numBlocks;
-			newVlir[(branchPage.branch * 2) + 1] = (byte) extra;
-			dataOut.write(stored, 0, stored.length);
+				pages.add(rawPages.get(i));
 		}
-		dataOut.write(rawFile, tailOffset, rawFile.length - tailOffset);
-
-		final ByteArrayOutputStream fileOut = new ByteArrayOutputStream();
-		fileOut.write(rawFile, 0, VLIR_SECTOR_OFF);
-		fileOut.write(newVlir, 0, newVlir.length);
-		fileOut.write(dataOut.toByteArray(), 0, dataOut.size());
-		final byte[] newFile = fileOut.toByteArray();
-
-		final File temp = new File(sourceFile.getParentFile(), sourceFile.getName() + ".tmp");
-		try(final FileOutputStream fout = new FileOutputStream(temp)) 
-		{
-			fout.write(newFile);
-		}
-		if((temp.length() != newFile.length) || (!sourceFile.delete())) 
-		{
-			temp.delete();
-			throw new IOException("Error replacing "+fileName);
-		}
-		if(!temp.renameTo(sourceFile))
-			throw new IOException("Error renaming "+temp.getName()+" to "+fileName);
-		parse(newFile);
+		
+		writePages(pages);
 		return removePage;
 	}
 
@@ -1023,11 +974,11 @@ public class GeoRWriter
 	 */
 	public int insertLines(final int pageNum, final int lineNum, final String text) throws IOException
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size()))
+		if((pageNum < 1)||(pageNum > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+rawPages.size()+")");
 		final RawPage page = rawPages.get(pageNum - 1);
 		final int numLines = page.getNumLines();
-		if((lineNum < 1) || (lineNum > numLines + 1))
+		if((lineNum < 1)||(lineNum > numLines + 1))
 			throw new IndexOutOfBoundsException("Line "+lineNum+" out of range (1-"+(numLines+1)+")");
 		if(sourceFile == null)
 			throw new IOException("No source file to rewrite");
@@ -1051,7 +1002,7 @@ public class GeoRWriter
 
 		// Only reflow (split onto new/next pages) when a page that was small
 		// enough to fit now has too many lines.  Dense pages are left alone.
-		if((before[pageNum - 1] <= MAX_LINES_PER_PAGE) && (countLines(pages.get(pageNum - 1)) > MAX_LINES_PER_PAGE))
+		if((before[pageNum - 1] <= MAX_LINES_PER_PAGE)&&(countLines(pages.get(pageNum - 1)) > MAX_LINES_PER_PAGE))
 			reflow(pages, before, pageNum - 1);
 		writePages(pages);
 		return inserted;
@@ -1077,7 +1028,7 @@ public class GeoRWriter
 	 */
 	public int insertBlankPage(final int pageNum) throws IOException
 	{
-		if((pageNum < 1) || (pageNum > rawPages.size() + 1))
+		if((pageNum < 1)||(pageNum > rawPages.size() + 1))
 			throw new IndexOutOfBoundsException("Page "+pageNum+" out of range (1-"+(rawPages.size()+1)+")");
 		if(rawPages.size() >= MAX_PAGES)
 			throw new IOException("Document would exceed the "+MAX_PAGES+" page VLIR limit");
@@ -1123,7 +1074,7 @@ public class GeoRWriter
 			final RawPage p = pages.get(cur);
 			final int n = countLines(p);
 			final boolean wasSmall = before[cur] <= MAX_LINES_PER_PAGE;
-			if(wasSmall && (n > MAX_LINES_PER_PAGE))
+			if(wasSmall&&(n > MAX_LINES_PER_PAGE))
 			{
 				final int boundary = p.lineStarts[MAX_LINES_PER_PAGE]; // start of line cap+1
 				final int eop = p.eopPos;
@@ -1203,7 +1154,7 @@ public class GeoRWriter
 	private static int countLines(final RawPage p)
 	{
 		final int n = p.getNumLines();
-		if((n > 0) && (p.lineStarts[n - 1] == p.lineStarts[n]))
+		if((n > 0)&&(p.lineStarts[n - 1] == p.lineStarts[n]))
 			return n - 1;
 		return n;
 	}
@@ -1245,15 +1196,15 @@ public class GeoRWriter
 	private void validateBlock(final int srcPage, final int lineFrom, final int lineTo,
 			final int dstPage, final int dstLine)
 	{
-		if((srcPage < 1) || (srcPage > rawPages.size()))
+		if((srcPage < 1)||(srcPage > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+srcPage+" out of range (1-"+rawPages.size()+")");
 		final int srcLines = rawPages.get(srcPage - 1).getNumLines();
-		if((lineFrom < 1) || (lineTo < lineFrom) || (lineTo > srcLines))
+		if((lineFrom < 1)||(lineTo < lineFrom)||(lineTo > srcLines))
 			throw new IndexOutOfBoundsException("Lines "+lineFrom+"-"+lineTo+" out of range (1-"+srcLines+")");
-		if((dstPage < 1) || (dstPage > rawPages.size()))
+		if((dstPage < 1)||(dstPage > rawPages.size()))
 			throw new IndexOutOfBoundsException("Page "+dstPage+" out of range (1-"+rawPages.size()+")");
 		final int dstLines = rawPages.get(dstPage - 1).getNumLines();
-		if((dstLine < 1) || (dstLine > dstLines + 1))
+		if((dstLine < 1)||(dstLine > dstLines + 1))
 			throw new IndexOutOfBoundsException("Line "+dstLine+" out of range (1-"+(dstLines+1)+")");
 	}
 
@@ -1309,7 +1260,7 @@ public class GeoRWriter
 	{
 		if(srcPage == dstPage)
 		{
-			if((dstLine > lineFrom) && (dstLine <= lineTo))
+			if((dstLine > lineFrom)&&(dstLine <= lineTo))
 				throw new IllegalArgumentException("Cannot move a block into its own interior");
 		}
 		validateBlock(srcPage, lineFrom, lineTo, dstPage, dstLine);
@@ -1330,7 +1281,7 @@ public class GeoRWriter
 				toLine -= blockSize;
 		}
 		else
-		if(removedPage && (dstPage > srcPage))
+		if(removedPage&&(dstPage > srcPage))
 			toPage--; // pages after the removed source page have shifted down
 		return insertLines(toPage, toLine, text);
 	}
@@ -1339,57 +1290,34 @@ public class GeoRWriter
 	 * Rewrite the source .CVT file with the given ordered set of pages,
 	 * renumbering their VLIR branches 0..N-1, repairing the VLIR sector,
 	 * and preserving the header/footer/photo tail exactly as stored.
+	 * Delegates to GeoMod's shared binary file management for VLIR repair.
 	 *
 	 * @param pages the pages to write, in order; each raw holds only content bytes
 	 * @throws IOException on write errors, or if this was read from a stream
 	 */
 	private void writePages(final List<RawPage> pages) throws IOException
 	{
-		final byte[] newVlir = vlirSector.clone();
-		for(int b = 0; b < MAX_PAGES; b++)
-		{
-			newVlir[b * 2] = 0;
-			newVlir[(b * 2) + 1] = (byte) VLIR_NULL_EXTRA;
-		}
-		final ByteArrayOutputStream dataOut = new ByteArrayOutputStream();
-		final boolean lastInFile = tailOffset >= rawFile.length;
+		if(sourceFile == null)
+			throw new IOException("No source file to rewrite");
+		
+		// Convert RawPage list to GeoMod.RawRecord for shared VLIR management
+		final List<GeoMod.RawRecord> records = new ArrayList<>(pages.size());
 		for(int i = 0; i < pages.size(); i++)
 		{
 			final RawPage p = pages.get(i);
 			final int contentEnd = p.contentEnd;
 			final int numBlocks = Math.max(1, (contentEnd + BLOCK_SIZE - 1) / BLOCK_SIZE);
-			final int rem = contentEnd % BLOCK_SIZE;
-			final int extra = (rem == 0) ? 1 : (rem + 1);
-			final byte[] stored;
-			if(lastInFile && (i == pages.size() - 1))
-				stored = Arrays.copyOf(p.raw, contentEnd);
-			else
-				stored = Arrays.copyOf(p.raw, numBlocks * BLOCK_SIZE);
-			newVlir[i * 2] = (byte) numBlocks;
-			newVlir[(i * 2) + 1] = (byte) extra;
-			dataOut.write(stored, 0, stored.length);
+			final byte[] stored = (i == pages.size() - 1)&&(tailOffset >= rawFile.length)
+				? Arrays.copyOf(p.raw, contentEnd) // last page: trailing tail absent -> keep only content
+				: Arrays.copyOf(p.raw, numBlocks * BLOCK_SIZE);
+			records.add(GeoMod.RawRecord.fromRawLength(i, stored));
 		}
-		dataOut.write(rawFile, tailOffset, rawFile.length - tailOffset);
-
-		final ByteArrayOutputStream fileOut = new ByteArrayOutputStream();
-		fileOut.write(rawFile, 0, VLIR_SECTOR_OFF);
-		fileOut.write(newVlir, 0, newVlir.length);
-		fileOut.write(dataOut.toByteArray(), 0, dataOut.size());
-		final byte[] newFile = fileOut.toByteArray();
-
-		final File temp = new File(sourceFile.getParentFile(), sourceFile.getName() + ".tmp");
-		try(final FileOutputStream fout = new FileOutputStream(temp))
-		{
-			fout.write(newFile);
-		}
-		if((temp.length() != newFile.length) || (!sourceFile.delete()))
-		{
-			temp.delete();
-			throw new IOException("Error replacing "+fileName);
-		}
-		if(!temp.renameTo(sourceFile))
-			throw new IOException("Error renaming "+temp.getName()+" to "+fileName);
-		parse(newFile);
+		
+		// Delegate VLIR repair + file reconstruction to shared GeoMod method
+		geoMod.writePages(records);
+		
+		// Re-parse rawFile to update internal state
+		parse(rawFile);
 	}
 
 	private static void usage()
@@ -1456,7 +1384,7 @@ public class GeoRWriter
 						System.err.println("Error: invalid page number '"+args[2]+"'");
 						return;
 					}
-					if((pageNum < 1) || (pageNum > reader.getNumPages()))
+					if((pageNum < 1)||(pageNum > reader.getNumPages()))
 					{
 						System.err.println("Error: page "+pageNum+" out of range (1-"+reader.getNumPages()+")");
 						return;
@@ -1509,13 +1437,13 @@ public class GeoRWriter
 				}
 				final String text = sb.toString();
 				final GeoRWriter writer = new GeoRWriter(args[1], false);
-				if((pageNum < 1) || (pageNum > writer.getNumPages())) 
+				if((pageNum < 1)||(pageNum > writer.getNumPages())) 
 				{
 					System.err.println("Error: page "+pageNum+" out of range (1-"+writer.getNumPages()+")");
 					return;
 				}
 				final int numLines = writer.getNumLines(pageNum);
-				if((lineNum < 1) || (lineNum > numLines + 1)) 
+				if((lineNum < 1)||(lineNum > numLines + 1)) 
 				{
 					System.err.println("Error: line "+lineNum+" out of range (1-"+(numLines+1)+")");
 					return;
@@ -1525,7 +1453,8 @@ public class GeoRWriter
 					final int inserted = writer.insertLines(pageNum, lineNum, text);
 					System.out.println("Inserted "+inserted+" line(s) before line "+lineNum+" on page "+pageNum+".");
 				}
-				catch(final IOException e) {
+				catch(final IOException e)
+				{
 					System.err.println("Error: " + e.getMessage());
 				}
 			}
@@ -1550,7 +1479,7 @@ public class GeoRWriter
 						System.err.println("Error: invalid page number '"+args[2]+"'");
 						return;
 					}
-					if((pageNum < 1) || (pageNum > writer.getNumPages() + 1))
+					if((pageNum < 1)||(pageNum > writer.getNumPages() + 1))
 					{
 						System.err.println("Error: page "+pageNum+" out of range (1-"+(writer.getNumPages()+1)+")");
 						return;
@@ -1604,13 +1533,13 @@ public class GeoRWriter
 				}
 				final String text = sb.toString();
 				final GeoRWriter writer = new GeoRWriter(args[1], false);
-				if((pageNum < 1) || (pageNum > writer.getNumPages())) 
+				if((pageNum < 1)||(pageNum > writer.getNumPages())) 
 				{
 					System.err.println("Error: page "+pageNum+" out of range (1-"+writer.getNumPages()+")");
 					return;
 				}
 				final int numLines = writer.getNumLines(pageNum);
-				if((lineNum < 1) || (lineNum > numLines)) 
+				if((lineNum < 1)||(lineNum > numLines)) 
 				{
 					System.err.println("Error: line "+lineNum+" out of range (1-"+numLines+")");
 					return;
@@ -1651,7 +1580,7 @@ public class GeoRWriter
 							System.err.println("Error: invalid page number '"+args[4]+"'");
 							return;
 						}
-						if((pageNum < 1) || (pageNum > writer.getNumPages()))
+						if((pageNum < 1)||(pageNum > writer.getNumPages()))
 						{
 							System.err.println("Error: page "+pageNum+" out of range (1-"+writer.getNumPages()+")");
 							return;
@@ -1708,13 +1637,13 @@ public class GeoRWriter
 					return;
 				}
 				final GeoRWriter writer = new GeoRWriter(args[1],false);
-				if((pageNum < 1) || (pageNum > writer.getNumPages()))
+				if((pageNum < 1)||(pageNum > writer.getNumPages()))
 				{
 					System.err.println("Error: page "+pageNum+" out of range (1-"+writer.getNumPages()+")");
 					return;
 				}
 				final int numLines = writer.getNumLines(pageNum);
-				if((lineFrom < 1) || (lineTo < lineFrom) || (lineTo > numLines))
+				if((lineFrom < 1)||(lineTo < lineFrom)||(lineTo > numLines))
 				{
 					System.err.println("Error: lines "+lineFrom+"-"+lineTo+" out of range (1-"+numLines+")");
 					return;
@@ -1726,7 +1655,7 @@ public class GeoRWriter
 					System.out.println("Deleted lines "+lineFrom+"-"+lineTo+" from page "+pageNum+".");
 			}
 			else
-			if(args[0].equalsIgnoreCase("COPY") || args[0].equalsIgnoreCase("MOVE"))
+			if(args[0].equalsIgnoreCase("COPY")||args[0].equalsIgnoreCase("MOVE"))
 			{
 				final boolean isMove = args[0].equalsIgnoreCase("MOVE");
 				if(args.length < 6)
@@ -1811,7 +1740,7 @@ public class GeoRWriter
 							System.err.println("Error: invalid page number '"+args[3]+"'");
 							return;
 						}
-						if((pageNum < 1) || (pageNum > writer.getNumPages()))
+						if((pageNum < 1)||(pageNum > writer.getNumPages()))
 						{
 							System.err.println("Error: page "+pageNum+" out of range (1-"+writer.getNumPages()+")");
 							return;

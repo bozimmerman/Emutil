@@ -416,7 +416,9 @@ public class D64Mod extends D64Base
 							fout.write(fileData);
 							fout.close();
 							System.out.println(fileData.length+" bytes written to "+outF.getAbsolutePath());
-						} catch (final Exception e) {
+						}
+						catch (final Exception e)
+						{
 							imageError(e.getMessage(),imageFiles.size()>0);
 							continue;
 						}
@@ -625,7 +627,9 @@ public class D64Mod extends D64Base
 						break;
 					}
 					}
-				} catch (final IOException e) {
+				}
+				catch (final IOException e)
+				{
 					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
 				}
@@ -670,7 +674,9 @@ public class D64Mod extends D64Base
 							totalBytesRead+=bytesRead;
 					}
 					fin.close();
-				} catch (final Exception e) {
+				}
+				catch (final Exception e)
+				{
 					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
 				}
@@ -881,7 +887,9 @@ public class D64Mod extends D64Base
 					final OutputStream fout = imageF.createOutputStream();
 					fout.write(disk.getFlatBytes());
 					fout.close();
-				} catch (final Exception e) {
+				}
+				catch (final Exception e)
+				{
 					imageError(e.getMessage(),imageFiles.size()>0);
 					continue;
 				}
