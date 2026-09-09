@@ -378,19 +378,7 @@ public class GeoRWriter
 				i++;
 			}
 			else
-			if(b == 0xA0) // PETSCII space
-			{
-				str.append(' ');
-				i++;
-			}
-			else
-			if((b >= 0xC1)&&(b <= 0xDA)) // PETSCII upper case letters
-			{
-				str.append((char)(b - 0xC1 + 'A'));
-				i++;
-			}
-			else
-				i++;
+				i++; // GEOS "0=do not use"/word-term codes (>=0x80, $A0, $C1-$DA PETSCII): rendered by real GeoWrite readers as nothing
 		}
 		final int eopPos = (eop < 0) ? raw.length : eop;
 		int ce = Math.min(Math.max(declaredLen, 0), raw.length);
