@@ -380,7 +380,7 @@ public class GeoRWriter
 					final int record = raw[i + 4] & 0xff;
 					pictures.add(new ClipRef(starts.size() - 1, record, width, height));
 				}
-				i += 6;
+				i += 5;
 				continue;
 			}
 			else
