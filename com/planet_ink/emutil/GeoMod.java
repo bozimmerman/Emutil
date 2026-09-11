@@ -679,6 +679,7 @@ public class GeoMod
 		if(args.length < 2)
 		{ 
 			usage();
+			System.exit(2);
 			return;
 		}
 
@@ -915,7 +916,10 @@ public class GeoMod
 				System.out.println("Moved page " + src + " to page " + dst + ".");
 			}
 			else
+			{
 				usage();
+				System.exit(2);
+			}
 		}
 		catch(final IOException e)
 		{
