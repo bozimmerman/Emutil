@@ -145,7 +145,7 @@ public class GeoMod
 		}
 	}
 
-	private GeoMod(final File sourceFile, final byte[] data) throws IOException
+	protected GeoMod(final File sourceFile, final byte[] data) throws IOException
 	{
 		this.sourceFile = sourceFile;
 		parse(data);
