@@ -343,6 +343,8 @@ public class GeoRWriter
 			i++;
 		}
 		final int textStart = i;
+		final int contentEnd = ((declaredLen > 0) && (declaredLen < raw.length))
+			? declaredLen : raw.length;
 		final List<Integer> starts = new ArrayList<Integer>();
 		starts.add(Integer.valueOf(i));
 		final List<ClipRef> pictures = new ArrayList<ClipRef>();
@@ -350,7 +352,7 @@ public class GeoRWriter
 		if(prependLineNumbers)
 			str.append((l<10?(" "+l):(""+l))+": ");
 		int eop = -1;
-		while(i < raw.length)
+		while(i < contentEnd)
 		{
 			final int b = raw[i] & 0xff;
 			if(b == 0x0C) // EOP
@@ -410,8 +412,8 @@ public class GeoRWriter
 			else
 				i++; // GEOS "0=do not use"/word-term codes (>=0x80, $A0, $C1-$DA PETSCII): rendered by real GeoWrite readers as nothing
 		}
-		final int eopPos = (eop < 0) ? raw.length : eop;
-		int ce = Math.min(Math.max(declaredLen, 0), raw.length);
+		final int eopPos = (eop < 0) ? contentEnd : eop;
+		int ce = Math.min(Math.max(declaredLen, 0), contentEnd);
 		if((eop >= 0)&&(eop + 1 > ce))
 			ce = eop + 1;
 		starts.add(Integer.valueOf(eopPos));

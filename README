@@ -256,6 +256,45 @@ USAGE:
     - Move page to branch position (VLIR files only)
 
 -----------------------------------------------------------------------------
+GeoAsmConv (java)
+-----------------
+Converts GEOS GeoProgrammer assembly source stored inside GeoWrite v2.0/v2.1
+.CVT documents (such as the geoModules/geoCBMTerm sources) to cc65/ca65 .s
+syntax.  It rewrites GEOS directives (.psect/.ramsect/.zsect/.eqin/.noglbl/
+Pass1 guards, .macro arg lists) to ca65 equivalents, normalizes equates, and
+adds notes instead of silent re-definitions.  Text decoding mirrors the real
+GeoWrite reader (the geoProjects MODgeoRx GEORCCHT tables): control and
+"do not use" codes are dropped and only genuinely rendered bytes become text.
+
+Document artifacts are reported as warnings rather than silently fixed:
+bare fragment symbols, empty equates, duplicated equate lines (page-overlap),
+and unbalanced .macro/.endmacro blocks (duplicated page content).
+
+To convert a single document:
+java -jar bin/GeoAsmConv.jar [source.cvt] [output.s] [--srcdir dir]...
+
+To build a complete GEOS application, use link mode.  It reads a linker
+manifest (.lnk.cvt), resolves and converts every module and resource it names
+(searching the manifest directory, any --srcdir, and the project obj/
+directory), and writes a complete build tree: per-record .s modules, an
+inc/<name>.inc shim generated from whatever definitions doc the sources
+.include (named after that doc, not hardcoded), a linker config, the GEOS
+header (assembled via grc65), and a Makefile that drives ca65 and ld65.
+
+java -jar bin/GeoAsmConv.jar --lnk [manifest.lnk.cvt] [--srcdir dir]...
+    [--outdir dir] [--overlaysize bytes] [--cfg file]
+make -C [outdir]
+
+--srcdir names a directory searched for the .include'd source docs and module
+sources; it is repeatable, and the GEOS_SRCDIR environment variable supplies
+defaults as a path-separator-delimited list.  --outdir defaults to "build"
+beside the manifest; --overlaysize (decimal or 0x-hex) overrides the manifest
+overlay segment size; --cfg selects the cc65 linker config (otherwise
+CC65_CFG, then geos-cbm.cfg under CC65_HOME or the cc65 target path).  The
+result is reproducible with only GeoAsmConv and cc65 (ca65/ld65/grc65): the
+included definitions doc needs no hand-porting.
+
+-----------------------------------------------------------------------------
 Emutil.prg (Commodore BASIC/ML)
 -------------------------------
 A disk image archiver for Commodore 64, 128, VIC-20, Plus/4, CBM-II, and CBM/PET
