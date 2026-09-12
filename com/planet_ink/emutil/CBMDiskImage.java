@@ -289,7 +289,7 @@ public class CBMDiskImage extends D64Base
 					new BAMInfo(38,6,6,255,0,5,new BAMInfo(38,9,6,255,0,5,null)))),
 					new TrackSecs(39,0,null),29,154,10,
 					new int[] {40,29,54,27,65,25,78,23,117,29,131,27,142,25,155,23,256,23}),
-		DNP(".DNP", new BAMInfo(1,2,31,255,0,32,null),new TrackSecs(1,0,null),35,-1,1,
+		DNP(".DNP", new BAMInfo(1,2,32,255,-1,32,null),new TrackSecs(1,0,null),35,-1,1,
 					new int[] {256,256}),
 		T64(".T64", null, null, -1, -1, -1, new int[] {256, -1}),
 		LNX(".LNX", null, null, -1, -1, -1, new int[] {256, -1}),
@@ -324,7 +324,7 @@ public class CBMDiskImage extends D64Base
 				BAMInfo curr = bamHead;
 				for(int i=2;i<33;i++)
 				{
-					curr.next = new BAMInfo(1,i+1,0,255,0,32,null);
+					curr.next = new BAMInfo(1,i+1,0,255,-1,32,null);
 					curr = curr.next;
 				}
 			}
