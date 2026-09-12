@@ -413,9 +413,9 @@ public class GeoRWriter
 				i++; // GEOS "0=do not use"/word-term codes (>=0x80, $A0, $C1-$DA PETSCII): rendered by real GeoWrite readers as nothing
 		}
 		final int eopPos = (eop < 0) ? contentEnd : eop;
-		int ce = Math.min(Math.max(declaredLen, 0), contentEnd);
-		if((eop >= 0)&&(eop + 1 > ce))
-			ce = eop + 1;
+		// The page's real content ends at its EOP; anything past it is block
+		// padding or stale bytes and must not be treated as page content.
+		final int ce = (eop >= 0) ? (eop + 1) : contentEnd;
 		starts.add(Integer.valueOf(eopPos));
 		final int[] lineStarts = new int[starts.size()];
 		for(int x = 0; x < starts.size(); x++)
@@ -1126,6 +1126,32 @@ public class GeoRWriter
 	}
 
 	/**
+	 * RENAME: set the document's internal GEOS filename (the block-0
+	 * directory entry) and rewrite the source .CVT file, repairing the VLIR
+	 * sector exactly as any edit does.
+	 *
+	 * @param name the new internal GEOS name (truncated to 16 characters)
+	 * @throws IOException on read/write errors, or if this was read from a stream
+	 */
+	public void rename(final String name) throws IOException
+	{
+		if(sourceFile == null)
+			throw new IOException("No source file to rename");
+		geoMod.setHeaderName(name);
+		writePages(new ArrayList<GWPage>(rawPages));
+	}
+
+	/**
+	 * The document's internal GEOS filename (block-0 directory entry).
+	 *
+	 * @return the internal GEOS name
+	 */
+	public String getName()
+	{
+		return (geoMod == null) ? "" : geoMod.getHeaderName();
+	}
+
+	/**
 	 * Flow surplus lines forward page by page, splitting any page that was
 	 * small enough to fit but now holds more than {@value #MAX_LINES_PER_PAGE}
 	 * lines onto the following page, and creating a new page when the last
@@ -1371,24 +1397,26 @@ public class GeoRWriter
 		if(sourceFile == null)
 			throw new IOException("No source file to rewrite");
 		
-		// Convert RawPage list to GeoMod.RawRecord for shared VLIR management
+		// Convert the page list to GeoMod.RawRecord for shared VLIR management.
+		// Each record carries only its real content (through the page's EOP), so
+		// the VLIR index records the true length rather than a block-padded one;
+		// GeoMod pads the stored blocks and computes the index bytes.
 		final List<GeoMod.RawRecord> records = new ArrayList<>(pages.size());
 		for(int i = 0; i < pages.size(); i++)
 		{
 			final GWPage p = pages.get(i);
-			final int contentEnd = p.contentEnd;
-			final int numBlocks = Math.max(1, (contentEnd + BLOCK_SIZE - 1) / BLOCK_SIZE);
-			final byte[] stored = (i == pages.size() - 1)&&(tailOffset >= rawFile.length)
-				? Arrays.copyOf(p.raw, contentEnd) // last page: trailing tail absent -> keep only content
-				: Arrays.copyOf(p.raw, numBlocks * BLOCK_SIZE);
-			records.add(GeoMod.RawRecord.fromRawLength(i, stored));
+			final int contentEnd = Math.max(0, Math.min(p.contentEnd, p.raw.length));
+			records.add(GeoMod.RawRecord.fromRawLength(i, Arrays.copyOf(p.raw, contentEnd)));
 		}
 		
 		// Delegate VLIR repair + file reconstruction to shared GeoMod method
 		geoMod.writePages(records);
 		
-		// Re-parse rawFile to update internal state
-		parse(rawFile);
+		// Re-read the file we just wrote to update internal state
+		try(final InputStream in = new FileInputStream(sourceFile))
+		{
+			parse(in);
+		}
 	}
 
 	private static void usage()
@@ -1418,6 +1446,8 @@ public class GeoRWriter
 		System.out.println("    - Find lines matching a regex, reporting page:line.");
 		System.out.println("  GeoRWriter COMPARE [file1.cvt] [file2.cvt]");
 		System.out.println("    - Diff two documents page by page (exit 0 if identical, 1 if not).");
+		System.out.println("  GeoRWriter RENAME [file.cvt] [name]");
+		System.out.println("    - Set the document's internal GEOS filename.");
 		System.out.println("");
 		System.out.println("  file.cvt  path to a GeoWrite .CVT document");
 		System.out.println("  page      1-based page number (optional for read)");
@@ -1836,6 +1866,25 @@ public class GeoRWriter
 				catch(final PatternSyntaxException e)
 				{
 					System.err.println("Error: invalid search pattern: "+e.getMessage());
+				}
+			}
+			else
+			if(args[0].equalsIgnoreCase("RENAME")||args[0].equalsIgnoreCase("SETNAME"))
+			{
+				if(args.length < 3)
+				{
+					usage();
+					return;
+				}
+				final GeoRWriter writer = new GeoRWriter(args[1], false);
+				try
+				{
+					writer.rename(args[2]);
+					System.out.println("Renamed "+args[1]+" to "+writer.getName()+".");
+				}
+				catch(final IOException e)
+				{
+					System.err.println("Error: " + e.getMessage());
 				}
 			}
 			else

@@ -360,6 +360,63 @@ public class GeoMod
 	}
 
 	/**
+	 * The GEOS filename stored in the block-0 directory entry.
+	 *
+	 * @return the internal GEOS name, without padding
+	 */
+	public String getHeaderName()
+	{
+		final StringBuilder sb = new StringBuilder();
+		if(headerBlock0 != null)
+		{
+			for(int i = 0; i < 16; i++)
+			{
+				final int c = headerBlock0[3 + i] & 0xFF;
+				if((c == 0xA0)||(c == 0))
+					break;
+				sb.append((char)c);
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Set the GEOS filename in the in-memory block-0 directory entry, padding
+	 * with $A0 and truncating at 16 characters.  Does not write the file.
+	 *
+	 * @param name the new internal GEOS name
+	 */
+	public void setHeaderName(final String name)
+	{
+		if((headerBlock0 == null)||(headerBlock0.length < 19))
+			return;
+		final byte[] nb = headerBlock0.clone();
+		for(int i = 0; i < 16; i++)
+			nb[3 + i] = (byte)0xA0;
+		final byte[] raw = name.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+		System.arraycopy(raw, 0, nb, 3, Math.min(16, raw.length));
+		headerBlock0 = nb;
+	}
+
+	/**
+	 * RENAME: set the GEOS filename in the directory entry and rewrite the
+	 * file, preserving every record and all other header bytes.
+	 *
+	 * @param name the new internal GEOS name
+	 * @throws IOException on write errors, or if there is no source file
+	 */
+	public void setName(final String name) throws IOException
+	{
+		if(sourceFile == null)
+			throw new IOException("Cannot rename: no source file");
+		setHeaderName(name);
+		if(isSequential)
+			writeSequencedFile(records.isEmpty() ? new byte[0] : records.get(0).raw);
+		else
+			writeVlirFile(records);
+	}
+
+	/**
 	 * Read a raw record by 1-based positional page. Page 0 / "h" returns the
 	 * GEOS header block (block 1). For sequential format, page >= 1 returns
 	 * the single implicit record.
@@ -668,6 +725,8 @@ public class GeoMod
 		System.out.println("    - Copy page to branch position (VLIR files only)");
 		System.out.println("  GeoMod MOVEPAGE [file.cvt] <srcpage> <dstpage>");
 		System.out.println("    - Move page to branch position (VLIR files only)");
+		System.out.println("  GeoMod RENAME [file.cvt] <newname>");
+		System.out.println("    - Set the GEOS filename in the directory entry");
 		System.out.println("");
 		System.out.println("  file.cvt   path to a GEOS .CVT document");
 		System.out.println("  page       1-based page number (0 = GEOS header, 'h' also = header)");
@@ -914,6 +973,18 @@ public class GeoMod
 				final GeoMod gm = GeoMod.fromFile(args[1]);
 				gm.movePage(src, dst);
 				System.out.println("Moved page " + src + " to page " + dst + ".");
+			}
+			else
+			if("RENAME".equalsIgnoreCase(args[0])||"SETNAME".equalsIgnoreCase(args[0]))
+			{
+				if(args.length < 3)
+				{
+					usage();
+					return;
+				}
+				final GeoMod gm = GeoMod.fromFile(args[1]);
+				gm.setName(args[2]);
+				System.out.println("Renamed " + args[1] + " to " + gm.getHeaderName() + ".");
 			}
 			else
 			{

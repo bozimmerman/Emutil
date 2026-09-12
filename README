@@ -219,6 +219,8 @@ USAGE:
     - Find lines matching a regex, reporting page:line.
   GeoRWriter COMPARE [file1.cvt] [file2.cvt]
      - Diff two documents page by page (exit 0 if identical, 1 if not).
+  GeoRWriter RENAME [file.cvt] [name]
+     - Set the document's internal GEOS filename.
 
 -----------------------------------------------------------------------------
 GeoMod (java)
@@ -254,6 +256,8 @@ USAGE:
     - Copy page to branch position (VLIR files only)
   GeoMod MOVEPAGE [file.cvt] <srcpage> <dstpage>
     - Move page to branch position (VLIR files only)
+  GeoMod RENAME [file.cvt] <newname>
+    - Set the GEOS filename in the directory entry
 
 -----------------------------------------------------------------------------
 GeoAsmConv (java)
