@@ -1473,6 +1473,7 @@ public class GeoRWriter
 			{
 				final boolean showLineNumbers = args[0].equalsIgnoreCase("LIST");
 				final GeoRWriter reader = new GeoRWriter(args[1],showLineNumbers);
+				System.out.println("=== " + args[1] + " (" + reader.getName() + ") ===");
 				if(args.length == 3)
 				{
 					final int pageNum;
@@ -1914,6 +1915,8 @@ public class GeoRWriter
 						if(d.status == PageDiff.ONLY_IN_FILE2)
 							only2++;
 					}
+					System.out.println("File1: "+args[1]+" ("+cmp1.getName()+")");
+					System.out.println("File2: "+args[2]+" ("+cmp2.getName()+")");
 					System.out.println("Pages: "+cmp1.getNumPages()+" vs "+cmp2.getNumPages()
 							+" ("+differing+" differing, "+only1+" only in file1, "+only2+" only in file2)");
 					for(final PageDiff d : diffs)

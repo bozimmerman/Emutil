@@ -333,9 +333,9 @@ public class GeoMod
 	{
 		final List<PageInfo> info = new ArrayList<>();
 		if(headerBlock0 != null)
-			info.add(new PageInfo(-1, "BLOCK0 (signature)", 254L, false, "HEADER"));
+			info.add(new PageInfo(-1, "BLOCK0 (GEOS file header)", 254L, false, "HEADER"));
 		if(headerBlock1 != null)
-			info.add(new PageInfo(0, "BLOCK1 (GEOS header)", 254L, false, "HEADER"));
+			info.add(new PageInfo(0, "BLOCK1 (GEOS info sector)", 254L, false, "HEADER"));
 		if((!isSequential)&&(headerBlock0 != null))
 		{
 			// Block 2 is the VLIR sector
@@ -836,6 +836,7 @@ public class GeoMod
 			if("LISTPAGES".equalsIgnoreCase(args[0])) 
 			{
 				final GeoMod gm = GeoMod.fromFile(args[1]);
+				System.out.println("=== " + args[1] + " (" + gm.getHeaderName() + ") ===");
 				for(final PageInfo pi : gm.listPages())
 					System.out.printf("  %-30s size=%-8d type=%s %n", pi.name, pi.size, pi.type);
 			} 
