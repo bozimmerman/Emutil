@@ -2214,19 +2214,60 @@ public class GeoAsmConv
 	private static RelObject parseRelObject(final File f) throws IOException
 	{
 		final byte[] raw = readBytes(f);
-		// 2 blocks of GEOS file header (254 each) + at least one trailer block
-		if((raw == null) || (raw.length < (508 + 254)))
+		// 2 blocks of GEOS file header (254 each), a VLIR sector, then records.
+		if((raw == null) || (raw.length < ((508 + 0xfe) + 4)))
 			return null;
-		final int t = raw.length - 254;   // last block: descriptor + symbol table
-		final int len = (raw[t] & 0xff) | ((raw[t + 1] & 0xff) << 8);
-		//final int base = (raw[t + 2] & 0xff) | ((raw[t + 3] & 0xff) << 8);
 		final int dataStart = 508 + 0xfe;
+		// The trailer (a 4-byte segment descriptor followed by 10-byte symbol
+		// entries) is the object's final record.  The host .cvt may keep the
+		// object's last block trimmed to its used length or pad it out to a
+		// full 254-byte block, so the trailer cannot be assumed to begin at
+		// fileSize-254.  Locate it from the object's own shape instead: the
+		// symbol table runs to the end of the file (followed only by zero
+		// block padding), and each exported name's first byte carries the $80
+		// symbol flag.
+		for(int t = raw.length - 4; t >= dataStart; t--)
+		{
+			final RelObject ro = tryRelObject(raw, dataStart, t, true);
+			if(ro != null)
+				return ro;
+		}
+		// Fall back to the historical fixed-offset probe for objects whose
+		// names omit the symbol flag.
+		if(raw.length >= (508 + 254))
+		{
+			final RelObject ro = tryRelObject(raw, dataStart, raw.length - 254, false);
+			if(ro != null)
+				return ro;
+		}
+		return null;
+	}
+
+	/**
+	 *  Attempt to read a pre-assembled object's trailer starting at the given
+	 *  offset, returning null if the bytes there do not form a valid trailer.
+	 *
+	 * @param raw the whole .rel.cvt document
+	 * @param dataStart the offset where the loaded segment begins
+	 * @param t the candidate trailer offset
+	 * @param requireFlag true if each symbol name's first byte must carry $80
+	 * @return the parsed object, or null
+	 */
+	private static RelObject tryRelObject(final byte[] raw, final int dataStart,
+		final int t, final boolean requireFlag)
+	{
+		if((t < dataStart) || ((t + 4) > raw.length))
+			return null;
+		final int len = (raw[t] & 0xff) | ((raw[t + 1] & 0xff) << 8);
 		if((len <= 0) || ((dataStart + len) > t))
 			return null;
 		final List<String> names = new ArrayList<String>();
 		final List<Integer> vals = new ArrayList<Integer>();
-		for(int p = t + 4; (p + 10) <= raw.length; p += 10)
+		int p = t + 4;
+		while((p + 10) <= raw.length)
 		{
+			if(requireFlag && ((raw[p] & 0x80) == 0))
+				break;
 			final StringBuilder nm = new StringBuilder();
 			int z = 0;
 			for(; z < 8; z++)
@@ -2240,12 +2281,18 @@ public class GeoAsmConv
 				break;
 			final String name = nm.toString();
 			if(!name.matches("[A-Za-z_][A-Za-z0-9_]*"))
-				break;
+				return null;
 			names.add(name);
 			vals.add(Integer.valueOf((raw[p + 8] & 0xff) | ((raw[p + 9] & 0xff) << 8)));
+			p += 10;
 		}
 		if(names.isEmpty())
 			return null;
+		for(int q = p; q < raw.length; q++)
+		{
+			if(raw[q] != 0)
+				return null;
+		}
 		final byte[] data = new byte[len];
 		System.arraycopy(raw, dataStart, data, 0, len);
 		final int[] sv = new int[vals.size()];
