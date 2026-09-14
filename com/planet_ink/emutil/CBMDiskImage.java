@@ -1152,6 +1152,9 @@ public class CBMDiskImage extends D64Base
 	{
 		final byte[][][] tsmap = this.getDiskBytes();
 		byte[] sector;
+		short possDTrack = 0;
+		short possDSector = 0;
+		boolean hasPossD = false;
 		if((type != ImageType.D80)
 		&&(type != ImageType.D82)
 		&&(t!=0)
@@ -1163,8 +1166,8 @@ public class CBMDiskImage extends D64Base
 			sector=tsmap[t][s];
 			t=unsigned(sector[0]);
 			s=unsigned(sector[1]);
-			final short possDTrack = unsigned(sector[160+11]);
-			final short possDSector = unsigned(sector[160+12]);
+			possDTrack = unsigned(sector[160+11]);
+			possDSector = unsigned(sector[160+12]);
 			if((possDTrack!=0)
 			&&(possDTrack<tsmap.length)
 			&&((possDTrack!=1)||(type==ImageType.DNP)) // exception for special d71 creations
@@ -1174,12 +1177,14 @@ public class CBMDiskImage extends D64Base
 			&&(possDSector<tsmap[possDTrack].length)
 			&&(!doneBefore.contains(tsmap[possDTrack][possDSector]))
 			&&(possDTrack<=maxT))
-			{
-				finishFillFileList(f,imgName,prefix+"*/",doneBefore,finalData,possDTrack,possDSector,maxT, parseFlags);
-				getFileContent("/",possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
-			}
+				hasPossD = true;
 		}
 		finishFillFileList(f,imgName,prefix,doneBefore,finalData,t,s,maxT, parseFlags);
+		if(hasPossD)
+		{
+			finishFillFileList(f,imgName,prefix+"*/",doneBefore,finalData,possDTrack,possDSector,maxT, parseFlags);
+			getFileContent("/",possDTrack,maxT,possDSector,(f!=null)?f.tracksNSecs:null); // fini
+		}
 	}
 
 	public interface BAMBack
@@ -1493,6 +1498,8 @@ public class CBMDiskImage extends D64Base
 			f.size=0;
 			f.feblocks=0;
 			finalData.add(f);
+			if(type == ImageType.DNP)
+				f.tracksNSecs.add(TrackSec.valueOf((short)t,(short)s));
 			parseFlags.set(PF_READINSIDE);
 			fillFileListFromHeader(imgName, "", doneBefore, finalData, t, s, maxT,f, parseFlags);
 		}
