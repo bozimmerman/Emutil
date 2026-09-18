@@ -8,6 +8,7 @@ import com.planet_ink.emutil.CBMDiskImage.FileInfo;
 import com.planet_ink.emutil.CBMDiskImage.FileType;
 import com.planet_ink.emutil.CBMDiskImage.ImageType;
 import com.planet_ink.emutil.CBMDiskImage.TrackSec;
+import com.planet_ink.emutil.archives.FileExtractor;
 import com.planet_ink.emutil.archives.Lynx;
 
 /*
@@ -55,11 +56,11 @@ public class D64Mod extends D64Base
 		System.out.println("D64Mod v"+EMUTIL_VERSION+" (c)2017-"+EMUTIL_AUTHOR);
 		System.out.println("");
 		System.out.println("USAGE: ");
-		System.out.println("  D64Mod (-r -q) <image file> <action> <action arguments>");
+		System.out.println("  D64Mod (-r -q -x) <image file> <action> <action arguments>");
 		System.out.println("ACTIONS:");
 		System.out.println("  SCRATCH <file>");
 		System.out.println("  EXTRACT (-p) <file> <target path>");
-		System.out.println("  INSERT <source path> <file>");
+		System.out.println("  INSERT (-x) <source path> <file/target>");
 		System.out.println("  CHECK");
 		System.out.println("  FIX");
 		System.out.println("  BAM CHECK");
@@ -69,12 +70,24 @@ public class D64Mod extends D64Base
 		System.out.println("  LIST/DIR ALL");
 		System.out.println("  LYNX <file> <target file>");
 		System.out.println("");
+		System.out.println("  -x extracts files from a gz/zip/lnx/cvt to target dir");
+		System.out.println("");
+	}
+	
+	private static String limitCBMFilename(String name)
+	{
+		if(name.length()>16)
+			name = name.trim();
+		if(name.length()>16)
+			name = name.substring(0,16).trim();
+		return name;
 	}
 
 	public static void main(final String[] args)
 	{
 		final BitSet parseFlags = new BitSet();
 		final Set<D64FormatFlag> fmtFlags = new HashSet<D64FormatFlag>();
+		boolean extractArchive = false;
 		final List<String> largs=new ArrayList<String>(args.length);
 		largs.addAll(Arrays.asList(args));
 		for(int i=0;i<largs.size();i++)
@@ -95,6 +108,13 @@ public class D64Mod extends D64Base
 				largs.remove(i);
 				i--;
 			}
+			else
+			if(Character.toLowerCase(s.charAt(1))=='x')
+			{
+				extractArchive = true;
+				largs.remove(i);
+				i--;
+			}
 		}
 		if(largs.size()>3)
 		{
@@ -106,6 +126,13 @@ public class D64Mod extends D64Base
 				if(Character.toLowerCase(s.charAt(1))=='p')
 				{
 					fmtFlags.add(D64FormatFlag.PRGSEQ);
+					largs.remove(i);
+					i--;
+				}
+				else
+				if(Character.toLowerCase(s.charAt(1))=='x')
+				{
+					extractArchive = true;
 					largs.remove(i);
 					i--;
 				}
@@ -637,6 +664,87 @@ public class D64Mod extends D64Base
 			}
 			case INSERT:
 			{
+				if(extractArchive)
+				{
+					File localFileF = new File(localFileStr);
+					if(!localFileF.exists())
+					{
+						final int ex=localFileStr.lastIndexOf('.');
+						if(ex>0)
+							localFileF = new File(localFileStr.substring(0,ex));
+					}
+					if(!localFileF.exists())
+					{
+						imageError("File not found: "+localFileStr,imageFiles.size()>0);
+						continue;
+					}
+					FileInfo targetDir = disk.findFile(imageFileStr,false,parseFlags);
+					if(targetDir == null)
+						targetDir = disk.findFile(imageFileStr,true,parseFlags);
+					if((targetDir == null)
+					||((targetDir.fileType != FileType.DIR)&&(targetDir.fileType != FileType.CBM)))
+					{
+						imageError("No such directory in image: "+imageFileStr,imageFiles.size()>0);
+						continue;
+					}
+					final List<FileInfo> extractedFiles;
+					try
+					{
+						extractedFiles = FileExtractor.extract(localFileF);
+					}
+					catch(final Exception e)
+					{
+						imageError(e.getMessage(),imageFiles.size()>0);
+						continue;
+					}
+					for(final FileInfo xf : extractedFiles)
+					{
+						String targetFileName = limitCBMFilename(xf.fileName);
+						if(targetFileName.length()==0)
+							targetFileName = limitCBMFilename(localFileF.getName());
+						for(final FileInfo oldF : files)
+						{
+							if((oldF.parentF != null)
+							&&(oldF.parentF.filePath.equalsIgnoreCase(targetDir.filePath))
+							&&(oldF.fileName.equalsIgnoreCase(targetFileName)))
+							{
+								try
+								{
+									System.out.println("Removing old "+oldF.filePath);
+									disk.scratchFile(oldF);
+								}
+								catch(final IOException e)
+								{
+									imageError(e.getMessage(),imageFiles.size()>0);
+								}
+								break;
+							}
+						}
+						try
+						{
+							if((xf.data != null)&&(GeoMod.isCvt(xf.data)))
+							{
+								if(disk.insertGEOSFile(targetDir, xf.data))
+								{
+									System.out.println("Inserted GEOS file "+targetFileName);
+									rewriteD64[0]=true;
+								}
+							}
+							else
+							if(disk.insertFile(targetDir, targetFileName, xf.data,
+									(xf.fileType != null) ? xf.fileType : FileType.PRG))
+							{
+								System.out.println("Inserted "+targetFileName);
+								rewriteD64[0]=true;
+							}
+						}
+						catch(final IOException e)
+						{
+							imageError(e.getMessage(),imageFiles.size()>0);
+						}
+					}
+					break;
+				}
 				int x=localFileStr.lastIndexOf('.');
 				File localFileF;
 				FileType cbmtype = FileType.PRG;
@@ -720,21 +828,13 @@ public class D64Mod extends D64Base
 						&&((f.fileType==FileType.DIR)||(f.fileType==FileType.CBM)))
 						{
 							targetDir=f;
-							targetFileName=imageFileStr.substring(x+1);
-							if(targetFileName.length()>16)
-								targetFileName=targetFileName.trim();
-							if(targetFileName.length()>16)
-								targetFileName=targetFileName.substring(0,16).trim();
+							targetFileName=limitCBMFilename(imageFileStr.substring(x+1));
 							break;
 						}
 						else
 						if(f!=null)
 						{
-							targetFileName=imageFileStr;
-							if(targetFileName.length()>16)
-								targetFileName=targetFileName.trim();
-							if(targetFileName.length()>16)
-								targetFileName=targetFileName.substring(0,16).trim();
+							targetFileName=limitCBMFilename(imageFileStr);
 							break;
 						}
 						if(x<1)
@@ -742,21 +842,9 @@ public class D64Mod extends D64Base
 						x=imageFileStr.lastIndexOf('/',x-1);
 					}
 					if(targetFileName == null)
-					{
-						targetFileName=imageFileStr;
-						if(targetFileName.length()>16)
-							targetFileName=targetFileName.trim();
-						if(targetFileName.length()>16)
-							targetFileName = targetFileName.substring(0,16).trim();
-					}
+						targetFileName=limitCBMFilename(imageFileStr);
 					if(targetFileName.length()==0)
-					{
-						targetFileName = localFileF.getName();
-						if(targetFileName.length()>16)
-							targetFileName=targetFileName.trim();
-						if(targetFileName.length()>16)
-							targetFileName = targetFileName.substring(0,16).trim();
-					}
+						targetFileName = limitCBMFilename(localFileF.getName());
 				}
 				try
 				{

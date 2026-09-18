@@ -167,6 +167,16 @@ public class GeoMod
 		}
 	}
 
+	/**
+	 * Parse a GEOS .CVT document from raw bytes.  The result has no source
+	 * file, so it is only useful for read-only access; write-back operations
+	 * will fail.
+	 */
+	public static GeoMod fromData(final byte[] data) throws IOException
+	{
+		return new GeoMod(null, data);
+	}
+
 	private static byte[] readAll(final InputStream in) throws IOException
 	{
 		final ByteArrayOutputStream bout = new ByteArrayOutputStream();

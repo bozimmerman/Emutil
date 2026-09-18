@@ -38,7 +38,7 @@ public class D64Base
 	final static String spaces="                                                        "
 							 + "                                                        ";
 
-	final static int MAGIC_MAX = 16 * 1024 * 1024;
+	public final static int MAGIC_MAX = 16 * 1024 * 1024;
 
 	public final static int	PF_READINSIDE	= 1;
 	public final static int	PF_NOERRORS		= 2;

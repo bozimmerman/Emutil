@@ -119,7 +119,7 @@ USAGE:
 ACTIONS:
   SCRATCH [file]/ALL
   EXTRACT (-p) [file]/ALL [target path]
-  INSERT [source path] [file]
+  INSERT (-x) [source path] [file]
   BAM CHECK
   BAM ALLOC (Checks for sectors that need bam alloc)
   BAM FREE (Checks for sectors that need bam free)
@@ -129,6 +129,11 @@ OPTIONS:
   -r Recurse into subdirectories
   -q suppress parsing errors
   -p extract files with .prg/.seq extensions
+  -x on INSERT, expand a gz, zip, lnx, or cvt archive and insert
+     the files inside it.  The [file] argument is then the target
+     directory in the image, and is required.  GEOS cvt files are
+     installed as real GEOS files; archive files inside archives
+     are expanded too.
 
 -----------------------------------------------------------------------------
 CMDHDParser

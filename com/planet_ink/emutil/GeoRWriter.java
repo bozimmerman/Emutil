@@ -43,9 +43,7 @@ public class GeoRWriter
 	private final String 		fileName;
 	private final boolean 		prependLineNumbers;
 	private final File 			sourceFile;
-	private byte[] 				rawFile 	= new byte[0];
 	private byte[] 				vlirSector 	= new byte[0];
-	private int 				tailOffset 	= DATA_OFFSET;
 
 	/**
 	 * An embedded clip-art gate found in a page's raw bytes: the graphics
@@ -453,7 +451,6 @@ public class GeoRWriter
 			throw new IOException("Not a GeoWrite document (GEOS "+fileName+" is not a GeoWrite file)");
 		if(!isVlirStructure(data, true))
 			throw new IOException("Sequential GEOS file "+fileName+": not a GeoWrite document");
-		this.rawFile = data;
 		this.vlirSector = Arrays.copyOfRange(data, VLIR_SECTOR_OFF, VLIR_SECTOR_OFF + BLOCK_SIZE);
 		if(this.geoMod == null)
 			this.geoMod = new GeoMod(null, data);
@@ -481,7 +478,6 @@ public class GeoRWriter
 					: (((numBlocks - 1) * BLOCK_SIZE) + extra - 1);
 			rawPages.add(parsePage(branch, branchData, declaredLen));
 		}
-		this.tailOffset = offset;
 	}
 
 	/**

@@ -2443,6 +2443,173 @@ public class CBMDiskImage extends D64Base
 		return true;
 	}
 
+	/**
+	 * Insert a GEOS convert (.CVT) file into the image as a real GEOS file:
+	 * a USR directory entry pointing at a GEOS information sector, with the
+	 * file data arranged as a VLIR record set or a sequential chain.  This is
+	 * the inverse of the CVT reconstruction done when reading GEOS files, and
+	 * the counterpart of inserting a plain file.
+	 *
+	 * @param targetDir the directory FileInfo to insert into
+	 * @param cvtData the raw .CVT bytes (block 0 header + block 1 info + data)
+	 * @return true if the file was inserted and the image rewritten
+	 * @throws IOException on bad CVT data, unsupported image types, or no room
+	 */
+	public boolean insertGEOSFile(final FileInfo targetDir, final byte[] cvtData) throws IOException
+	{
+		final byte[][][] diskBytes = getDiskBytes(); // force load for cpm
+		if(cpmOs != CPMType.NOT)
+			throw new IOException("GEOS files cannot be inserted into CP/M images: "+F.getAbsolutePath());
+		if((getType() == ImageType.LNX)
+		||(getType() == ImageType.LBR)
+		||(getType() == ImageType.ARC)
+		||(getType() == ImageType.SDA)
+		||(getType() == ImageType.T64))
+			throw new IOException("GEOS files cannot be inserted into "+getType().name()+" images: "+F.getAbsolutePath());
+		final GeoMod gm;
+		try
+		{
+			gm = GeoMod.fromData(cvtData);
+		}
+		catch(final IOException e)
+		{
+			throw new IOException("Not a valid GEOS .CVT file: "+e.getMessage());
+		}
+		final List<GeoMod.RawRecord> recs = gm.getRecords();
+		final boolean isVlir = !gm.isSequentialFormat();
+		int dataBlocks = 0;
+		if(isVlir)
+		{
+			for(final GeoMod.RawRecord rec : recs)
+				dataBlocks += rec.numBlocks;
+		}
+		else
+		if(recs.size()>0)
+			dataBlocks = (int)Math.round(Math.ceil(recs.get(0).raw.length / 254.0));
+
+		final int sectorsNeeded = 1 + (isVlir ? 1 : 0) + dataBlocks;
+		final short[] dirSlot = findDirectorySlot(targetDir);
+		if(dirSlot == null)
+			throw new IOException("No directory space for "+F.getAbsolutePath());
+		final List<short[]> sectorsToUse = getFreeSectors(sectorsNeeded,dirSlot);
+		if((sectorsToUse==null)||(sectorsToUse.size()<sectorsNeeded))
+			throw new IOException("Not enough space on disk for "+F.getAbsolutePath());
+
+		int secDex = 0;
+		final short[] infoSec = sectorsToUse.get(secDex++);
+		{
+			final byte[] blk = diskBytes[infoSec[0]][infoSec[1]];
+			Arrays.fill(blk, (byte)0);
+			blk[1] = (byte)0xff;
+			for(int i=0;i<GeoMod.BLOCK_SIZE;i++)
+				blk[2+i] = gm.headerBlock1[i];
+		}
+
+		final short[] vlirSec = isVlir ? sectorsToUse.get(secDex++) : null;
+		final Map<Integer,short[]> recFirsts = new HashMap<Integer,short[]>();
+		short[] firstDataSec = null;
+		if(isVlir)
+		{
+			for(final GeoMod.RawRecord rec : recs)
+			{
+				for(int b=0;b<rec.numBlocks;b++)
+				{
+					final short[] sec = sectorsToUse.get(secDex++);
+					final byte[] blk = diskBytes[sec[0]][sec[1]];
+					Arrays.fill(blk, (byte)0);
+					final int bufOff = b * GeoMod.BLOCK_SIZE;
+					for(int i=0;(i<GeoMod.BLOCK_SIZE)&&((bufOff+i)<rec.raw.length);i++)
+						blk[2+i] = rec.raw[bufOff+i];
+					if(b < (rec.numBlocks-1))
+					{
+						final short[] next = sectorsToUse.get(secDex);
+						blk[0] = (byte)(next[0] & 0xff);
+						blk[1] = (byte)(next[1] & 0xff);
+					}
+					else
+						blk[1] = (byte)((rec.extra <= 1) ? 0xff : (rec.extra & 0xff));
+					if(recFirsts.get(Integer.valueOf(rec.index)) == null)
+						recFirsts.put(Integer.valueOf(rec.index), sec);
+					if(firstDataSec == null)
+						firstDataSec = sec;
+				}
+			}
+			final byte[] blk = diskBytes[vlirSec[0]][vlirSec[1]];
+			Arrays.fill(blk, (byte)0);
+			blk[1] = (byte)0xff;
+			for(final GeoMod.RawRecord rec : recs)
+			{
+				final short[] first = recFirsts.get(Integer.valueOf(rec.index));
+				final int off = 2 + (rec.index * 2);
+				if((first != null)&&(off >= 0)&&(off < 255))
+				{
+					blk[off] = (byte)(first[0] & 0xff);
+					blk[off+1] = (byte)(first[1] & 0xff);
+				}
+			}
+		}
+		else
+		{
+			final byte[] fileData = (recs.size()>0) ? recs.get(0).raw : new byte[0];
+			int bufDex = 0;
+			while(bufDex < fileData.length)
+			{
+				final short[] sec = sectorsToUse.get(secDex++);
+				final byte[] blk = diskBytes[sec[0]][sec[1]];
+				Arrays.fill(blk, (byte)0);
+				int bytesToWrite = GeoMod.BLOCK_SIZE;
+				if((fileData.length - bufDex) < GeoMod.BLOCK_SIZE)
+					bytesToWrite = fileData.length - bufDex;
+				for(int i=0;i<bytesToWrite;i++)
+					blk[2+i] = fileData[bufDex+i];
+				if(secDex < sectorsToUse.size())
+				{
+					final short[] next = sectorsToUse.get(secDex);
+					blk[0] = (byte)(next[0] & 0xff);
+					blk[1] = (byte)(next[1] & 0xff);
+				}
+				else
+					blk[1] = (byte)(1+bytesToWrite);
+				if(firstDataSec == null)
+					firstDataSec = sec;
+				bufDex += bytesToWrite;
+			}
+		}
+
+		final byte[] dirSec=diskBytes[dirSlot[0]][dirSlot[1]];
+		final short dirByte=dirSlot[2];
+		int typeByte = gm.headerBlock0[0] & 0x0f;
+		if((typeByte < 0)||(typeByte > 6))
+			typeByte = 3;
+		dirSec[dirByte]=tobyte(typeByte+128);
+		final short[] startSec = isVlir ? vlirSec : firstDataSec;
+		if(startSec != null)
+		{
+			dirSec[dirByte+1]=tobyte(startSec[0]);
+			dirSec[dirByte+2]=tobyte(startSec[1]);
+		}
+		else
+		{
+			dirSec[dirByte+1]=0;
+			dirSec[dirByte+2]=0;
+		}
+		for(int i=0;i<16;i++)
+			dirSec[dirByte+3+i]=gm.headerBlock0[3+i];
+		dirSec[dirByte+19]=tobyte(infoSec[0]);
+		dirSec[dirByte+20]=tobyte(infoSec[1]);
+		dirSec[dirByte+21]= isVlir ? tobyte(1) : tobyte(0);
+		for(int i=22;i<=27;i++)
+			dirSec[dirByte+i]=gm.headerBlock0[i];
+		final int szHB = (int)Math.round(Math.floor(sectorsToUse.size() / 256.0));
+		final int szLB = sectorsToUse.size() - (szHB * 256);
+		dirSec[dirByte+28]=tobyte(szLB);
+		dirSec[dirByte+29]=tobyte(szHB);
+		dirSec[dirByte+30]=0;
+		dirSec[dirByte+31]=0;
+		allocateSectors(sectorsToUse);
+		return true;
+	}
+
 	public FileInfo findFile(final String fileStr, final boolean caseInsensitive)
 	{
 		final BitSet flags = new BitSet(PF_NOERRORS);
